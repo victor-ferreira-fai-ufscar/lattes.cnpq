@@ -100,6 +100,7 @@ def gerar_resumo_gemini(texto: str) -> str:
     return response.text
 
 async def main():
+    # Nome a ser buscado
     query = "Neocles"
     try:
         cv_text = await scrape_lattes(query)
