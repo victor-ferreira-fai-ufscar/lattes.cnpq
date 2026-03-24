@@ -1,0 +1,12 @@
+[project]
+name = "lattes-scraper"
+version = "0.1.0"
+dependencies = [
+    "playwright>=1.49.0",
+    "google-genai>=0.3.0",
+]
+requires-python = ">=3.10"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
