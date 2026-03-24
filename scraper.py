@@ -10,7 +10,9 @@ load_dotenv()
 async def scrape_lattes(query_name: str) -> str:
     print(f"[*] Iniciando Playwright para buscar por '{query_name}'...")
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        # Puxamos do .env, caso não exista, assume "false" para abrir a janela (não-headless) localmente
+        is_headless = os.environ.get("HEADLESS", "false").lower() == "true"
+        browser = await p.chromium.launch(headless=is_headless)
         context = await browser.new_context()
         page = await context.new_page()
 
