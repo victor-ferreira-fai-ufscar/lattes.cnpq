@@ -2,6 +2,10 @@ import os
 import asyncio
 from playwright.async_api import async_playwright
 from google import genai
+from dotenv import load_dotenv
+
+# Carrega chaves da raiz do projeto (.env) se estiver rodando localmente
+load_dotenv()
 
 async def scrape_lattes(query_name: str) -> str:
     print(f"[*] Iniciando Playwright para buscar por '{query_name}'...")
