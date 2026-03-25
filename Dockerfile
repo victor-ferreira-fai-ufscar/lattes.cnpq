@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=ghcr.io/astral-sh/uv:0.5.2 /uv /uvx /bin/
 
 # Instala dependencias do python com uv e do playwright (navegador chromium)
-RUN uv pip install --system playwright google-genai
+RUN uv pip install --system playwright google-genai python-dotenv rich
 RUN playwright install --with-deps chromium
 
 # Copia o código do bot
