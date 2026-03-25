@@ -2,13 +2,16 @@ import os
 import asyncio
 from playwright.async_api import async_playwright
 from google import genai
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+    # Carrega chaves da raiz do projeto (.env) se estiver rodando localmente
+    load_dotenv()
+except ImportError:
+    pass  # No Docker, as variáveis já são injetadas pelo ambiente
+
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
-
-# Carrega chaves da raiz do projeto (.env) se estiver rodando localmente
-load_dotenv()
 console = Console()
 
 async def scrape_lattes(query_name: str) -> str:
