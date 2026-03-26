@@ -38,7 +38,7 @@ uv run uvicorn src.api.main:app --reload
 
 ### POST /scrape
 
-Extrai dados do currículo Lattes e retorna JSON:
+Scraping automático do currículo Lattes e download do PDF:
 
 ```bash
 curl -X POST http://localhost:8000/scrape \
@@ -50,20 +50,30 @@ curl -X POST http://localhost:8000/scrape \
 
 ```json
 {
-  "graduacao": "Engenharia de Controle e Automação - UFSCar",
-  "mestrado": "Engenharia Elétrica - UNICAMP",
-  "doutorado": "Engenharia de Controle e Automação - UFSCar",
-  "pos_doutorado": "",
-  "vinculo_institucional": "Universidade Federal de São Carlos",
-  "resumo": "...",
-  "arquivo_html": "neocles-20260326-123456.html",
-  "download_html_url": "/download/raw/neocles-20260326-123456.html"
+  "nome": "Neocles",
+  "arquivo_pdf": "neocles-20260326-123456.pdf",
+  "download_pdf_url": "/download/raw/neocles-20260326-123456.pdf"
 }
 ```
 
+O fluxo automático:
+
+1. Busca o nome no Lattes
+2. Clica no resultado
+3. Abre o currículo completo
+4. Gera PDF via `page.pdf()` do Playwright
+5. Salva em `backend/output/raw/{nome}-{timestamp}.pdf`
+
 ### GET /download/raw/{filename}
 
-Baixa o HTML bruto capturado durante o scraping.
+Baixa o PDF gerado:
+
+```bash
+curl http://localhost:8000/download/raw/neocles-20260326-123456.pdf -o curriculo.pdf
+```
+
+- **Content-Type**: `application/pdf` (para `.pdf`) ou `text/html` (para `.html`)
+- **Segurança**: Valida nome do arquivo (sem `../` ou caracteres perigosos)
 
 ### GET /health
 

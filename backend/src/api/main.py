@@ -18,12 +18,12 @@ def _slugify_nome(nome: str) -> str:
     return slug or "docente"
 
 
-def _salvar_html_bruto(nome: str, html_completo: str) -> str:
+def _salvar_pdf_curriculo(nome: str, pdf_bytes: bytes) -> str:
     OUTPUT_RAW_DIR.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    filename = f"{_slugify_nome(nome)}-{timestamp}.html"
+    filename = f"{_slugify_nome(nome)}-{timestamp}.pdf"
     destino = OUTPUT_RAW_DIR / filename
-    destino.write_text(html_completo, encoding="utf-8")
+    destino.write_bytes(pdf_bytes)
     return filename
 
 
@@ -50,22 +50,21 @@ async def scrape(request: ScrapeRequest):
         raise HTTPException(status_code=400, detail="Informe o nome do docente.")
 
     try:
-        resultado = await scrape_lattes(nome)
+        pdf_bytes = await scrape_lattes(nome)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    html_completo = resultado.pop("html_completo", "")
-    filename = _salvar_html_bruto(nome, html_completo)
+    filename = _salvar_pdf_curriculo(nome, pdf_bytes)
 
     return {
-        **resultado,
-        "arquivo_html": filename,
-        "download_html_url": f"/download/raw/{filename}",
+        "nome": nome,
+        "arquivo_pdf": filename,
+        "download_pdf_url": f"/download/raw/{filename}",
     }
 
 
 @app.get("/download/raw/{filename}")
-async def download_raw_html(filename: str):
+async def download_raw_pdf(filename: str):
     if "/" in filename or "\\" in filename:
         raise HTTPException(status_code=400, detail="Nome de arquivo inválido.")
 
@@ -73,9 +72,10 @@ async def download_raw_html(filename: str):
     if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=404, detail="Arquivo não encontrado.")
 
+    media_type = "application/pdf" if filename.endswith(".pdf") else "text/html"
     return FileResponse(
         path=file_path,
-        media_type="text/html",
+        media_type=media_type,
         filename=filename,
     )
 

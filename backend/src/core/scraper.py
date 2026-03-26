@@ -22,27 +22,6 @@ def _normalizar(texto: str) -> str:
     return " ".join(texto.lower().split())
 
 
-def _extract_first(texto: str, padroes: list[str]) -> str:
-    for padrao in padroes:
-        match = re.search(padrao, texto, flags=re.IGNORECASE)
-        if match:
-            return " ".join(match.group(0).split())
-    return ""
-
-
-def _extract_resumo(texto: str) -> str:
-    for marcador in ["Resumo", "Resumo informado pelo autor"]:
-        idx = texto.lower().find(marcador.lower())
-        if idx >= 0:
-            trecho = texto[idx : idx + 2500]
-            linhas = [linha.strip() for linha in trecho.splitlines() if linha.strip()]
-            if len(linhas) > 1:
-                return " ".join(linhas[1:5])[:1200]
-
-    linhas = [linha.strip() for linha in texto.splitlines() if linha.strip()]
-    return " ".join(linhas[:10])[:1200]
-
-
 def _parece_pagina_cv(url: str, texto: str) -> bool:
     texto_norm = _normalizar(texto)
     sinais_cv = [
@@ -182,30 +161,8 @@ async def _abrir_curriculo(page, nome: str):
     raise ValueError("Não foi possível abrir a página final do currículo Lattes.")
 
 
-def _extrair_dados(texto: str, url_final: str) -> dict:
-    return {
-        "graduacao": _extract_first(texto, [r"Gradua(?:ç|c)ão[^\n]{0,180}"]),
-        "mestrado": _extract_first(texto, [r"Mestrado[^\n]{0,180}"]),
-        "doutorado": _extract_first(texto, [r"Doutorado[^\n]{0,180}"]),
-        "pos_doutorado": _extract_first(
-            texto,
-            [r"P[oó]s-?doutorado[^\n]{0,180}", r"Pos-?doutorado[^\n]{0,180}"],
-        ),
-        "vinculo_institucional": _extract_first(
-            texto,
-            [
-                r"Universidade[^\n]{0,120}",
-                r"Instituto[^\n]{0,120}",
-                r"Faculdade[^\n]{0,120}",
-            ],
-        ),
-        "resumo": _extract_resumo(texto),
-        "url_cv": url_final,
-    }
-
-
-async def scrape_lattes(nome: str) -> dict:
-    """Faz scraping determinístico do Lattes usando Playwright."""
+async def scrape_lattes(nome: str) -> bytes:
+    """Faz download do PDF do currículo Lattes usando Playwright."""
     browser_name = os.environ.get("PLAYWRIGHT_BROWSER", "chromium").lower()
     headless = _is_true(os.environ.get("PLAYWRIGHT_HEADLESS", "true"))
 
@@ -221,14 +178,7 @@ async def scrape_lattes(nome: str) -> dict:
             page = await context.new_page()
             cv_page = await _abrir_curriculo(page, nome)
             await cv_page.wait_for_load_state("domcontentloaded")
-            titulo_pagina = await cv_page.title()
-            texto_visivel = await cv_page.locator("body").inner_text(timeout=10000)
-            html_completo = await cv_page.content()
-            url_final = cv_page.url
-            dados = _extrair_dados(texto_visivel, url_final)
-            dados["titulo_pagina"] = titulo_pagina
-            dados["texto_visivel_extraido"] = texto_visivel
-            dados["html_completo"] = html_completo
-            return dados
+            pdf_bytes = await cv_page.pdf(format="A4")
+            return pdf_bytes
         finally:
             await browser.close()
