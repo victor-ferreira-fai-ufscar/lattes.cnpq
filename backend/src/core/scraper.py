@@ -34,10 +34,12 @@ class ExtracaoCurriculoError(LattesScraperError):
     """Disparado quando o currículo abriu, mas não foi possível extrair contexto suficiente."""
 
 
-def _log(msg: str, callback: Optional[Callable[[str], None]] = None, style: str = "cyan"):
-    """Helper para logar no console e via callback (Streamlit)."""
-    # Só imprime no terminal se NÃO houver um callback (Streamlit) ativo
-    # Isso evita poluir o terminal para o usuário leigo
+def _log(
+    msg: str, callback: Optional[Callable[[str], None]] = None, style: str = "cyan"
+):
+    """Helper para logar no console local e via callback customizado (ex: FastAPI ou UI)."""
+    # Só imprime no terminal se não houver callback configurado.
+    # Isso evita poluir o terminal em execuções de backend automáticas.
     if not callback:
         rich_msg = f"[{style}]{msg}[/]"
         if "green" in style or "✓" in msg:
@@ -45,7 +47,7 @@ def _log(msg: str, callback: Optional[Callable[[str], None]] = None, style: str 
         elif "red" in style or "!" in msg:
             rich_msg = f"[bold red]{msg}[/]"
         console.print(rich_msg)
-    
+
     if callback:
         try:
             callback(msg)
@@ -77,7 +79,9 @@ async def _localizar_botao_abrir(page: Page) -> Optional[Locator]:
     return None
 
 
-async def _extrair_contexto_pagina(page: Page, log_callback: Optional[Callable[[str], None]] = None) -> str:
+async def _extrair_contexto_pagina(
+    page: Page, log_callback: Optional[Callable[[str], None]] = None
+) -> str:
     _log("[*] Capturando HTML completo e texto visível do currículo...", log_callback)
 
     html_completo = await page.content()
@@ -88,7 +92,11 @@ async def _extrair_contexto_pagina(page: Page, log_callback: Optional[Callable[[
         if await body.count() > 0:
             texto_visivel = await body.inner_text(timeout=10000)
     except Exception as exc:
-        _log(f"[!] Não consegui capturar o texto visível completo: {exc}", log_callback, "yellow")
+        _log(
+            f"[!] Não consegui capturar o texto visível completo: {exc}",
+            log_callback,
+            "yellow",
+        )
 
     contexto = (
         f"URL_FINAL: {page.url}\n"
@@ -125,9 +133,17 @@ async def scrape_lattes(
     if headless is None:
         headless = _headless_from_env()
 
-    _log(f"[*] Iniciando automação para buscar por '{query_name}'...", log_callback, "bold cyan")
     _log(
-        "[*] Navegador visível durante a automação." if not headless else "[*] Navegador em modo headless.",
+        f"[*] Iniciando automação para buscar por '{query_name}'...",
+        log_callback,
+        "bold cyan",
+    )
+    _log(
+        (
+            "[*] Navegador visível durante a automação."
+            if not headless
+            else "[*] Navegador em modo headless."
+        ),
         log_callback,
     )
 
@@ -169,12 +185,19 @@ async def scrape_lattes(
                     f"A busca por '{query_name}' não retornou resultados utilizáveis no Lattes."
                 )
 
-            _log(f"[✓] {total_resultados} resultado(s) encontrado(s).", log_callback, "bold green")
+            _log(
+                f"[✓] {total_resultados} resultado(s) encontrado(s).",
+                log_callback,
+                "bold green",
+            )
 
             resultado_exato = page.locator(".resultado a", has_text=query_name)
             if await resultado_exato.count() > 0:
                 primeiro_resultado = resultado_exato.first
-                _log("[*] Abrindo o resultado mais compatível com o nome informado...", log_callback)
+                _log(
+                    "[*] Abrindo o resultado mais compatível com o nome informado...",
+                    log_callback,
+                )
             else:
                 primeiro_resultado = resultados.first
                 _log(
@@ -201,7 +224,11 @@ async def scrape_lattes(
                     await botao_abrir.click()
                 page_cv = await nova_pagina.value
             except TimeoutError:
-                _log("[!] A nova aba demorou para abrir. Tentando fallback...", log_callback, "yellow")
+                _log(
+                    "[!] A nova aba demorou para abrir. Tentando fallback...",
+                    log_callback,
+                    "yellow",
+                )
                 await botao_abrir.click(force=True)
                 await page.wait_for_timeout(5000)
                 page_cv = context.pages[-1] if len(context.pages) > 1 else page
@@ -209,7 +236,11 @@ async def scrape_lattes(
             await page_cv.wait_for_load_state("domcontentloaded")
             await page_cv.wait_for_timeout(2000)
 
-            _log(f"[✓] Currículo acessado: {page_cv.url[:80]}...", log_callback, "bold green")
+            _log(
+                f"[✓] Currículo acessado: {page_cv.url[:80]}...",
+                log_callback,
+                "bold green",
+            )
             return await _extrair_contexto_pagina(page_cv, log_callback)
 
         finally:
@@ -249,7 +280,9 @@ def _gerar_resumo_gemini(
         response = client.models.generate_content(
             model=modelo,
             contents=prompt,
-            config=genai.types.GenerateContentConfig(response_mime_type="application/json"),
+            config=genai.types.GenerateContentConfig(
+                response_mime_type="application/json"
+            ),
         )
         if not response or not response.text:
             return {"erro": "O Gemini não retornou conteúdo para esta análise."}
@@ -314,6 +347,7 @@ def _get_prompt(texto: str) -> str:
 
 
 if __name__ == "__main__":
+
     async def test():
         contexto = await scrape_lattes("Neocles")
         print(contexto[:1000])
