@@ -3,9 +3,9 @@ chcp 65001 >nul
 title Lattes Automator AI - Launcher
 
 echo.
-echo  ============================================
-echo    🎓 Lattes Automator AI - Launcher
-echo  ============================================
+echo ============================================
+echo   Lattes Automator AI - Launcher
+echo ============================================
 echo.
 
 :: Verifica se uv existe
@@ -33,8 +33,8 @@ echo.
 echo [OK] Tudo pronto! Abrindo a interface no navegador...
 echo      Endereco: http://localhost:8501
 echo.
-echo  (Mantenha esta janela aberta enquanto usar a ferramenta)
-echo  (Para fechar, pressione Ctrl+C ou feche esta janela)
+echo (Mantenha esta janela aberta enquanto usar a ferramenta)
+echo (Para fechar, pressione Ctrl+C ou feche esta janela)
 echo.
 
 :: Inicia o Streamlit
