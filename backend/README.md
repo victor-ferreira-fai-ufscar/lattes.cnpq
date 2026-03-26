@@ -96,11 +96,11 @@ BACKEND_PORT=8000                  # Opcional
 
 ## Troubleshooting
 
-**Erro: browser do Playwright não encontrado**
+> **Erro: browser do Playwright não encontrado**
 
 - Execute `uv run playwright install chromium`
 
-**Erro: timeout durante scraping**
+> **Erro: timeout durante scraping**
 
 - Tente com `PLAYWRIGHT_HEADLESS=false` para depurar visualmente
 
