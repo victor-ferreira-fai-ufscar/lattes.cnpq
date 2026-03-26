@@ -5,6 +5,7 @@ Este documento descreve o fluxo de automação do scraper em `backend/src/core/s
 ## 1. Página inicial de busca
 
 A automação inicia em:
+
 - `https://lattes.cnpq.br/` (interface padrão) -> rolando -> botão "Buscar currículo" (opcional)
 - diretamente em `https://buscatextual.cnpq.br/buscatextual/busca.do?metodo=apresentar` (ponto raiz usado atualmente)
 
@@ -41,6 +42,7 @@ A automação inicia em:
 ## 6. Extração de conteúdo
 
 `_extrair_contexto_pagina()` realiza:
+
 - captura de `page.content()` (HTML completo)
 - captura de texto visível em `body.inner_text()` (timeout 10000ms)
 - validação de suficiência:
@@ -50,11 +52,13 @@ A automação inicia em:
 
 ## 7. Geração de resumo IA
 
-`gerar_resumo_ia()` faz roteamento 
+`gerar_resumo_ia()` faz roteamento
+
 - `google gemini` -> `_gerar_resumo_gemini()`
 - `openai` -> `_gerar_resumo_openai()`
 
 ### Prompt padrão (`_get_prompt()`)
+
 - extrai campos esperados:
   - `graduacao`, `mestrado`, `doutorado`, `pos_doutorado`, `vinculo_institucional`, `resumo`
 - controla tamanho máximo de entrada:clipping para 40k chars.
@@ -62,6 +66,7 @@ A automação inicia em:
 ## 8. Adaptação para FastAPI
 
 No `backend/src/api/routes.py`, o fluxo é:
+
 1. chama `scrape_lattes(nome, log_callback=...)`
 2. grava raw text em `output/raw`
 3. chama `gerar_resumo_ia(...)`
@@ -82,5 +87,5 @@ No `backend/src/api/routes.py`, o fluxo é:
 
 - [ ] Reintentar automaticamente se ocorrer timeout ao abrir resultados
 - [ ] Incluir cache local com hash do nome/timestamp
-- [ ] Capturar `cookies` e `captcha` indiretos (robo de IP) 
+- [ ] Capturar `cookies` e `captcha` indiretos (robo de IP)
 - [ ] Implementar testes automatizados na pasta `backend/tests`

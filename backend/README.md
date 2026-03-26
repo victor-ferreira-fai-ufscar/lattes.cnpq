@@ -88,7 +88,7 @@ curl -X POST http://localhost:8000/scrape \
 
 ## Estrutura
 
-```
+```bash
 backend/
 ├── src/
 │   ├── api/
