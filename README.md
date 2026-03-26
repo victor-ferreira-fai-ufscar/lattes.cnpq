@@ -1,173 +1,315 @@
 # 🎓 Lattes Automator AI
 
-Ferramenta inteligente para extração e resumo de currículos da Plataforma Lattes. Ideal para pesquisadores, gestores acadêmicos e analistas que precisam de resumos executivos de alta qualidade a partir de perfis do CNPq.
+> **Automação Inteligente para Currículos Lattes** - Transforme dados acadêmicos em insights executivos com IA
 
----
+Uma ferramenta completa para extração, processamento e análise de currículos da Plataforma Lattes do CNPq. Desenvolvida para pesquisadores, gestores acadêmicos e analistas que precisam de resumos executivos de alta qualidade a partir de perfis acadêmicos.
 
-## 🏗️ Arquitetura
+## 📋 O que é o Projeto?
 
-Este projeto utiliza uma arquitetura de monorepo separando responsabilidades claras:
+O **Lattes Automator AI** automatiza o processo de coleta e análise de currículos Lattes, oferecendo:
 
-- **Backend** (`/backend`): API FastAPI em Python para scraping e processamento de dados
-- **Frontend** (`/frontend`): Interface Next.js para interação com o usuário
-- **Supabase** (`/supabase`): Configurações para banco de dados (futuro)
+- **Extração Automática**: Coleta dados diretamente da plataforma Lattes
+- **Resumos com IA**: Geração de perfis executivos usando Google Gemini e OpenAI
+- **Relatórios Profissionais**: Documentos Word estruturados e editáveis
+- **Processamento em Lote**: Análise de múltiplos currículos simultaneamente
+- **Interface Web Moderna**: Experiência intuitiva e responsiva
 
----
+### 🎯 Para quem serve?
 
-## 🚀 Como Executar
+- **Pesquisadores**: Análise rápida de colaboradores e concorrentes
+- **Gestores Acadêmicos**: Avaliação de candidatos e equipe
+- **Analistas**: Estudos de mercado acadêmico e tendências
+- **Recrutadores**: Triagem eficiente de perfis acadêmicos
+- **Instituições**: Automação de processos de admissão e avaliação
 
-### Backend (API)
+## 🏗️ Arquitetura e Stack Tecnológica
 
-```bash
-cd backend
-uv sync  # Instalar dependências
-uv run uvicorn src.api.main:app --reload  # Executar API
+### Arquitetura de Monorepo
+
 ```
-
-A API ficará disponível em `http://localhost:8000`
-
-### Frontend (Interface Web)
-
-```bash
-cd frontend
-pnpm install  # Instalar dependências
-pnpm dev      # Executar desenvolvimento
-```
-
-A interface ficará disponível em `http://localhost:3000`
-
-### Docker (Produção)
-
-```bash
-cd backend
-docker build -t lattes-api .
-docker run -p 8000:8000 lattes-api
-```
-
----
-
-## 🔑 Configurando sua Chave API
-
-Para que a inteligência artificial funcione, você precisa de uma chave gratuita do Google:
-
-1. Acesse o [Google AI Studio](https://aistudio.google.com/app/apikey)
-2. Clique em **"Create API key"**
-3. Copie o código gerado
-4. Configure a variável de ambiente `GEMINI_API_KEY` ou passe via interface
-
----
-
-## 📋 Funcionalidades Principais
-
-- **Busca Individual**: Digite o nome completo e obtenha resumo estruturado
-- **Processamento em Lote**: Upload de arquivos `.txt` ou `.csv` para processamento em lote
-- **Relatório Word**: Geração automática de documentos `.docx` profissionais
-- **API REST**: Endpoints para integração com outros sistemas
-
----
-
-## 🛠️ Tecnologias
-
-### Backend
-
-- **Python 3.11+**
-- **FastAPI**: Framework web moderno e rápido
-- **Playwright**: Automação web headless
-- **Google Gemini API**: Processamento de linguagem natural
-- **uv**: Gerenciador de pacotes ultrarrápido
-
-### Frontend
-
-- **Next.js 14+**: Framework React com App Router
-- **TypeScript**: Tipagem estática
-- **Tailwind CSS**: Estilização utilitária
-- **API Client**: Cliente HTTP para comunicação com backend
-
----
-
-## 📁 Estrutura do Projeto
-
-```bash
-.
-├── backend/                   # API FastAPI
+lattes.cnpq/
+├── backend/                   # 🐍 API FastAPI (Python)
 │   ├── src/
-│   │   ├── api/               # Endpoints FastAPI
-│   │   │   ├── main.py        # Ponto de entrada
-│   │   │   ├── routes.py      # Rotas da API
-│   │   │   └── schemas.py     # Modelos Pydantic
+│   │   ├── api/               # Endpoints REST
 │   │   ├── core/              # Lógica de negócio
-│   │   │   ├── scraper.py     # Scraping Lattes
-│   │   │   └── document_maker.py # Geração DOCX
-│   │   └── __init__.py
-│   ├── docs/                  # Dados de exemplo
-│   ├── scripts/               # Scripts utilitários
-│   ├── pyproject.toml         # Configuração uv
-│   ├── uv.lock
+│   │   └── ...
+│   ├── pyproject.toml         # 📦 Gerenciamento uv
 │   └── Dockerfile
-├── frontend/                  # Interface Next.js
+├── frontend/                  # ⚛️ Interface Next.js
 │   ├── src/
 │   │   ├── app/               # App Router
 │   │   ├── components/        # Componentes React
-│   │   ├── lib/               # Utilitários
-│   │   └── types/             # Tipos TypeScript
-│   ├── package.json
+│   │   └── ...
+│   ├── package.json           # 📦 Gerenciamento pnpm
 │   └── tsconfig.json
-└── README.md
+├── getting-started/           # 🛠️ Scripts de automação
+│   ├── dev.sh                # Script universal
+│   ├── Makefile              # Automação Make
+│   ├── .env.example          # Configuração exemplo
+│   └── README.md             # Guia de uso
+├── supabase/                  # 🗄️ Configurações BaaS
+│   └── README.md             # Planejamento Supabase
+└── README.md                  # 📖 Esta documentação
 ```
 
----
+### Stack Tecnológica
 
-## 🔧 Desenvolvimento
+#### Backend (Python)
+- **Framework**: FastAPI - API moderna e performática
+- **Linguagem**: Python 3.11+ com tipagem completa
+- **Gerenciador**: uv - Ultrarrápido e confiável
+- **Web Scraping**: Playwright - Automação headless
+- **IA**: Google Gemini API + OpenAI API
+- **Documentos**: python-docx - Geração de Word
+- **Validação**: Pydantic - Modelos de dados robustos
 
-### Configuração Inicial
+#### Frontend (TypeScript)
+- **Framework**: Next.js 14+ com App Router
+- **Linguagem**: TypeScript - Tipagem estática
+- **Gerenciador**: pnpm - Performático e eficiente
+- **Styling**: Tailwind CSS - Utilitário e moderno
+- **Componentes**: React 19 com hooks modernos
+- **Build**: Turbopack - Compilação ultrarrápida
+
+#### Infraestrutura
+- **Containerização**: Docker para backend
+- **BaaS**: Supabase (futuro - banco e auth)
+- **Deploy**: Vercel (frontend) + On-premises (backend)
+
+## 🚀 Como Usar
+
+### Instalação Rápida
 
 ```bash
-# Backend
-cd backend
-uv sync
-playwright install
+# Clone o repositório
+git clone https://github.com/victor-ferreira-fai-ufscar/lattes.cnpq
+cd lattes.cnpq
 
-# Frontend
-cd ../frontend
-pnpm install
+# ⚡ INÍCIO ULTRA-RÁPIDO (recomendado)
+./dev.sh dev
+
+# Ou veja o guia completo em getting-started/
+cat getting-started/QUICKSTART.md
 ```
 
-### Executar em Desenvolvimento
+### Desenvolvimento
 
 ```bash
-# Terminal 1 - Backend
-cd backend && uv run uvicorn src.api.main:app --reload
+# Executar tudo simultaneamente (do root)
+./dev.sh dev
 
-# Terminal 2 - Frontend
-cd frontend && pnpm dev
+# Ou da pasta getting-started
+./getting-started/dev.sh dev
+
+# URLs de acesso:
+# 🌐 Frontend: http://localhost:3000
+# 📡 Backend API: http://localhost:8000
+# 📚 Documentação API: http://localhost:8000/docs
 ```
 
----
+### Desenvolvimento Individual
 
-## 📊 API Endpoints
+```bash
+# Apenas backend
+./dev.sh backend
 
-- `GET /health` - Verificação de saúde
-- `POST /scrape` - Processar nome individual
-- `POST /scrape/batch` - Processar lista de nomes
-- `GET /download/{filename}` - Baixar arquivo gerado
+# Apenas frontend
+./dev.sh frontend
+```
 
----
+### Produção
+
+```bash
+# Docker (backend)
+./dev.sh docker
+```
+
+## 🔑 Configuração
+
+### Chaves de API
+
+1. **Google Gemini** (Recomendado):
+   - Acesse: https://aistudio.google.com/app/apikey
+   - Crie uma chave gratuita
+   - Configure: `GEMINI_API_KEY=your_key_here`
+
+2. **OpenAI** (Alternativo):
+   - Acesse: https://platform.openai.com/api-keys
+   - Configure: `OPENAI_API_KEY=your_key_here`
+
+### Arquivo .env
+
+```bash
+# API Keys
+GEMINI_API_KEY=your_gemini_key
+OPENAI_API_KEY=your_openai_key
+
+# Configurações (opcionais)
+HEADLESS=true
+LOG_LEVEL=INFO
+```
+
+## 📁 Estrutura Detalhada
+
+### Backend (`/backend`)
+```
+backend/
+├── src/
+│   ├── api/               # 🎯 Camada da API
+│   │   ├── main.py        # Ponto de entrada FastAPI
+│   │   ├── routes.py      # Endpoints (/scrape, /batch)
+│   │   └── schemas.py     # Modelos Pydantic
+│   ├── core/              # 🧠 Lógica de negócio
+│   │   ├── scraper.py     # Scraping Lattes + IA
+│   │   └── document_maker.py # Geração DOCX
+│   └── __init__.py
+├── docs/                  # 📄 Dados de exemplo
+├── scripts/               # 🔧 Utilitários
+├── pyproject.toml         # ⚙️ Configuração uv
+├── uv.lock               # 🔒 Lockfile dependências
+└── Dockerfile            # 🐳 Containerização
+```
+
+### Frontend (`/frontend`)
+```
+frontend/
+├── src/
+│   ├── app/               # 🚀 App Router Next.js
+│   │   ├── layout.tsx     # Layout principal
+│   │   └── page.tsx       # Página inicial
+│   ├── components/        # 🧩 Componentes React
+│   │   ├── Header.tsx     # Cabeçalho com branding
+│   │   └── IndividualSearch.tsx # Formulário de busca
+│   ├── lib/               # 🔌 Utilitários
+│   │   └── api.ts         # Cliente HTTP para backend
+│   └── types/             # 📝 Tipos TypeScript
+│       └── api.ts         # Interfaces da API
+├── public/                # 🖼️ Assets estáticos
+├── package.json           # 📦 Dependências pnpm
+├── pnpm-lock.yaml        # 🔒 Lockfile pnpm
+└── tailwind.config.ts    # 🎨 Configuração Tailwind
+```
+
+## 🔌 API Endpoints
+
+### Core Endpoints
+
+- `GET /health` - Verificação de saúde da API
+- `POST /scrape` - Processar currículo individual
+- `POST /scrape/batch` - Processar múltiplos currículos
+- `GET /download/{filename}` - Baixar relatório gerado
+
+### Exemplo de Uso
+
+```bash
+# Busca individual
+curl -X POST http://localhost:8000/scrape \
+  -H "Content-Type: application/json" \
+  -d '{
+    "nome": "João Silva",
+    "provedor": "Google Gemini",
+    "modelo": "gemini-2.0-flash",
+    "api_key": "your_key"
+  }'
+```
+
+## 🎯 Funcionalidades
+
+### ✅ Implementadas
+- ✅ Extração automática de currículos Lattes
+- ✅ Integração com Google Gemini e OpenAI
+- ✅ Geração de relatórios Word profissionais
+- ✅ Interface web responsiva
+- ✅ Processamento individual e em lote
+- ✅ API REST completa
+- ✅ Containerização Docker
+- ✅ Monorepo organizado
+
+### 🚧 Planejadas
+- 🔄 Autenticação e usuários (Supabase Auth)
+- 🔄 Histórico de buscas (Supabase Database)
+- 🔄 Dashboard analítico
+- 🔄 Exportação para PDF
+- 🔄 API rate limiting
+- 🔄 Cache inteligente
+- 🔄 Webhooks para notificações
+
+## 🚀 Roadmap e Deploy
+
+### Fase Atual: Desenvolvimento Local
+- ✅ Monorepo configurado
+- ✅ Backend FastAPI funcional
+- ✅ Frontend Next.js responsivo
+- ✅ Scripts de automação
+
+### Próxima Fase: Deploy Híbrido
+- **Frontend**: Vercel (já configurado para Next.js)
+- **Backend**: Railway/Render ou VPS
+- **Banco**: Supabase (PostgreSQL + Auth)
+
+### Fase Final: On-Premises
+- **Infraestrutura**: Docker Compose completo
+- **Banco**: PostgreSQL local
+- **Deploy**: Servidor próprio/institucional
+- **Backup**: Estratégia de dados
+
+## 🛠️ Desenvolvimento
+
+### Pré-requisitos
+
+- **Python 3.11+**
+- **Node.js 18+**
+- **uv** (gerenciador Python)
+- **pnpm** (gerenciador Node.js)
+- **Docker** (opcional)
+
+### Comandos Úteis
+
+```bash
+# Setup inicial
+./dev.sh setup
+
+# Desenvolvimento
+./dev.sh dev
+
+# Limpeza
+./dev.sh clean
+
+# Testes
+cd backend && uv run pytest
+cd frontend && pnpm test
+
+# Build produção
+cd backend && docker build -t lattes-api .
+cd frontend && pnpm build
+```
 
 ## 🤝 Contribuição
 
 1. Fork o projeto
-2. Crie uma branch para sua feature (`git checkout -b feature/nova-funcionalidade`)
-3. Commit suas mudanças (`git commit -am 'Adiciona nova funcionalidade'`)
-4. Push para a branch (`git push origin feature/nova-funcionalidade`)
+2. Crie uma branch: `git checkout -b feature/nova-funcionalidade`
+3. Commit suas mudanças: `git commit -am 'Adiciona nova funcionalidade'`
+4. Push: `git push origin feature/nova-funcionalidade`
 5. Abra um Pull Request
 
----
+### Padrões de Código
+
+- **Backend**: Black + isort + mypy
+- **Frontend**: ESLint + Prettier
+- **Commits**: Conventional Commits
+- **Documentação**: Docstrings + JSDoc
 
 ## 📄 Licença
 
-Este projeto está sob a licença MIT. Veja o arquivo `LICENSE` para mais detalhes.
+Este projeto está sob a licença **MIT**. Veja o arquivo `LICENSE` para detalhes.
 
-- **Playwright Not Installed**: O `run.bat` já tenta instalar o Chromium automaticamente com `playwright install chromium`.
+## 🙏 Agradecimentos
+
+- **CNPq** pela plataforma Lattes
+- **Google** pelo Gemini AI
+- **OpenAI** pela API GPT
+- **Comunidade Open Source** pelos ferramentas incríveis
 
 ---
-Desenvolvido com foco em produtividade acadêmica.
+
+**Desenvolvido com ❤️ para a comunidade acadêmica brasileira**
