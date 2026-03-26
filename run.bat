@@ -1,6 +1,6 @@
 @echo off
 chcp 65001 >nul
-title Lattes Automator AI - Iniciando...
+title Lattes Automator AI - Launcher
 
 echo.
 echo  ============================================
@@ -19,7 +19,7 @@ if %ERRORLEVEL% neq 0 (
 )
 
 echo [*] Instalando/atualizando dependencias...
-uv sync
+uv sync --quiet
 if %ERRORLEVEL% neq 0 (
     echo [!] Erro ao sincronizar dependencias.
     pause
@@ -37,6 +37,5 @@ echo  (Mantenha esta janela aberta enquanto usar a ferramenta)
 echo  (Para fechar, pressione Ctrl+C ou feche esta janela)
 echo.
 
-:: Abre o navegador e inicia o Streamlit
-start http://localhost:8501
-uv run streamlit run app.py --server.headless=true
+:: Inicia o Streamlit
+uv run streamlit run app.py --server.port 8501 --server.headless true
