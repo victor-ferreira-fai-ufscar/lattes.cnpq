@@ -12,29 +12,46 @@ except ImportError:
     pass
 
 from rich.console import Console
+from typing import Callable, Optional
 
 console = Console()
 
-async def scrape_lattes(query_name: str) -> str:
+def _log(msg: str, callback: Optional[Callable[[str], None]] = None, style: str = "cyan"):
+    """Helper para logar no console e via callback (Streamlit)."""
+    rich_msg = f"[{style}]{msg}[/]"
+    if "green" in style or "✓" in msg:
+        rich_msg = f"[bold green]{msg}[/]"
+    elif "red" in style or "!" in msg:
+        rich_msg = f"[bold red]{msg}[/]"
+    
+    console.print(rich_msg)
+    
+    if callback:
+        try:
+            callback(msg)
+        except:
+            pass
+
+async def scrape_lattes(query_name: str, log_callback: Optional[Callable[[str], None]] = None) -> str:
     """Extrai o texto bruto do currículo Lattes de um dado nome."""
-    console.print(f"[bold cyan][*] Iniciando automação para buscar por '{query_name}'...[/]")
+    _log(f"[*] Iniciando automação para buscar por '{query_name}'...", log_callback, "bold cyan")
     async with async_playwright() as p:
         is_headless = os.environ.get("HEADLESS", "false").lower() == "true"
         browser = await p.chromium.launch(headless=is_headless)
         context = await browser.new_context()
         page = await context.new_page()
 
-        console.print("[cyan][*] Acessando busca textual do Lattes...[/]")
+        _log("[*] Acessando busca textual do Lattes...", log_callback)
         await page.goto("https://buscatextual.cnpq.br/buscatextual/busca.do?metodo=apresentar")
         
-        console.print("[cyan][*] Preenchendo formulário...[/]")
+        _log("[*] Preenchendo formulário...", log_callback)
         await page.locator("input[name='textoBusca']").fill(query_name)
         await page.locator("#botaoBuscaFiltros").first.click()
         
-        console.print("[cyan][*] Aguardando resultados...[/]")
+        _log("[*] Aguardando resultados...", log_callback)
         await page.wait_for_selector(".resultado")
         
-        console.print(f"[cyan][*] Clicando no primeiro resultado que contém '{query_name}'...[/]")
+        _log(f"[*] Clicando no primeiro resultado que contém '{query_name}'...", log_callback)
         try:
             primeiro_resultado = page.locator(".resultado a", has_text=query_name).first
             await primeiro_resultado.click(timeout=5000)
@@ -43,47 +60,63 @@ async def scrape_lattes(query_name: str) -> str:
             primeiro_resultado = page.locator(".resultado a").first
             await primeiro_resultado.click()
         
-        console.print("[cyan][*] Buscando link para 'Abrir Currículo'...[/]")
+        _log("[*] Buscando link para 'Abrir Currículo'...", log_callback)
         await page.wait_for_timeout(2000)
-        btn_abrir = page.locator("#idbtnabrircurriculo")
-        if await btn_abrir.count() == 0:
-            btn_abrir = page.locator("a", has_text="Abrir Currículo").first
-            
-        await btn_abrir.wait_for(state="visible")
         
-        console.print("[cyan][*] Clicando no botão e capturando a nova página gerada...[/]")
+        # Tenta múltiplos seletores para o botão de abrir currículo
+        btn_abrir = None
+        for sel in ["#idbtnabrircurriculo", "input[value='Abrir Currículo']", "a:has-text('Abrir Currículo')", "text='Abrir Currículo'"]:
+            try:
+                if await page.locator(sel).count() > 0:
+                    btn_abrir = page.locator(sel).first
+                    break
+            except:
+                continue
+        
+        if not btn_abrir:
+            raise Exception("Não foi possível encontrar o botão 'Abrir Currículo'. Verifique se o nome está correto.")
+            
+        await btn_abrir.wait_for(state="visible", timeout=10000)
+        
+        _log("[*] Clicando no botão e capturando o currículo...", log_callback)
         try:
-            async with context.expect_page(timeout=10000) as new_page_info:
+            async with context.expect_page(timeout=15000) as new_page_info:
                 await btn_abrir.click()
             page_cv = await new_page_info.value
         except Exception:
+            _log("[!] Timeout ao abrir nova aba. Tentando fallback...", log_callback, "yellow")
             await btn_abrir.click(force=True)
-            await page.wait_for_timeout(3000)
+            await page.wait_for_timeout(5000)
             page_cv = context.pages[-1] if len(context.pages) > 1 else page
             
         await page_cv.wait_for_load_state()
         
-        console.print(f"\n[bold green][✓] Currículo acessado com sucesso na URL: {page_cv.url}[/]\n")
+        _log(f"[✓] Currículo acessado: {page_cv.url[:50]}...", log_callback, "bold green")
         
-        console.print("[cyan][*] Extraindo texto do currículo Lattes...[/]")
+        _log("[*] Extraindo texto do currículo...", log_callback)
+        texto = ""
         try:
-            resumo_element = page_cv.locator(".resumo")
-            texto = await resumo_element.inner_text(timeout=5000)
-            if not texto.strip():
-                texto = await page_cv.locator("body").inner_text()
-        except:
-            texto = await page_cv.locator("body").inner_text()
+            # Tenta vários elementos de conteúdo comuns no Lattes
+            for selector in [".resumo", "#id_resumo", ".corpo", "body"]:
+                content = page_cv.locator(selector)
+                if await content.count() > 0:
+                    texto = await content.inner_text(timeout=5000)
+                    if texto and len(texto.strip()) > 100:
+                        break
+        except Exception as e:
+            _log(f"[!] Erro na extração detalhada: {str(e)}", log_callback, "yellow")
+            texto = await page_cv.content() # Fallback total
             
         await browser.close()
         return texto
 
-def gerar_resumo_gemini(texto: str) -> dict:
+def gerar_resumo_gemini(texto: str, log_callback: Optional[Callable[[str], None]] = None) -> dict:
     """Usa o Gemini para extrair e estruturar os dados do Lattes extraído em formato JSON."""
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return {"erro": "Variável de ambiente GEMINI_API_KEY não encontrada."}
         
-    console.print("[cyan][*] Enviando texto gerado para a API do Gemini...[/]")
+    _log("[*] Enviando texto gerado para a API do Gemini...", log_callback)
     client = genai.Client(api_key=api_key)
     
     prompt = (
@@ -104,13 +137,19 @@ def gerar_resumo_gemini(texto: str) -> dict:
     
     try:
         response = client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-2.0-flash",
             contents=prompt,
             config=genai.types.GenerateContentConfig(
                 response_mime_type="application/json",
             )
         )
+        if not response or not response.text:
+            return {"erro": "A API do Gemini retornou uma resposta vazia."}
+            
         data = json.loads(response.text)
+        if not isinstance(data, dict):
+            return {"erro": "A IA não retornou um objeto JSON válido."}
+            
         return data
     except Exception as e:
         return {"erro": f"Erro na IA ao gerar JSON: {str(e)}"}
