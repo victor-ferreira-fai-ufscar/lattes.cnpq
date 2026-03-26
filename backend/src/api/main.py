@@ -2,11 +2,15 @@ from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
+from scalar_fastapi import get_scalar_api_reference
 
 from ..core.scraper import scrape_lattes
 
-app = FastAPI(title="Lattes Scraper API", version="0.1.0")
+app = FastAPI(
+    title="Lattes Scraper API", version="0.1.0", docs_url=None, redoc_url=None
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -31,3 +35,12 @@ async def scrape(request: ScrapeRequest):
 @app.get("/health")
 async def health_check():
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/docs", include_in_schema=False)
+async def scalar_docs():
+    return HTMLResponse(
+        get_scalar_api_reference(
+            openapi_url="/openapi.json", title="Lattes Scraper API"
+        )
+    )
