@@ -1,4 +1,5 @@
 import re
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 
@@ -14,7 +15,10 @@ OUTPUT_RAW_DIR = Path(__file__).resolve().parents[2] / "output" / "raw"
 
 
 def _slugify_nome(nome: str) -> str:
-    slug = re.sub(r"[^a-zA-Z0-9]+", "-", nome.strip().lower()).strip("-")
+    # Decompõe caracteres acentuados e remove os diacríticos (ex: "Amélia" → "amelia")
+    sem_acento = unicodedata.normalize("NFD", nome.strip().lower())
+    sem_acento = sem_acento.encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^a-z0-9]+", "-", sem_acento).strip("-")
     return slug or "docente"
 
 
