@@ -41,37 +41,33 @@ A automação inicia em:
 
 ## 6. Extração de conteúdo
 
-`_extrair_contexto_pagina()` realiza:
+O scraper realiza:
 
 - captura de `page.content()` (HTML completo)
 - captura de texto visível em `body.inner_text()` (timeout 10000ms)
 - validação de suficiência:
   - HTML <200 chars e texto <100 chars -> `ExtracaoCurriculoError`
 - monta saída de contexto com:
-  - `URL_FINAL`, `TITULO_PAGINA`, `TEXTO_VISIVEL_EXTRAIDO`, `HTML_COMPLETO`
+  - `url_cv`, `titulo_pagina`, `texto_visivel_extraido`, `html_completo`
 
-## 7. Geração de resumo IA
+## 7. Persistência do HTML bruto
 
-`gerar_resumo_ia()` faz roteamento
+No endpoint `/scrape`:
 
-- `google gemini` -> `_gerar_resumo_gemini()`
-- `openai` -> `_gerar_resumo_openai()`
-
-### Prompt padrão (`_get_prompt()`)
-
-- extrai campos esperados:
-  - `graduacao`, `mestrado`, `doutorado`, `pos_doutorado`, `vinculo_institucional`, `resumo`
-- controla tamanho máximo de entrada:clipping para 40k chars.
+- remove `html_completo` da resposta JSON
+- salva HTML em `backend/output/raw/<nome>-<timestamp>.html`
+- retorna:
+  - `arquivo_html`
+  - `download_html_url` (ex: `/download/raw/neocles-20260326-123456.html`)
 
 ## 8. Adaptação para FastAPI
 
-No `backend/src/api/routes.py`, o fluxo é:
+No `backend/src/api/main.py`, o fluxo é:
 
-1. chama `scrape_lattes(nome, log_callback=...)`
-2. grava raw text em `output/raw`
-3. chama `gerar_resumo_ia(...)`
-4. gera DOCX em `output/structured`
-5. retorna estrutura de JSON e caminho do arquivo.
+1. chama `scrape_lattes(nome)`
+2. grava o HTML bruto em `output/raw`
+3. retorna JSON com campos extraídos + caminho de download do HTML
+4. disponibiliza arquivo no endpoint `GET /download/raw/{filename}`
 
 ---
 

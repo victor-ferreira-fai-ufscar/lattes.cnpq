@@ -2,8 +2,8 @@
 name = "lattes-scraper"
 version = "0.1.0"
 dependencies = [
-    "browser-use>=0.1.40",
     "fastapi[standard]>=0.104.0",
+    "playwright>=1.55.0",
     "uvicorn[standard]>=0.24.0",
     "python-dotenv>=1.0.0",
     "scalar-fastapi>=1.8.1",

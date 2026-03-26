@@ -1,12 +1,12 @@
 # Backend — Lattes Scraper
 
-FastAPI + [browser-use](https://github.com/browser-use/browser-use) para scraping automático do Lattes com IA.
+FastAPI + [Playwright](https://playwright.dev/) para scraping determinístico do Lattes.
 
 ## Pré-requisitos
 
 - [uv](https://astral.sh/uv) — gerenciador de pacotes Python
 - Python 3.11+
-- Chrome/Chromium instalado (ou `google-chrome-dev` no Arch)
+- Browsers do Playwright instalados
 
 ## Setup rápido
 
@@ -16,9 +16,12 @@ cd backend
 # 1. Instalar dependências
 uv sync
 
+# 1.1 Instalar browser (uma vez)
+uv run playwright install chromium
+
 # 2. Configurar variáveis de ambiente
 cp .env.example .env
-# Edite .env e adicione sua OPENAI_API_KEY
+# Ajuste o modo headless se necessário
 ```
 
 ## Rodar o servidor
@@ -52,9 +55,15 @@ curl -X POST http://localhost:8000/scrape \
   "doutorado": "Engenharia de Controle e Automação - UFSCar",
   "pos_doutorado": "",
   "vinculo_institucional": "Universidade Federal de São Carlos",
-  "resumo": "..."
+  "resumo": "...",
+  "arquivo_html": "neocles-20260326-123456.html",
+  "download_html_url": "/download/raw/neocles-20260326-123456.html"
 }
 ```
+
+### GET /download/raw/{filename}
+
+Baixa o HTML bruto capturado durante o scraping.
 
 ### GET /health
 
@@ -72,7 +81,7 @@ backend/
 │   ├── api/
 │   │   └── main.py          # FastAPI app + endpoint /scrape
 │   └── core/
-│       └── scraper.py       # Lógica com browser-use + IA
+│       └── scraper.py       # Lógica de scraping com Playwright
 ├── .env.example
 └── pyproject.toml
 ```
@@ -80,25 +89,24 @@ backend/
 ## Variáveis de Ambiente
 
 ```env
-OPENAI_API_KEY=sk-...              # Obrigatório
-CHROME_PATH=/opt/google/...        # Opcional (padrão: google-chrome-dev)
+PLAYWRIGHT_BROWSER=chromium        # Opcional
+PLAYWRIGHT_HEADLESS=true           # Opcional
 BACKEND_PORT=8000                  # Opcional
 ```
 
 ## Troubleshooting
 
-**Erro: "Chrome not found"**
+**Erro: browser do Playwright não encontrado**
 
-- Linux: Instale `google-chrome-dev` ou `chromium`
-- Configure `CHROME_PATH` no `.env`
+- Execute `uv run playwright install chromium`
 
-**Erro: "OpenAI API key not found"**
+**Erro: timeout durante scraping**
 
-- Copie `.env.example` para `.env` e adicione sua chave
+- Tente com `PLAYWRIGHT_HEADLESS=false` para depurar visualmente
 
 ## Dependências principais
 
-- `browser-use` — Automação de browser com IA
+- `playwright` — Automação de browser determinística
 - `fastapi` — Framework web
 - `uvicorn` — Servidor ASGI
 - `scalar-fastapi` — Documentação interativa
