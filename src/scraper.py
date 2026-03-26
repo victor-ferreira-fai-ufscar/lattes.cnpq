@@ -3,16 +3,15 @@ import json
 import asyncio
 from playwright.async_api import async_playwright
 from google import genai
-from pydantic import BaseModel
+from openai import OpenAI
+from typing import Callable, Optional
+from rich.console import Console
 
 try:
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
     pass
-
-from rich.console import Console
-from typing import Callable, Optional
 
 console = Console()
 
@@ -56,14 +55,12 @@ async def scrape_lattes(query_name: str, log_callback: Optional[Callable[[str], 
             primeiro_resultado = page.locator(".resultado a", has_text=query_name).first
             await primeiro_resultado.click(timeout=5000)
         except Exception:
-            # Fallback if specific name is not an exact match but exists in the list
             primeiro_resultado = page.locator(".resultado a").first
             await primeiro_resultado.click()
         
         _log("[*] Buscando link para 'Abrir Currículo'...", log_callback)
         await page.wait_for_timeout(2000)
         
-        # Tenta múltiplos seletores para o botão de abrir currículo
         btn_abrir = None
         for sel in ["#idbtnabrircurriculo", "input[value='Abrir Currículo']", "a:has-text('Abrir Currículo')", "text='Abrir Currículo'"]:
             try:
@@ -96,7 +93,6 @@ async def scrape_lattes(query_name: str, log_callback: Optional[Callable[[str], 
         _log("[*] Extraindo texto do currículo...", log_callback)
         texto = ""
         try:
-            # Tenta vários elementos de conteúdo comuns no Lattes
             for selector in [".resumo", "#id_resumo", ".corpo", "body"]:
                 content = page_cv.locator(selector)
                 if await content.count() > 0:
@@ -105,65 +101,83 @@ async def scrape_lattes(query_name: str, log_callback: Optional[Callable[[str], 
                         break
         except Exception as e:
             _log(f"[!] Erro na extração detalhada: {str(e)}", log_callback, "yellow")
-            texto = await page_cv.content() # Fallback total
+            texto = await page_cv.content()
             
         await browser.close()
         return texto
 
-def gerar_resumo_gemini(texto: str, log_callback: Optional[Callable[[str], None]] = None, api_key: Optional[str] = None) -> dict:
-    """Usa o Gemini para extrair e estruturar os dados do Lattes extraído em formato JSON."""
+def gerar_resumo_ia(texto: str, provedor: str, modelo: str, api_key: Optional[str] = None, log_callback: Optional[Callable[[str], None]] = None) -> dict:
+    """Roteador para gerar o resumo estruturado usando diferentes provedores de IA."""
+    if provedor.lower() == "google gemini":
+        return _gerar_resumo_gemini(texto, modelo, api_key, log_callback)
+    elif provedor.lower() == "openai":
+        return _gerar_resumo_openai(texto, modelo, api_key, log_callback)
+    else:
+        return {"erro": f"Provedor '{provedor}' não suportado."}
+
+def _gerar_resumo_gemini(texto: str, modelo: str, api_key: Optional[str], log_callback: Optional[Callable[[str], None]]) -> dict:
+    """Implementação para Google Gemini."""
     if not api_key:
         api_key = os.environ.get("GEMINI_API_KEY")
-        
     if not api_key:
-        return {"erro": "Nenhuma API Key encontrada. Por favor, insira uma na barra lateral ou no arquivo .env."}
+        return {"erro": "Nenhuma chave (API Key) encontrada para o Google Gemini."}
         
-    _log("[*] Enviando texto gerado para a API do Gemini...", log_callback)
-    client = genai.Client(api_key=api_key)
-    
-    prompt = (
-        "Você é um assistente especialista em analisar extrações de perfis acadêmicos do Currículo Lattes. "
-        "Abaixo está o texto bruto extraído de um perfil. Você deve extrair informações específicas "
-        "e respondê-las estritamente em formato JSON com as seguintes chaves:\n"
-        "- 'graduacao': Onde fez graduação e qual o curso (seja conciso).\n"
-        "- 'mestrado': Onde fez mestrado e qual o curso/tema (seja conciso).\n"
-        "- 'doutorado': Onde fez doutorado e qual o curso/tema (seja conciso).\n"
-        "- 'pos_doutorado': Onde fez pós-doutorado e instituição (seja conciso, deixe vazio se não houver).\n"
-        "- 'vinculo_institucional': Instituições atuais/principais onde a pessoa trabalha hoje.\n"
-        "- 'resumo': Um bom resumo executivo em 2 ou 3 parágrafos focando na atuação principal e pesquisas importantes.\n\n"
-        "Se a pessoa não tiver alguma dessas formações, retorne uma string vazia '' naquela chave específica.\n"
-        "Retorne APENAS o JSON válido. Nenhuma formatação extra markdown."
-        "\n\nTexto Lattes:\n"
-        f"{texto[:30000]}"
-    )
-    
+    _log(f"[*] Enviando para Google Gemini ({modelo})...", log_callback)
     try:
+        client = genai.Client(api_key=api_key)
+        prompt = _get_prompt(texto)
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model=modelo,
             contents=prompt,
-            config=genai.types.GenerateContentConfig(
-                response_mime_type="application/json",
-            )
+            config=genai.types.GenerateContentConfig(response_mime_type="application/json")
         )
-        if not response or not response.text:
-            return {"erro": "A API do Gemini retornou uma resposta vazia."}
-            
-        data = json.loads(response.text)
-        if not isinstance(data, dict):
-            return {"erro": "A IA não retornou um objeto JSON válido."}
-            
-        return data
+        return json.loads(response.text)
     except Exception as e:
-        return {"erro": f"Erro na IA ao gerar JSON: {str(e)}"}
+        return {"erro": f"Erro no Gemini: {str(e)}"}
 
-async def main():
-    query = "Neocles"
+def _gerar_resumo_openai(texto: str, modelo: str, api_key: Optional[str], log_callback: Optional[Callable[[str], None]]) -> dict:
+    """Implementação para OpenAI (GPT-4o, etc)."""
+    if not api_key:
+        api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return {"erro": "Nenhuma chave (API Key) encontrada para a OpenAI."}
+        
+    _log(f"[*] Enviando para OpenAI ({modelo})...", log_callback)
     try:
-        cv_text = await scrape_lattes(query)
-        dados_estruturados = gerar_resumo_gemini(cv_text)
-        print(json.dumps(dados_estruturados, indent=2, ensure_ascii=False))
+        client = OpenAI(api_key=api_key)
+        prompt = _get_prompt(texto)
+        response = client.chat.completions.create(
+            model=modelo,
+            messages=[
+                {"role": "system", "content": "Você é um assistente especialista em analisar perfis acadêmicos do Lattes. Retorne APENAS JSON válido conforme solicitado."},
+                {"role": "user", "content": prompt}
+            ],
+            response_format={"type": "json_object"}
+        )
+        return json.loads(response.choices[0].message.content)
     except Exception as e:
-        console.print(f"\n[bold red][!] Ocorreu um erro durante a execução: {e}[/]")
+        return {"erro": f"Erro na OpenAI: {str(e)}"}
+
+def _get_prompt(texto: str) -> str:
+    """Centraliza o prompt para garantir consistência entre modelos."""
+    return (
+        "Com base no texto bruto de um Currículo Lattes abaixo, extraia as seguintes informações estritamente em formato JSON:\n"
+        "- 'graduacao': Onde e qual curso (conciso)\n"
+        "- 'mestrado': Onde e qual curso/tema (conciso)\n"
+        "- 'doutorado': Onde e qual curso/tema (conciso)\n"
+        "- 'pos_doutorado': Onde e qual instituição (opcional)\n"
+        "- 'vinculo_institucional': Instituição atual de trabalho\n"
+        "- 'resumo': Um resumo executivo de 2-3 parágrafos sobre a trajetória e pesquisa.\n\n"
+        "Se não houver alguma informação, deixe o campo como string vazia.\n"
+        "Retorne apenas o JSON puro.\n\n"
+        "Texto Lattes:\n"
+        f"{texto[:20000]}"
+    )
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    # Teste rápido se rodado diretamente
+    async def test():
+        t = "Texto de teste para o currículo."
+        # res = gerar_resumo_ia(t, "Google Gemini", "gemini-2.0-flash")
+        # print(res)
+    asyncio.run(test())

@@ -13,7 +13,7 @@ logging.getLogger("streamlit.runtime.scriptrunner").setLevel(logging.ERROR)
 logging.getLogger("streamlit.runtime.scriptrunner_utils").setLevel(logging.ERROR)
 
 from streamlit.runtime.scriptrunner import add_script_run_ctx
-from src.scraper import scrape_lattes, gerar_resumo_gemini
+from src.scraper import scrape_lattes, gerar_resumo_ia
 from src.document_maker import create_lattes_docx
 
 # ── Configuração da Página ──────────────────────────────────────────
@@ -92,7 +92,7 @@ class StreamlitLogHandler:
         self.logs.append(f"{time.strftime('%H:%M:%S')} - {message}")
         self.container.write("\n".join(self.logs))
 
-async def processar_nome(nome: str, log_handler: StreamlitLogHandler, api_key: Optional[str] = None) -> tuple[dict | None, str | None, str | None]:
+async def processar_nome(nome: str, log_handler: StreamlitLogHandler, provedor: str, modelo: str, api_key: Optional[str] = None) -> tuple[dict | None, str | None, str | None]:
     """Processa um único nome com rastreamento (logs)."""
     try:
         # Scrape
@@ -103,8 +103,8 @@ async def processar_nome(nome: str, log_handler: StreamlitLogHandler, api_key: O
         with open(raw_path, "w", encoding="utf-8") as f:
             f.write(texto_bruto)
 
-        # Gemini
-        dados = gerar_resumo_gemini(texto_bruto, log_callback=log_handler.log, api_key=api_key)
+        # IA Generativa (Roteador)
+        dados = gerar_resumo_ia(texto_bruto, provedor, modelo, api_key=api_key, log_callback=log_handler.log)
         
         if not dados:
             return None, None, "A IA retornou um resultado vazio (None)."
@@ -175,16 +175,29 @@ with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/commons/2/21/CNPq_logo.png", width=120)
     st.title("⚙️ Configurações")
     
+    # Seleção de Provedor e Modelo
+    st.subheader("🤖 Modelo de IA")
+    provedor = st.selectbox("Provedor:", ["Google Gemini", "OpenAI"], index=0)
+    
+    if provedor == "Google Gemini":
+        modelo = st.selectbox("Modelo:", ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"], index=0)
+        label_key = "Gemini API Key:"
+        help_url = "https://aistudio.google.com/app/apikey"
+    else:
+        modelo = st.selectbox("Modelo:", ["gpt-4o", "gpt-4o-mini", "gpt-3.5-turbo"], index=1)
+        label_key = "OpenAI API Key:"
+        help_url = "https://platform.openai.com/api-keys"
+
     # Gerenciamento de Chave
     ui_api_key = st.text_input(
-        "Gemini API Key:",
+        label_key,
         type="password",
         placeholder="Cole sua chave aqui...",
-        help="Sua chave API do Google AI Studio. Ela tem prioridade sobre o arquivo .env."
+        help=f"Sua chave do provedor selecionado. Ela tem prioridade sobre o arquivo .env."
     )
     
     if not ui_api_key:
-        st.info("💡 Usando chave do sistema (se configurada).")
+        st.info("💡 Usando chave do sistema (.env).")
     else:
         st.success("🔑 Chave personalizada ativa!")
         
@@ -192,15 +205,15 @@ with st.sidebar:
     
     # Guia de Ajuda
     with st.expander("📖 Como usar?"):
-        st.markdown("""
-        1. **Chave API**: Cole sua chave no campo acima.
-        2. **Busca**: Digite o nome completo do docente na aba principal.
-        3. **Trace Route**: Acompanhe o robô em tempo real.
+        st.markdown(f"""
+        1. **Provedor**: Escolha entre Google ou OpenAI.
+        2. **Chave API**: Cole sua chave no campo acima.
+        3. **Busca**: Digite o nome completo do docente.
         4. **Download**: Baixe o relatório em Word no final.
         
         ---
         **Precisa de uma chave?**
-        [Clique aqui](https://aistudio.google.com/app/apikey) para criar uma gratuitamente no Google AI Studio.
+        [Obter chave aqui]({help_url})
         """)
         
     st.caption("Desenvolvido para automação acadêmica.")
@@ -217,7 +230,7 @@ with tab1:
             with st.status(f"🛠️ Processando: **{nome_input}**...", expanded=True) as status:
                 handler = StreamlitLogHandler(status)
                 try:
-                    res = run_async(processar_nome(nome_input.strip(), handler, api_key=ui_api_key))
+                    res = run_async(processar_nome(nome_input.strip(), handler, provedor=provedor, modelo=modelo, api_key=ui_api_key))
                     
                     if res and isinstance(res, tuple) and len(res) == 3:
                         dados, docx_path, erro = res
@@ -262,7 +275,7 @@ with tab2:
                 with st.status(f"🔄 Docente {i+1}: **{nome}**") as status:
                     handler = StreamlitLogHandler(status)
                     try:
-                        res = run_async(processar_nome(nome, handler, api_key=ui_api_key))
+                        res = run_async(processar_nome(nome, handler, provedor=provedor, modelo=modelo, api_key=ui_api_key))
                         dados, docx_path, erro = res
                         if erro:
                             status.update(label=f"❌ Falha: {nome}", state="error")
