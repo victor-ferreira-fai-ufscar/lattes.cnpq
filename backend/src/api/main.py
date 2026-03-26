@@ -2,7 +2,6 @@ from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from scalar_fastapi import get_scalar_api_reference
 
@@ -39,8 +38,6 @@ async def health_check():
 
 @app.get("/docs", include_in_schema=False)
 async def scalar_docs():
-    return HTMLResponse(
-        get_scalar_api_reference(
-            openapi_url="/openapi.json", title="Lattes Scraper API"
-        )
+    return get_scalar_api_reference(
+        openapi_url="/openapi.json", title="Lattes Scraper API"
     )
