@@ -110,11 +110,13 @@ async def scrape_lattes(query_name: str, log_callback: Optional[Callable[[str], 
         await browser.close()
         return texto
 
-def gerar_resumo_gemini(texto: str, log_callback: Optional[Callable[[str], None]] = None) -> dict:
+def gerar_resumo_gemini(texto: str, log_callback: Optional[Callable[[str], None]] = None, api_key: Optional[str] = None) -> dict:
     """Usa o Gemini para extrair e estruturar os dados do Lattes extraído em formato JSON."""
-    api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        return {"erro": "Variável de ambiente GEMINI_API_KEY não encontrada."}
+        api_key = os.environ.get("GEMINI_API_KEY")
+        
+    if not api_key:
+        return {"erro": "Nenhuma API Key encontrada. Por favor, insira uma na barra lateral ou no arquivo .env."}
         
     _log("[*] Enviando texto gerado para a API do Gemini...", log_callback)
     client = genai.Client(api_key=api_key)

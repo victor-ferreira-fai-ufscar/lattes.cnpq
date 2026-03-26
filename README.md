@@ -1,48 +1,54 @@
-# Lattes Scraper & Summarizer 🚀
+# 🎓 Lattes Automator AI
 
-Este projeto consiste em um bot construído em Python que utiliza o **Playwright** para acessar a plataforma do Currículo Lattes, buscar automaticamente e extrair os dados de um professor (padrão: Neocles) e enviá-los de forma agnóstica para a API do **Gemini (Google GenAI)** gerar um robusto **Resumo Executivo** focando nas áreas de atuação e nas principais realizações.
+Ferramenta inteligente para extração e resumo de currículos da Plataforma Lattes. Ideal para pesquisadores, gestores acadêmicos e analistas que precisam de resumos executivos de alta qualidade a partir de perfis do CNPq.
 
-Tudo foi construído visando estabilidade e performance utilizando ferramentas modernas como arquitetura async, o gerenciador super-rápido `uv`, e ambientes conteinerizados sem conflitos.
+---
 
-## 🗝️ Pré-requisitos
-1. Uma Chave de API do Gemini. Você pode gerar a sua gratuitamente no [Google AI Studio](https://aistudio.google.com/api-keys).
-2. Configure o seu ambiente criando um arquivo `.env` na raiz do projeto. Basta renomear o arquivo modelo `.env.example` e colar a sua chave recém-criada:
-   ```env
-   GEMINI_API_KEY="COLE-SUA-CHAVE-AQUI"
-   ```
+## 🚀 Como Executar (Usuário Leigo)
 
-Existem duas formas de iniciar o bot. **A via recomendada é utilizando o Docker**.
+Se você é um usuário leigo no Windows, preparamos um lançador automático para facilitar sua vida:
 
-## 🐳 Opção 1: Executando via Docker (Recomendado)
+1.  **Obter a Ferramenta**: Baixe esta pasta e descompacte em seu computador.
+2.  **Lançador**: Clique duas vezes no arquivo **`run.bat`**.
+3.  **Aguarde**: Ele instalará tudo o que for necessário automaticamente (na primeira vez pode demorar uns 2 minutos).
+4.  **Acesse**: O navegador abrirá automaticamente em `http://localhost:8501`.
 
-O Docker garante total isolamento de dependências. Você não vai poluir sua máquina com binários do Python ou o navegador Chromium isolado do Playwright: tudo roda dentro e morre dentro do ambiente volátil limpo!
+> [!TIP]
+> **Dica de Ouro**: Você pode criar um atalho do arquivo `run.bat` e arrastá-lo para sua Área de Trabalho (Desktop) para abri-lo como qualquer outro programa.
 
-```bash
-# 1. Faça o build da imagem isolada
-docker build -t lattes-scraper .
+---
 
-# 2. Execute o bot, referenciando o arquivo de senhas (.env)
-docker run --rm --env-file .env lattes-scraper
-```
+## 🔑 Configurando sua Chave API (Gemini)
 
-## 💻 Opção 2: Executando Localmente com `uv`
+Para que a inteligência artificial funcione, você precisa de uma chave gratuita do Google:
 
-Caso queira debugar o arquivo `scraper.py`, ler o código com suporte ao **IntelliSense** nativo em seu editor ou simplesmente não queira lidar com containers nesse momento, você pode perfeitamente rodar o bot no seu Windows nativamente:
+1.  Acesse o [Google AI Studio](https://aistudio.google.com/app/apikey).
+2.  Clique em **"Create API key"**.
+3.  Copie o código gerado.
+4.  No aplicativo (Streamlit), cole essa chave na **Barra Lateral esquerda (Configurações)**.
 
-```bash
-# 1. Obtenha e sincronize as dependências num sub-ambiente limpo na pasta
-uv sync
+---
 
-# 2. Baixe e instale a versão oculta nativa do Chrome que o bot exige
-uv run playwright install chromium
+## 📋 Funcionalidades Principais
 
-# 3. Execute o robô! (As suas chaves do .env local serão puxadas magicamente pelo python-dotenv)
-uv run scraper.py
-```
+- **Busca Individual**: Basta digitar o nome completo e o robô vai até o site do CNPq buscar os dados.
+- **Processamento em Lote**: Faça upload de um arquivo `.txt` ou `.csv` com vários nomes e processe todos de uma vez.
+- **Trace Route**: Acompanhe em tempo real o que o robô está fazendo ("Acessando site...", "Extraindo texto...", "IA analisando...").
+- **Relatório Word**: Gere automaticamente um arquivo `.docx` profissional e editável para cada professor.
 
-## 🤖 Como Funciona o Fluxo?
-- O robô navega até a [Busca Textual do CNPq](https://buscatextual.cnpq.br/buscatextual/busca.do?metodo=apresentar).
-- Preenche a caixa de busca com o nome determinado (`Neocles`) e cruza pelos modais legados do Lattes.
-- Abre o currículo original de forma paralela e em seguida raspa *todo* o documento HTML visível.
-- As informações completas são injetadas no SDK oficial da Google para o gigantesco modelo **`gemini-2.5-flash`**. 
-- O modelo processa as páginas acadêmicas extensas e emite na tela um resumo objetivo sem enrolação.
+---
+
+## 🛠️ Detalhes Técnicos (Para Desenvolvedores)
+
+- **Backend**: Python 3.10+
+- **Scraper**: Playwright (Modo Headless/Headful)
+- **IA**: Google Gemini pro/flash API
+- **Frontend**: Streamlit 1.32.2+
+- **Gestão**: `uv` (Astral)
+
+### Erros Comuns
+- **Quota Exceeded (429)**: Se a cota da chave gratuita acabar, gere uma nova chave no AI Studio e troque na barra lateral do app.
+- **Playwright Not Installed**: O `run.bat` já tenta instalar o Chromium automaticamente com `playwright install chromium`.
+
+---
+Desenvolvido com foco em produtividade acadêmica.
