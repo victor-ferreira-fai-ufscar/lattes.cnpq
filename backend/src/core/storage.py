@@ -47,7 +47,12 @@ def _create_supabase_client() -> Any:
     return create_client(supabase_url, supabase_key)
 
 
-def upload_curriculo_pdf(filename: str, pdf_bytes: bytes) -> StorageUploadResult:
+def upload_file_bytes(
+    filename: str,
+    file_bytes: bytes,
+    *,
+    content_type: str,
+) -> StorageUploadResult:
     bucket = os.getenv("SUPABASE_STORAGE_BUCKET", "lattes-cvs").strip() or "lattes-cvs"
     folder = os.getenv("SUPABASE_STORAGE_FOLDER", "raw").strip().strip("/")
     is_public = _is_true(os.getenv("SUPABASE_STORAGE_PUBLIC", "true"))
@@ -58,8 +63,8 @@ def upload_curriculo_pdf(filename: str, pdf_bytes: bytes) -> StorageUploadResult
 
     supabase.storage.from_(bucket).upload(
         path=object_path,
-        file=pdf_bytes,
-        file_options={"content-type": "application/pdf", "upsert": "true"},
+        file=file_bytes,
+        file_options={"content-type": content_type, "upsert": "true"},
     )
 
     if is_public:
@@ -72,3 +77,11 @@ def upload_curriculo_pdf(filename: str, pdf_bytes: bytes) -> StorageUploadResult
         raise ValueError("Não foi possível gerar URL assinada para o arquivo no Supabase.")
 
     return StorageUploadResult(object_path=object_path, download_url=signed_url)
+
+
+def upload_curriculo_pdf(filename: str, pdf_bytes: bytes) -> StorageUploadResult:
+    return upload_file_bytes(
+        filename,
+        pdf_bytes,
+        content_type="application/pdf",
+    )

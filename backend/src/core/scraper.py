@@ -13,6 +13,7 @@ except ImportError:
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 from playwright.async_api import async_playwright
 
+FIRST_URL = "https://lattes.cnpq.br/"
 _BASE_URL = "https://buscatextual.cnpq.br/buscatextual/busca.do?metodo=apresentar"
 
 
@@ -62,7 +63,9 @@ def _extrair_ultima_atualizacao(texto: str) -> date:
         _normalizar(texto),
     )
     if not match:
-        raise ValueError("Não foi possível identificar a data de atualização do currículo.")
+        raise ValueError(
+            "Não foi possível identificar a data de atualização do currículo."
+        )
 
     return datetime.strptime(match.group(1), "%d/%m/%Y").date()
 

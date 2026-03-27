@@ -1,5 +1,6 @@
 # Para fazer (TODO)
 
+- [ ] Adicionar um docker-compose para rodar o backend e o frontend juntos
 - [ ] Adicionar a parte de seleção para o Gemini e o Ollama (para rodar localmente)
 - [ ] Adicionar a flag/toggle para o usuário conseguir visualizar ou não o headless
  
