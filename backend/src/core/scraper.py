@@ -1,5 +1,7 @@
 import os
 import re
+from dataclasses import dataclass
+from datetime import date, datetime
 
 try:
     from dotenv import load_dotenv
@@ -12,6 +14,12 @@ from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 from playwright.async_api import async_playwright
 
 _BASE_URL = "https://buscatextual.cnpq.br/buscatextual/busca.do?metodo=apresentar"
+
+
+@dataclass(frozen=True)
+class LattesScrapeResult:
+    pdf_bytes: bytes
+    ultima_atualizacao: date
 
 
 def _is_true(value: str) -> bool:
@@ -34,6 +42,18 @@ def _parece_pagina_cv(url: str, texto: str) -> bool:
         return True
 
     return "lattes.cnpq.br" in (url or "").lower() and "resultado de" not in texto_norm
+
+
+def _extrair_ultima_atualizacao(texto: str) -> date:
+    # Exemplo esperado: "Última atualização do currículo em 11/09/2020"
+    match = re.search(
+        r"[uú]ltima\s+atualiza(?:c|ç)[aã]o\s+do\s+curr[íi]culo\s+em\s+(\d{2}/\d{2}/\d{4})",
+        _normalizar(texto),
+    )
+    if not match:
+        raise ValueError("Não foi possível identificar a data de atualização do currículo.")
+
+    return datetime.strptime(match.group(1), "%d/%m/%Y").date()
 
 
 async def _tenta_abrir_cv_final(page, botao):
@@ -161,8 +181,8 @@ async def _abrir_curriculo(page, nome: str):
     raise ValueError("Não foi possível abrir a página final do currículo Lattes.")
 
 
-async def scrape_lattes(nome: str) -> bytes:
-    """Faz download do PDF do currículo Lattes usando Playwright."""
+async def scrape_lattes(nome: str) -> LattesScrapeResult:
+    """Faz download do PDF do currículo e extrai a data de última atualização."""
     browser_name = os.environ.get("PLAYWRIGHT_BROWSER", "chromium").lower()
     headless = _is_true(os.environ.get("PLAYWRIGHT_HEADLESS", "true"))
 
@@ -178,7 +198,12 @@ async def scrape_lattes(nome: str) -> bytes:
             page = await context.new_page()
             cv_page = await _abrir_curriculo(page, nome)
             await cv_page.wait_for_load_state("domcontentloaded")
+            texto_cv = await cv_page.locator("body").inner_text(timeout=12000)
+            ultima_atualizacao = _extrair_ultima_atualizacao(texto_cv)
             pdf_bytes = await cv_page.pdf(format="A4")
-            return pdf_bytes
+            return LattesScrapeResult(
+                pdf_bytes=pdf_bytes,
+                ultima_atualizacao=ultima_atualizacao,
+            )
         finally:
             await browser.close()

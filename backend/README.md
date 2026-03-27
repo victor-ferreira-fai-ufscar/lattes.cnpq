@@ -38,7 +38,7 @@ uv run uvicorn src.api.main:app --reload
 
 ### POST /scrape
 
-Scraping automático do currículo Lattes e download do PDF:
+Scraping automático do currículo Lattes + upload do PDF no Supabase Storage:
 
 ```bash
 curl -X POST http://localhost:8000/scrape \
@@ -51,8 +51,10 @@ curl -X POST http://localhost:8000/scrape \
 ```json
 {
   "nome": "Neocles",
-  "arquivo_pdf": "neocles-20260326-123456.pdf",
-  "download_pdf_url": "/download/raw/neocles-20260326-123456.pdf"
+  "ultima_atualizacao_curriculo": "2020-09-11",
+  "arquivo_pdf": "neocles-2020-09-11.pdf",
+  "storage_path": "raw/neocles-2020-09-11.pdf",
+  "download_pdf_url": "https://<project>.supabase.co/storage/v1/object/public/lattes-cvs/raw/neocles-2020-09-11.pdf"
 }
 ```
 
@@ -62,18 +64,9 @@ O fluxo automático:
 2. Clica no resultado
 3. Abre o currículo completo
 4. Gera PDF via `page.pdf()` do Playwright
-5. Salva em `backend/output/raw/{nome}-{timestamp}.pdf`
-
-### GET /download/raw/{filename}
-
-Baixa o PDF gerado:
-
-```bash
-curl http://localhost:8000/download/raw/neocles-20260326-123456.pdf -o curriculo.pdf
-```
-
-- **Content-Type**: `application/pdf` (para `.pdf`) ou `text/html` (para `.html`)
-- **Segurança**: Valida nome do arquivo (sem `../` ou caracteres perigosos)
+5. Extrai a data de "última atualização do currículo"
+6. Salva no Supabase com nome `{slug-do-nome}-{YYYY-MM-DD}.pdf`
+7. Retorna a URL final do Storage para download
 
 ### GET /health
 
@@ -102,6 +95,11 @@ backend/
 PLAYWRIGHT_BROWSER=chromium        # Opcional
 PLAYWRIGHT_HEADLESS=true           # Opcional
 BACKEND_PORT=8000                  # Opcional
+SUPABASE_URL=https://<project>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<service_role_key>
+SUPABASE_STORAGE_BUCKET=lattes-cvs
+SUPABASE_STORAGE_FOLDER=raw
+SUPABASE_STORAGE_PUBLIC=true
 ```
 
 ## Troubleshooting
@@ -120,3 +118,4 @@ BACKEND_PORT=8000                  # Opcional
 - `fastapi` — Framework web
 - `uvicorn` — Servidor ASGI
 - `scalar-fastapi` — Documentação interativa
+- `supabase` — Upload e link de download via Supabase Storage

@@ -47,3 +47,24 @@ https://www.ccs.ufscar.br/
     - Chatbot (plataforma Janela UFSCAR)
 
 - Como pegar essas matérias (através do servidor ou Scrapping <https://www.ccs.ufscar.br/>)
+
+---
+
+- Formação:
+    - Graduação
+    - Doutorado
+    - Mestrado
+    - Pós-doutorado
+    - Etc.
+- Vínculo institucional
+    - Universidades
+- Transcrição (resumo doc)
+- Template (doc estruturado)
+- Instruções
+
+---
+
+- Adicionar o Storage do Supabase
+- Lista de nomes profissionais (docentes) com .csv ou .txt
+    - 50 docentes
+    - Departamentos diferentes

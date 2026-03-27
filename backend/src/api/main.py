@@ -1,17 +1,14 @@
 import re
 import unicodedata
-from datetime import datetime
-from pathlib import Path
+from datetime import date, datetime
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from scalar_fastapi import get_scalar_api_reference
 
 from ..core.scraper import scrape_lattes
-
-OUTPUT_RAW_DIR = Path(__file__).resolve().parents[2] / "output" / "raw"
+from ..core.storage import upload_curriculo_pdf
 
 
 def _slugify_nome(nome: str) -> str:
@@ -22,12 +19,9 @@ def _slugify_nome(nome: str) -> str:
     return slug or "docente"
 
 
-def _salvar_pdf_curriculo(nome: str, pdf_bytes: bytes) -> str:
-    OUTPUT_RAW_DIR.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    filename = f"{_slugify_nome(nome)}-{timestamp}.pdf"
-    destino = OUTPUT_RAW_DIR / filename
-    destino.write_bytes(pdf_bytes)
+def _build_curriculo_filename(nome: str, ultima_atualizacao: date) -> str:
+    data = ultima_atualizacao.strftime("%Y-%m-%d")
+    filename = f"{_slugify_nome(nome)}-{data}.pdf"
     return filename
 
 
@@ -54,34 +48,29 @@ async def scrape(request: ScrapeRequest):
         raise HTTPException(status_code=400, detail="Informe o nome do docente.")
 
     try:
-        pdf_bytes = await scrape_lattes(nome)
+        scrape_result = await scrape_lattes(nome)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    filename = _salvar_pdf_curriculo(nome, pdf_bytes)
+    filename = _build_curriculo_filename(nome, scrape_result.ultima_atualizacao)
+
+    try:
+        upload_result = upload_curriculo_pdf(filename, scrape_result.pdf_bytes)
+    except ValueError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Falha ao enviar arquivo para o Supabase Storage: {exc}",
+        ) from exc
 
     return {
         "nome": nome,
+        "ultima_atualizacao_curriculo": scrape_result.ultima_atualizacao.isoformat(),
         "arquivo_pdf": filename,
-        "download_pdf_url": f"/download/raw/{filename}",
+        "storage_path": upload_result.object_path,
+        "download_pdf_url": upload_result.download_url,
     }
-
-
-@app.get("/download/raw/{filename}")
-async def download_raw_pdf(filename: str):
-    if "/" in filename or "\\" in filename:
-        raise HTTPException(status_code=400, detail="Nome de arquivo inválido.")
-
-    file_path = OUTPUT_RAW_DIR / filename
-    if not file_path.exists() or not file_path.is_file():
-        raise HTTPException(status_code=404, detail="Arquivo não encontrado.")
-
-    media_type = "application/pdf" if filename.endswith(".pdf") else "text/html"
-    return FileResponse(
-        path=file_path,
-        media_type=media_type,
-        filename=filename,
-    )
 
 
 @app.get("/health")

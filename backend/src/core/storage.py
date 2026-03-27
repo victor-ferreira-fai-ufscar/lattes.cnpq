@@ -1,0 +1,74 @@
+import os
+from importlib import import_module
+from dataclasses import dataclass
+from typing import Any
+
+
+@dataclass(frozen=True)
+class StorageUploadResult:
+    object_path: str
+    download_url: str
+
+
+def _is_true(value: str) -> bool:
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _require_env(name: str) -> str:
+    value = os.getenv(name, "").strip()
+    if not value:
+        raise ValueError(f"Variável de ambiente obrigatória ausente: {name}")
+    return value
+
+
+def _create_supabase_client() -> Any:
+    supabase_url = _require_env("SUPABASE_URL")
+    supabase_key = (
+        os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+        or os.getenv("SUPABASE_ANON_KEY", "").strip()
+    )
+    if not supabase_key:
+        raise ValueError(
+            "Defina SUPABASE_SERVICE_ROLE_KEY ou SUPABASE_ANON_KEY para usar o Storage."
+        )
+
+    try:
+        supabase_module = import_module("supabase")
+        create_client = getattr(supabase_module, "create_client")
+    except ImportError as exc:
+        raise ValueError(
+            "Dependência 'supabase' não encontrada. Rode 'uv sync' no backend."
+        ) from exc
+    except AttributeError as exc:
+        raise ValueError(
+            "Biblioteca 'supabase' incompatível. Atualize as dependências com 'uv sync'."
+        ) from exc
+
+    return create_client(supabase_url, supabase_key)
+
+
+def upload_curriculo_pdf(filename: str, pdf_bytes: bytes) -> StorageUploadResult:
+    bucket = os.getenv("SUPABASE_STORAGE_BUCKET", "lattes-cvs").strip() or "lattes-cvs"
+    folder = os.getenv("SUPABASE_STORAGE_FOLDER", "raw").strip().strip("/")
+    is_public = _is_true(os.getenv("SUPABASE_STORAGE_PUBLIC", "true"))
+    signed_url_ttl = int(os.getenv("SUPABASE_SIGNED_URL_EXPIRES_IN", "3600"))
+
+    object_path = f"{folder}/{filename}" if folder else filename
+    supabase = _create_supabase_client()
+
+    supabase.storage.from_(bucket).upload(
+        path=object_path,
+        file=pdf_bytes,
+        file_options={"content-type": "application/pdf", "upsert": "true"},
+    )
+
+    if is_public:
+        public_url = supabase.storage.from_(bucket).get_public_url(object_path)
+        return StorageUploadResult(object_path=object_path, download_url=public_url)
+
+    signed = supabase.storage.from_(bucket).create_signed_url(object_path, signed_url_ttl)
+    signed_url = signed.get("signedURL") or signed.get("signedUrl")
+    if not signed_url:
+        raise ValueError("Não foi possível gerar URL assinada para o arquivo no Supabase.")
+
+    return StorageUploadResult(object_path=object_path, download_url=signed_url)
