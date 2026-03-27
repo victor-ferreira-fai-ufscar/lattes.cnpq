@@ -10,6 +10,17 @@ export type ScrapeResponse = {
   duracao_segundos?: number;
 };
 
+export type SearchCandidate = {
+  nome: string;
+  href: string;
+};
+
+export type SearchResponse = {
+  nome_busca: string;
+  total: number;
+  candidatos: SearchCandidate[];
+};
+
 type ApiErrorPayload = {
   detail?: unknown;
   // FastAPI pode retornar lista de erros de validação
@@ -65,6 +76,22 @@ export async function scrapeCurriculo(nome: string): Promise<ScrapeResponse> {
   return response.data;
 }
 
+export async function buscarCandidatos(
+  nome: string,
+  limit = 20,
+): Promise<SearchResponse> {
+  const response = await api.post<SearchResponse>("/search", { nome, limit });
+  return response.data;
+}
+
+export async function scrapeCurriculoSelecionado(
+  nome: string,
+  href: string,
+): Promise<ScrapeResponse> {
+  const response = await api.post<ScrapeResponse>("/scrape", { nome, href });
+  return response.data;
+}
+
 export async function summarizeCurriculo(
   nome: string,
   apiKey?: string,
@@ -89,7 +116,9 @@ export async function scrapeCurriculosLote(
     throw new Error("Arquivo invalido: envie um arquivo .csv.");
   }
   if (file.size <= 0) {
-    throw new Error("Arquivo CSV vazio no frontend. Verifique o arquivo selecionado.");
+    throw new Error(
+      "Arquivo CSV vazio no frontend. Verifique o arquivo selecionado.",
+    );
   }
 
   const raw = await file.arrayBuffer();
@@ -109,7 +138,10 @@ export async function scrapeCurriculosLote(
     formData.append("limit", String(options.limit));
   }
 
-  const response = await api.post<BatchScrapeResponse>("/scrape/batch", formData);
+  const response = await api.post<BatchScrapeResponse>(
+    "/scrape/batch",
+    formData,
+  );
   return response.data;
 }
 

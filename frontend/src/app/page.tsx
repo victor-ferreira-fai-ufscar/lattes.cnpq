@@ -6,10 +6,12 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Info, Loader2, Sparkles, Terminal, Upload } from "lucide-react";
 import Markdown from "react-markdown";
 import {
+  buscarCandidatos,
   type BatchScrapeResponse,
   getApiErrorMessage,
-  scrapeCurriculo,
   scrapeCurriculosLote,
+  scrapeCurriculoSelecionado,
+  type SearchCandidate,
   summarizeCurriculo,
   type ScrapeResponse,
   type SummarizeResponse,
@@ -70,6 +72,12 @@ const BATCH_LOADING_MESSAGES = [
   "Consolidando resultados...",
 ];
 
+const SEARCH_LOADING_MESSAGES = [
+  "Consultando resultados no Lattes...",
+  "Carregando candidatos encontrados...",
+  "Preparando seleção para você...",
+];
+
 function InfoTooltip({ text }: { text: string }) {
   return (
     <span className="group relative inline-flex items-center">
@@ -89,11 +97,15 @@ function InfoTooltip({ text }: { text: string }) {
 export default function Home() {
   const [mode, setMode] = useState<SearchMode>("individual");
   const [loading, setLoading] = useState(false);
+  const [searchingCandidates, setSearchingCandidates] = useState(false);
   const [result, setResult] = useState<ScrapeResponse | null>(null);
   const [batchLoading, setBatchLoading] = useState(false);
   const [batchResult, setBatchResult] = useState<BatchScrapeResponse | null>(
     null,
   );
+  const [candidates, setCandidates] = useState<SearchCandidate[]>([]);
+  const [selectedCandidateHref, setSelectedCandidateHref] = useState("");
+  const [searchedName, setSearchedName] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [modelo, setModelo] = useState("gpt-4o-mini");
   const [summarizing, setSummarizing] = useState(false);
@@ -128,9 +140,11 @@ export default function Home() {
     ? "summarize"
     : batchLoading
       ? "batch"
-      : loading
-        ? "scrape"
-        : null;
+      : searchingCandidates
+        ? "search"
+        : loading
+          ? "scrape"
+          : null;
 
   const activeLoadingMessage = useMemo(() => {
     if (activeMode === "scrape") {
@@ -148,10 +162,15 @@ export default function Home() {
         loadingMessageIndex % BATCH_LOADING_MESSAGES.length
       ];
     }
+    if (activeMode === "search") {
+      return SEARCH_LOADING_MESSAGES[
+        loadingMessageIndex % SEARCH_LOADING_MESSAGES.length
+      ];
+    }
     return "";
   }, [activeMode, loadingMessageIndex]);
 
-  const isBusy = loading || summarizing || batchLoading;
+  const isBusy = loading || summarizing || batchLoading || searchingCandidates;
 
   const addLog = (source: LogSource, message: string) => {
     const timestamp = new Date().toLocaleTimeString("pt-BR");
@@ -185,15 +204,70 @@ export default function Home() {
   }, [activeMode]);
 
   const handleSubmit = async (data: IndividualSearchFormData) => {
+    setSearchingCandidates(true);
+    setCandidates([]);
+    setSelectedCandidateHref("");
+    setSearchedName(data.nome);
+    setResult(null);
+    setBatchResult(null);
+    setSummary(null);
+    setSummaryError("");
+    addLog("frontend", `Iniciando requisição /search para '${data.nome}'.`);
+
+    try {
+      const response = await buscarCandidatos(data.nome, 20);
+      setCandidates(response.candidatos);
+      if (response.candidatos.length > 0) {
+        setSelectedCandidateHref(response.candidatos[0].href);
+      }
+      addLog(
+        "frontend",
+        `Resposta /search recebida com ${response.total} candidato(s).`,
+      );
+    } catch (err) {
+      const errorMessage = getApiErrorMessage(err);
+      individualForm.setError("nome", { message: errorMessage });
+      addLog("frontend", `Erro em /search: ${errorMessage}`);
+    } finally {
+      setSearchingCandidates(false);
+    }
+  };
+
+  const handleScrapeSelected = async () => {
+    if (!selectedCandidateHref) {
+      individualForm.setError("nome", {
+        message: "Selecione um candidato antes de iniciar o scraping.",
+      });
+      return;
+    }
+
+    const selectedCandidate = candidates.find(
+      (candidate) => candidate.href === selectedCandidateHref,
+    );
+
+    if (!selectedCandidate) {
+      individualForm.setError("nome", {
+        message: "Candidato selecionado inválido. Faça a busca novamente.",
+      });
+      return;
+    }
+
     setLoading(true);
     setResult(null);
     setBatchResult(null);
     setSummary(null);
     setSummaryError("");
-    addLog("frontend", `Iniciando requisição /scrape para '${data.nome}'.`);
+
+    addLog(
+      "frontend",
+      `Iniciando requisição /scrape para candidato '${selectedCandidate.nome}'.`,
+    );
 
     try {
-      const response = await scrapeCurriculo(data.nome);
+      const response = await scrapeCurriculoSelecionado(
+        selectedCandidate.nome,
+        selectedCandidate.href,
+      );
       setResult(response);
       addLog(
         "frontend",
@@ -221,6 +295,8 @@ export default function Home() {
     setBatchLoading(true);
     setResult(null);
     setBatchResult(null);
+    setCandidates([]);
+    setSelectedCandidateHref("");
     setSummary(null);
     setSummaryError("");
 
@@ -322,7 +398,12 @@ export default function Home() {
                 <Button
                   type="button"
                   variant={mode === "lote" ? "default" : "outline"}
-                  onClick={() => setMode("lote")}
+                  onClick={() => {
+                    setMode("lote");
+                    setCandidates([]);
+                    setSelectedCandidateHref("");
+                    setSearchedName("");
+                  }}
                 >
                   Lote (CSV)
                 </Button>
@@ -356,20 +437,61 @@ export default function Home() {
                       </FormItem>
                     )}
                   />
-                  <Button
-                    type="submit"
-                    disabled={loading || batchLoading}
-                    className="w-full"
-                  >
-                    {loading ? (
+                  <Button type="submit" disabled={isBusy} className="w-full">
+                    {searchingCandidates ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        Processando...
+                        Buscando candidatos...
                       </>
                     ) : (
-                      "Buscar currículo"
+                      "Buscar candidatos"
                     )}
                   </Button>
+
+                  {candidates.length > 0 ? (
+                    <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-sm font-medium text-slate-800">
+                        {candidates.length} candidato(s) encontrado(s) para{" "}
+                        <span className="font-semibold">{searchedName}</span>
+                      </p>
+                      <div className="max-h-56 space-y-2 overflow-auto rounded-md border border-slate-200 bg-white p-2">
+                        {candidates.map((candidate, index) => (
+                          <label
+                            key={`${candidate.href}-${index}`}
+                            className="flex cursor-pointer items-start gap-2 rounded-md px-2 py-1 text-sm hover:bg-slate-50"
+                          >
+                            <input
+                              type="radio"
+                              name="candidate-selection"
+                              value={candidate.href}
+                              checked={selectedCandidateHref === candidate.href}
+                              onChange={() =>
+                                setSelectedCandidateHref(candidate.href)
+                              }
+                              className="mt-0.5"
+                            />
+                            <span>{candidate.nome}</span>
+                          </label>
+                        ))}
+                      </div>
+
+                      <Button
+                        type="button"
+                        onClick={handleScrapeSelected}
+                        disabled={isBusy || !selectedCandidateHref}
+                        className="w-full"
+                      >
+                        {loading ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Processando scraping...
+                          </>
+                        ) : (
+                          "Fazer scraping do candidato selecionado"
+                        )}
+                      </Button>
+                    </div>
+                  ) : null}
                 </form>
               </Form>
             ) : null}
@@ -553,7 +675,9 @@ export default function Home() {
                     ? "Executando scraping"
                     : activeMode === "batch"
                       ? "Executando scraping em lote"
-                      : "Gerando resumo com ChatGPT"}
+                      : activeMode === "search"
+                        ? "Buscando candidatos"
+                        : "Gerando resumo com ChatGPT"}
                 </div>
                 <p>{activeLoadingMessage}</p>
                 <p className="mt-1 text-xs">

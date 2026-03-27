@@ -11,7 +11,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from scalar_fastapi import get_scalar_api_reference
 
-from ..core.scraper import scrape_lattes, scrape_lattes_text
+from ..core.scraper import (
+    buscar_lattes_candidatos,
+    scrape_lattes,
+    scrape_lattes_by_href,
+    scrape_lattes_text,
+)
 from ..core.storage import upload_curriculo_pdf, upload_file_bytes
 from ..core.summarizer import resumir_curriculo
 
@@ -44,6 +49,12 @@ app.add_middleware(
 
 class ScrapeRequest(BaseModel):
     nome: str
+    href: Optional[str] = None
+
+
+class SearchRequest(BaseModel):
+    nome: str
+    limit: int = 20
 
 
 class SummarizeRequest(BaseModel):
@@ -89,10 +100,19 @@ async def scrape(request: ScrapeRequest):
     if not nome:
         raise HTTPException(status_code=400, detail="Informe o nome do docente.")
 
-    add_log(f"Iniciando scraping do currículo de '{nome}'.")
+    if request.href:
+        add_log(
+            "Iniciando scraping do currículo selecionado "
+            f"(nome='{nome}', href='{request.href}')."
+        )
+    else:
+        add_log(f"Iniciando scraping do currículo de '{nome}'.")
     t_scrape = perf_counter()
     try:
-        scrape_result = await scrape_lattes(nome)
+        if request.href:
+            scrape_result = await scrape_lattes_by_href(nome, request.href)
+        else:
+            scrape_result = await scrape_lattes(nome)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     add_log(
@@ -128,6 +148,32 @@ async def scrape(request: ScrapeRequest):
         "download_pdf_url": upload_result.download_url,
         "logs": logs,
         "duracao_segundos": round(perf_counter() - t_total, 2),
+    }
+
+
+@app.post("/search")
+async def search(request: SearchRequest):
+    nome = request.nome.strip()
+    if not nome:
+        raise HTTPException(status_code=400, detail="Informe o nome do docente.")
+
+    limit = max(1, min(request.limit, 50))
+
+    try:
+        candidatos = await buscar_lattes_candidatos(nome, limit=limit)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return {
+        "nome_busca": nome,
+        "total": len(candidatos),
+        "candidatos": [
+            {
+                "nome": candidato.nome,
+                "href": candidato.href,
+            }
+            for candidato in candidatos
+        ],
     }
 
 
