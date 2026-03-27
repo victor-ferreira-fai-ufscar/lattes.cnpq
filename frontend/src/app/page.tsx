@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Loader2, Sparkles, Terminal } from "lucide-react";
 import Markdown from "react-markdown";
 import {
   getApiErrorMessage,
@@ -9,6 +10,16 @@ import {
   type ScrapeResponse,
   type SummarizeResponse,
 } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 type LogSource = "frontend" | "backend";
 
@@ -64,6 +75,8 @@ export default function Home() {
     }
     return "";
   }, [activeMode, loadingMessageIndex]);
+
+  const isBusy = loading || summarizing;
 
   const addLog = (source: LogSource, message: string) => {
     const timestamp = new Date().toLocaleTimeString("pt-BR");
@@ -157,156 +170,223 @@ export default function Home() {
   }
 
   return (
-    <main className="page">
-      <section className="card">
-        <h1>Lattes CNPq</h1>
-        <p>Digite o nome do docente para executar o scraping no backend.</p>
-
-        <form onSubmit={handleSubmit} className="form">
-          <label htmlFor="nome">Nome</label>
-          <input
-            id="nome"
-            type="text"
-            value={nome}
-            onChange={(event) => setNome(event.target.value)}
-            placeholder="Ex: Neocles Alves Pereira"
-            autoComplete="off"
-            required
-          />
-
-          <button type="submit" disabled={loading}>
-            {loading ? "Processando..." : "Buscar currículo"}
-          </button>
-        </form>
-
-        {activeMode ? (
-          <div className="loading-box">
-            <div className="loading-header">
-              <span className="loading-spinner" aria-hidden="true" />
-              <strong>
-                {activeMode === "scrape"
-                  ? "Executando scraping"
-                  : "Gerando resumo com ChatGPT"}
-              </strong>
-            </div>
-            <p>{activeLoadingMessage}</p>
-            <small>Tempo decorrido: {elapsedSeconds}s</small>
-          </div>
-        ) : null}
-
-        <div className="logs-toggle-row">
-          <button
-            type="button"
-            className="btn-logs"
-            onClick={() => setShowLogs((prev) => !prev)}
-          >
-            {showLogs ? "Ocultar logs" : "Mostrar logs"}
-          </button>
-          <button
-            type="button"
-            className="btn-logs-clear"
-            onClick={() => setLogs([])}
-            disabled={logs.length === 0}
-          >
-            Limpar
-          </button>
-        </div>
-
-        {showLogs ? (
-          <div className="logs-panel">
-            <h3>Logs das requisições</h3>
-            {logs.length === 0 ? (
-              <p>Nenhum log registrado.</p>
-            ) : (
-              <div className="logs-list">
-                {logs.map((entry) => (
-                  <p key={entry.id} className={`log-item ${entry.source}`}>
-                    <strong>{entry.source === "backend" ? "Backend" : "Frontend"}</strong>{" "}
-                    {entry.message}
-                  </p>
-                ))}
+    <main className="min-h-screen bg-slate-50 py-10">
+      <section className="mx-auto flex w-full max-w-4xl flex-col gap-4 px-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-2xl">Lattes CNPq</CardTitle>
+            <CardDescription>
+              Faça o scraping do currículo e acompanhe o progresso em tempo real.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="nome">Nome</Label>
+                <Input
+                  id="nome"
+                  type="text"
+                  value={nome}
+                  onChange={(event) => setNome(event.target.value)}
+                  placeholder="Ex: Neocles Alves Pereira"
+                  autoComplete="off"
+                  required
+                />
               </div>
-            )}
-          </div>
-        ) : null}
+              <Button type="submit" disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Processando...
+                  </>
+                ) : (
+                  "Buscar currículo"
+                )}
+              </Button>
+            </form>
 
-        {error ? <div className="message error">{error}</div> : null}
+            {activeMode ? (
+              <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
+                <div className="mb-1 flex items-center gap-2 font-medium">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  {activeMode === "scrape"
+                    ? "Executando scraping"
+                    : "Gerando resumo com ChatGPT"}
+                </div>
+                <p>{activeLoadingMessage}</p>
+                <p className="mt-1 text-xs">Tempo decorrido: {elapsedSeconds}s</p>
+              </div>
+            ) : null}
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setShowLogs((prev) => !prev)}
+              >
+                <Terminal className="h-4 w-4" />
+                {showLogs ? "Ocultar logs" : "Mostrar logs"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setLogs([])}
+                disabled={logs.length === 0}
+              >
+                Limpar logs
+              </Button>
+            </div>
+
+            {showLogs ? (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <p className="mb-2 text-sm font-medium">Logs das requisições</p>
+                {logs.length === 0 ? (
+                  <p className="text-sm text-slate-500">Nenhum log registrado.</p>
+                ) : (
+                  <div className="max-h-56 space-y-2 overflow-auto">
+                    {logs.map((entry) => (
+                      <p
+                        key={entry.id}
+                        className={`rounded-md px-2 py-1 text-xs ${
+                          entry.source === "backend"
+                            ? "bg-cyan-50 text-cyan-900"
+                            : "bg-indigo-50 text-indigo-900"
+                        }`}
+                      >
+                        <strong>
+                          {entry.source === "backend" ? "Backend" : "Frontend"}
+                        </strong>{" "}
+                        {entry.message}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {error ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {error}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
 
         {result ? (
-          <div className="result">
-            <h2>Resultado</h2>
-            <p>
-              <strong>Nome:</strong> {result.nome}
-            </p>
-            <p>
-              <strong>Última atualização:</strong>{" "}
-              {new Date(result.ultima_atualizacao_curriculo).toLocaleDateString(
-                "pt-BR",
-              )}
-            </p>
-            <p>
-              <strong>Arquivo:</strong> {result.arquivo_pdf}
-            </p>
-            <p>
-              <a href={result.download_pdf_url} target="_blank" rel="noreferrer">
-                Baixar PDF
-              </a>
-            </p>
-
-            <div className="summarize-form">
-              <h3>Resumir com ChatGPT</h3>
-
-              <div className="summarize-fields">
-                <div>
-                  <label htmlFor="openai-key">API Key OpenAI</label>
-                  <input
-                    id="openai-key"
-                    type="password"
-                    value={apiKey}
-                    onChange={(event) => setApiKey(event.target.value)}
-                    placeholder="sk-... (opcional se configurada no backend)"
-                    autoComplete="off"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="modelo">Modelo</label>
-                  <select
-                    id="modelo"
-                    value={modelo}
-                    onChange={(event) => setModelo(event.target.value)}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-xl">Resultado do scraping</CardTitle>
+              <CardDescription>
+                {result.duracao_segundos
+                  ? `Concluído em ${result.duracao_segundos}s`
+                  : "Scraping concluído"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-2 text-sm md:grid-cols-2">
+                <p>
+                  <span className="font-semibold">Nome:</span> {result.nome}
+                </p>
+                <p>
+                  <span className="font-semibold">Última atualização:</span>{" "}
+                  {new Date(result.ultima_atualizacao_curriculo).toLocaleDateString(
+                    "pt-BR",
+                  )}
+                </p>
+                <p className="md:col-span-2">
+                  <span className="font-semibold">Arquivo:</span> {result.arquivo_pdf}
+                </p>
+                <p className="md:col-span-2">
+                  <a
+                    href={result.download_pdf_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-medium text-sky-700 underline hover:text-sky-600"
                   >
-                    <option value="gpt-4o-mini">gpt-4o-mini</option>
-                    <option value="gpt-4o">gpt-4o</option>
-                    <option value="gpt-4.1">gpt-4.1</option>
-                    <option value="gpt-4.1-mini">gpt-4.1-mini</option>
-                    <option value="gpt-4.1-nano">gpt-4.1-nano</option>
-                  </select>
-                </div>
+                    Baixar PDF
+                  </a>
+                </p>
               </div>
 
-              <button
-                type="button"
-                onClick={handleSummarize}
-                disabled={summarizing}
-                className="btn-summarize"
-              >
-                {summarizing ? "Resumindo..." : "Resumir com ChatGPT"}
-              </button>
-            </div>
+              <div className="space-y-3 rounded-lg border border-slate-200 p-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                  <Sparkles className="h-4 w-4" />
+                  Resumir com ChatGPT
+                </div>
 
-            {summaryError ? (
-              <div className="message error">{summaryError}</div>
-            ) : null}
-          </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="openai-key">API Key OpenAI</Label>
+                    <Input
+                      id="openai-key"
+                      type="password"
+                      value={apiKey}
+                      onChange={(event) => setApiKey(event.target.value)}
+                      placeholder="sk-... (opcional se configurada no backend)"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="modelo">Modelo</Label>
+                    <select
+                      id="modelo"
+                      value={modelo}
+                      onChange={(event) => setModelo(event.target.value)}
+                      className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                    >
+                      <option value="gpt-4o-mini">gpt-4o-mini</option>
+                      <option value="gpt-4o">gpt-4o</option>
+                      <option value="gpt-4.1">gpt-4.1</option>
+                      <option value="gpt-4.1-mini">gpt-4.1-mini</option>
+                      <option value="gpt-4.1-nano">gpt-4.1-nano</option>
+                    </select>
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="success"
+                  onClick={handleSummarize}
+                  disabled={isBusy}
+                >
+                  {summarizing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Resumindo...
+                    </>
+                  ) : (
+                    "Resumir com ChatGPT"
+                  )}
+                </Button>
+              </div>
+
+              {summaryError ? (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  {summaryError}
+                </div>
+              ) : null}
+            </CardContent>
+          </Card>
         ) : null}
 
         {summary ? (
-          <div className="result summary">
-            <h2>Resumo — {summary.nome}</h2>
-            <div className="markdown">
-              <Markdown>{summary.resumo}</Markdown>
-            </div>
-          </div>
+          <Card className="border-emerald-200 bg-emerald-50">
+            <CardHeader>
+              <CardTitle className="text-xl">Resumo - {summary.nome}</CardTitle>
+              <CardDescription>
+                {summary.duracao_segundos
+                  ? `Gerado em ${summary.duracao_segundos}s`
+                  : "Resumo gerado"}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3 text-sm leading-relaxed text-slate-800 [&_h1]:mt-4 [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:mt-3 [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:mt-2 [&_h3]:text-base [&_h3]:font-semibold [&_li]:ml-5 [&_li]:list-disc [&_p]:my-2">
+                <Markdown>{summary.resumo}</Markdown>
+              </div>
+            </CardContent>
+          </Card>
         ) : null}
       </section>
     </main>
