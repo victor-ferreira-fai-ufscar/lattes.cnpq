@@ -69,6 +69,100 @@ body {
   cursor: not-allowed;
 }
 
+.loading-box {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.5rem;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+}
+
+.loading-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.loading-spinner {
+  width: 0.85rem;
+  height: 0.85rem;
+  border: 2px solid #93c5fd;
+  border-top-color: #1d4ed8;
+  border-radius: 999px;
+  animation: spin 0.9s linear infinite;
+}
+
+.loading-box p {
+  margin: 0.2rem 0;
+}
+
+.loading-box small {
+  color: #1e3a8a;
+}
+
+.logs-toggle-row {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-logs,
+.btn-logs-clear {
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  padding: 0.45rem 0.8rem;
+  background: #ffffff;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.btn-logs-clear:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.logs-panel {
+  margin-top: 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: #f8fafc;
+  padding: 0.75rem;
+}
+
+.logs-panel h3 {
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
+}
+
+.logs-list {
+  max-height: 14rem;
+  overflow: auto;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.log-item {
+  margin: 0;
+  font-size: 0.85rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 0.35rem;
+}
+
+.log-item.frontend {
+  background: #eef2ff;
+}
+
+.log-item.backend {
+  background: #ecfeff;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .message {
   margin-top: 1rem;
   padding: 0.75rem;
@@ -91,4 +185,88 @@ body {
 
 .result h2 {
   margin: 0 0 0.75rem;
+}
+
+.summarize-form {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.summarize-form h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.summarize-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+@media (max-width: 540px) {
+  .summarize-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+.summarize-fields label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.summarize-fields input,
+.summarize-fields select {
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  background: #ffffff;
+}
+
+.btn-summarize {
+  padding: 0.6rem 1rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: #16a34a;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+.btn-summarize:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.summary {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.markdown {
+  line-height: 1.6;
+}
+
+.markdown h1,
+.markdown h2,
+.markdown h3 {
+  margin: 1rem 0 0.4rem;
+}
+
+.markdown p {
+  margin: 0.4rem 0;
+}
+
+.markdown ul,
+.markdown ol {
+  margin: 0.4rem 0;
+  padding-left: 1.25rem;
+}
+
+.markdown strong {
+  font-weight: 700;
 }
