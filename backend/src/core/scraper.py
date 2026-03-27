@@ -226,3 +226,25 @@ async def scrape_lattes(nome: str) -> LattesScrapeResult:
             )
         finally:
             await browser.close()
+
+
+async def scrape_lattes_text(nome: str) -> str:
+    """Retorna apenas o texto bruto do currículo Lattes (sem gerar PDF)."""
+    browser_name = os.environ.get("PLAYWRIGHT_BROWSER", "chromium").lower()
+    headless = _is_true(os.environ.get("PLAYWRIGHT_HEADLESS", "true"))
+
+    async with async_playwright() as p:
+        browser_type = getattr(p, browser_name, p.chromium)
+        browser = await browser_type.launch(
+            headless=headless,
+            args=["--no-sandbox", "--disable-dev-shm-usage"],
+        )
+
+        try:
+            context = await browser.new_context(locale="pt-BR")
+            page = await context.new_page()
+            cv_page = await _abrir_curriculo(page, nome)
+            await cv_page.wait_for_load_state("domcontentloaded")
+            return await cv_page.locator("body").inner_text(timeout=12000)
+        finally:
+            await browser.close()
