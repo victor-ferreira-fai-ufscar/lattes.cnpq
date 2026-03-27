@@ -1,6 +1,6 @@
 # scripts/batch_scrape.py
 
-Script para fazer scraping em lote de currículos Lattes a partir de um arquivo CSV com nomes de docentes. Gera um PDF por docente em `backend/output/raw/`.
+Script para fazer scraping em lote de currículos Lattes a partir de um arquivo CSV com nomes de docentes. Gera um PDF por docente e envia para o Supabase Storage.
 
 ## Pré-requisitos
 
@@ -10,6 +10,16 @@ Executar a partir do diretório `backend/`:
 cd backend
 uv sync
 uv run playwright install chromium  # apenas na primeira vez
+```
+
+Variáveis obrigatórias no `.env`:
+
+```env
+SUPABASE_URL=https://<project>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<service_role_key>
+SUPABASE_STORAGE_BUCKET=lattes-cvs
+SUPABASE_STORAGE_FOLDER=raw
+SUPABASE_STORAGE_PUBLIC=true
 ```
 
 ## Uso
@@ -41,21 +51,22 @@ uv run python scripts/batch_scrape.py ../docs/csv/50-nomes-docentes.csv --limit 
 
 ### Deduplicação automática
 
-O script nunca baixa o mesmo profissional duas vezes:
-
-- **Duplicatas no CSV**: nomes repetidos no mesmo arquivo são ignorados automaticamente.
-- **PDFs já existentes**: se `output/raw/` já contiver um PDF com o mesmo slug do nome (ex: `aline-guerra-aquilante-*.pdf`), a linha é pulada com o status `↩ já existe`.
-
-Isso é seguro para rodar novamente após uma interrupção — só processa os nomes que ainda faltam.
+O script remove duplicatas no próprio CSV (mantendo a ordem).
 
 ### Nomes de arquivo
+
+O nome segue o padrão `{slug-do-nome}-{YYYY-MM-DD}.pdf`, onde a data é a "última atualização do currículo" extraída do Lattes.
 
 Acentos são removidos automaticamente para compatibilidade:
 
 | Nome                                 | Arquivo gerado                                           |
 | ------------------------------------ | -------------------------------------------------------- |
-| `Amélia Arcângela Teixeira Trindade` | `amelia-arcangela-teixeira-trindade-20260326-123456.pdf` |
-| `Ângela Merice de Oliveira Leal`     | `angela-merice-de-oliveira-leal-20260326-123456.pdf`     |
+| `Amélia Arcângela Teixeira Trindade` | `amelia-arcangela-teixeira-trindade-2020-09-11.pdf`     |
+| `Ângela Merice de Oliveira Leal`     | `angela-merice-de-oliveira-leal-2019-03-02.pdf`         |
+
+### Cache no Storage
+
+O upload usa `upsert=true`, então execuções repetidas atualizam o mesmo objeto no bucket quando o nome do arquivo coincide.
 
 ### Taxa de sucesso esperada
 
@@ -86,8 +97,8 @@ Alguns nomes do CSV podem não estar no Lattes da forma exata como estão escrit
 ──────────────────────────────────────────────────────────────────────────────────────────
 
 [ 1/10] Aline Barreto de Almeida Nordi                    ✗ Nenhum resultado encontrado
-[ 2/10] Aline Guerra Aquilante                             ✓  699.5 KB  →  aline-guerra-aquilante-20260326-183650.pdf
-[ 3/10] Amélia Arcângela Teixeira Trindade                 ↩ já existe: amelia-arcangela-teixeira-trindade-20260326-183656.pdf
+[ 2/10] Aline Guerra Aquilante                             ✓  699.5 KB  →  aline-guerra-aquilante-2020-09-11.pdf (raw/aline-guerra-aquilante-2020-09-11.pdf)
+[ 3/10] Amélia Arcângela Teixeira Trindade                 ✓  702.1 KB  →  amelia-arcangela-teixeira-trindade-2021-04-15.pdf (raw/amelia-arcangela-teixeira-trindade-2021-04-15.pdf)
 ...
 
 ==========================================================================================
@@ -95,11 +106,8 @@ Alguns nomes do CSV podem não estar no Lattes da forma exata como estão escrit
 ==========================================================================================
 
 ✅ Sucesso:  8/10
-   • Aline Guerra Aquilante                                699.5 KB
+   • Aline Guerra Aquilante                                699.5 KB (2020-09-11)
    ...
-
-↩  Pulados (já existiam):  1
-   • Amélia Arcângela Teixeira Trindade                    amelia-arcangela-...pdf
 
 ❌ Erros:  1/10
    • Aline Barreto de Almeida Nordi                        Nenhum resultado encontrado
@@ -130,13 +138,6 @@ Amélia Arcângela Teixeira Trindade
 ...
 ```
 
-## PDFs gerados
+## Saída de arquivos
 
-Salvos em `backend/output/raw/`:
-
-```bash
-aline-guerra-aquilante-20260326-183650.pdf
-amelia-arcangela-teixeira-trindade-20260326-183656.pdf
-andrea-aparecida-contini-20260326-183701.pdf
-...
-```
+Os PDFs ficam no bucket configurado (`SUPABASE_STORAGE_BUCKET`) e pasta (`SUPABASE_STORAGE_FOLDER`).

@@ -16,15 +16,9 @@ from typing import Optional
 # Adiciona backend/ ao path para importar src.*
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.api.main import _salvar_pdf_curriculo, _slugify_nome
+from src.api.main import _build_curriculo_filename
 from src.core.scraper import scrape_lattes
-
-
-def _ja_scraped(nome: str, output_dir: Path) -> Optional[str]:
-    """Retorna o filename existente se o PDF já foi gerado para este nome."""
-    slug = _slugify_nome(nome)
-    matches = sorted(output_dir.glob(f"{slug}-*.pdf"))
-    return matches[-1].name if matches else None
+from src.core.storage import upload_curriculo_pdf
 
 
 async def processar_lote(
@@ -32,7 +26,6 @@ async def processar_lote(
     skip: int = 0,
     limit: Optional[int] = None,
     parar_em_erro: bool = False,
-    output_dir: Optional[Path] = None,
 ) -> dict:
     """
     Processa um lote de nomes a partir de um CSV.
@@ -42,16 +35,9 @@ async def processar_lote(
         skip: Número de linhas para pular
         limit: Número máximo de nomes para processar (None = todos)
         parar_em_erro: Se True, para no primeiro erro
-        output_dir: Diretório de output (default: backend/output/raw)
-
     Returns:
-        Dicionário com estatísticas: {sucesso, pulados, erro, total_kb, tempo_total}
+        Dicionário com estatísticas: {sucesso, erro, total_kb, tempo_total}
     """
-    if output_dir is None:
-        output_dir = Path(__file__).resolve().parents[1] / "output" / "raw"
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-
     csv_file = Path(csv_path)
     if not csv_file.exists():
         raise FileNotFoundError(f"Arquivo CSV não encontrado: {csv_path}")
@@ -79,7 +65,6 @@ async def processar_lote(
     inicio = datetime.now()
     resultados: dict = {
         "sucesso": [],
-        "pulados": [],
         "erro": [],
         "total_kb": 0,
         "tempo_total": None,
@@ -95,30 +80,35 @@ async def processar_lote(
     if duplicatas_csv:
         print(f"   Duplicatas removidas do CSV: {duplicatas_csv}")
     print(f"   Únicos a processar: {len(nomes)}")
+    print("   Upload de PDFs: Supabase Storage")
     print(f"   Parar em erro: {'Sim' if parar_em_erro else 'Não'}")
     print(f"\n{'─' * 90}\n")
 
     for idx, nome in enumerate(nomes, 1):
         print(f"[{idx:2d}/{len(nomes)}] {nome[:50]:50s} ", end="", flush=True)
 
-        # Verificar se já foi scraped anteriormente
-        existente = _ja_scraped(nome, output_dir)
-        if existente:
-            print(f"↩ já existe: {existente}")
-            resultados["pulados"].append({"nome": nome, "arquivo": existente})
-            continue
-
         try:
-            pdf_bytes = await scrape_lattes(nome)
-            filename = _salvar_pdf_curriculo(nome, pdf_bytes)
-            tamanho_kb = len(pdf_bytes) / 1024
+            scrape_result = await scrape_lattes(nome)
+            filename = _build_curriculo_filename(nome, scrape_result.ultima_atualizacao)
+            upload_result = upload_curriculo_pdf(filename, scrape_result.pdf_bytes)
+            tamanho_kb = len(scrape_result.pdf_bytes) / 1024
 
             resultados["sucesso"].append(
-                {"nome": nome, "arquivo": filename, "tamanho_kb": tamanho_kb}
+                {
+                    "nome": nome,
+                    "arquivo": filename,
+                    "storage_path": upload_result.object_path,
+                    "download_url": upload_result.download_url,
+                    "ultima_atualizacao": scrape_result.ultima_atualizacao.isoformat(),
+                    "tamanho_kb": tamanho_kb,
+                }
             )
             resultados["total_kb"] += tamanho_kb
 
-            print(f"✓ {tamanho_kb:6.1f} KB  →  {filename}")
+            print(
+                f"✓ {tamanho_kb:6.1f} KB  →  {filename} "
+                f"({upload_result.object_path})"
+            )
 
         except ValueError as e:
             erro_msg = str(e)
@@ -150,12 +140,10 @@ async def processar_lote(
 
     print(f"\n✅ Sucesso:  {len(resultados['sucesso'])}/{len(nomes)}")
     for item in resultados["sucesso"]:
-        print(f"   • {item['nome'][:50]:50s} {item['tamanho_kb']:6.1f} KB")
-
-    if resultados["pulados"]:
-        print(f"\n↩  Pulados (já existiam):  {len(resultados['pulados'])}")
-        for item in resultados["pulados"]:
-            print(f"   • {item['nome'][:50]:50s} {item['arquivo']}")
+        print(
+            f"   • {item['nome'][:50]:50s} {item['tamanho_kb']:6.1f} KB "
+            f"({item['ultima_atualizacao']})"
+        )
 
     if resultados["erro"]:
         print(f"\n❌ Erros:  {len(resultados['erro'])}/{len(nomes)}")
