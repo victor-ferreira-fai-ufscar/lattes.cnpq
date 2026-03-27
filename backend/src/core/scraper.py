@@ -30,6 +30,17 @@ def _normalizar(texto: str) -> str:
     return " ".join(texto.lower().split())
 
 
+def _parece_sem_resultado(texto: str) -> bool:
+    texto_norm = _normalizar(texto)
+    sinais_sem_resultado = [
+        "nenhum resultado encontrado",
+        "nenhum curriculo foi encontrado",
+        "nenhum currículo foi encontrado",
+        "resultado de 0",
+    ]
+    return any(sinal in texto_norm for sinal in sinais_sem_resultado)
+
+
 def _parece_pagina_cv(url: str, texto: str) -> bool:
     texto_norm = _normalizar(texto)
     sinais_cv = [
@@ -104,13 +115,21 @@ async def _abrir_curriculo(page, nome: str):
 
     await page.locator("#botaoBuscaFiltros:visible").first.click()
     await page.wait_for_load_state("domcontentloaded")
-    await page.wait_for_timeout(1500)
-
-    if "resultado de" not in _normalizar(await page.locator("body").inner_text()):
-        raise ValueError("Nenhum resultado encontrado para o nome informado.")
+    await page.wait_for_timeout(900)
 
     links = page.locator(".resultado a")
-    total = await links.count()
+    total = 0
+    for _ in range(5):
+        total = await links.count()
+        if total > 0:
+            break
+
+        texto_body = await page.locator("body").inner_text(timeout=12000)
+        if _parece_sem_resultado(texto_body):
+            raise ValueError("Nenhum resultado encontrado para o nome informado.")
+
+        await page.wait_for_timeout(700)
+
     if total == 0:
         links = page.locator("a")
         total = await links.count()
