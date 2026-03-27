@@ -1,10 +1,12 @@
 # Para fazer (TODO)
 
+- [ ] Adicionar a parte de seleção para o Gemini e o Ollama (para rodar localmente)
+- [ ] Adicionar a flag/toggle para o usuário conseguir visualizar ou não o headless
+ 
 ## Lates
 
-- [ ] Frontend com Streamlit
-    - Adicionar o input com os arquivos
-    - Escolher o local para salvar os arquivos 
+- [ ] Adicionar o input com os arquivos
+- [ ] Escolher o local para salvar os arquivos 
 - [ ] Lista de docentes (.txt ou .csv)
 - [ ] Documento com template (Pegar com o Nicolas)
 - [ ] Imprimir na pasta como arquivo output > .doc
