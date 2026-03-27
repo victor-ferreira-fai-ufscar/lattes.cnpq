@@ -1,20 +1,11 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-
-type ScrapeResponse = {
-  nome: string;
-  ultima_atualizacao_curriculo: string;
-  arquivo_pdf: string;
-  storage_path: string;
-  download_pdf_url: string;
-};
-
-type ApiError = {
-  detail?: string;
-};
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import {
+  getApiErrorMessage,
+  scrapeCurriculo,
+  type ScrapeResponse,
+} from "@/lib/api";
 
 export default function Home() {
   const [nome, setNome] = useState("");
@@ -36,24 +27,10 @@ export default function Home() {
     setResult(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/scrape`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ nome: nomeLimpo }),
-      });
-
-      if (!response.ok) {
-        const body = (await response.json().catch(() => ({}))) as ApiError;
-        const message = body.detail || `Erro na API (${response.status})`;
-        throw new Error(message);
-      }
-
-      const body = (await response.json()) as ScrapeResponse;
-      setResult(body);
+      const response = await scrapeCurriculo(nomeLimpo);
+      setResult(response);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro inesperado.");
+      setError(getApiErrorMessage(err));
     } finally {
       setLoading(false);
     }
