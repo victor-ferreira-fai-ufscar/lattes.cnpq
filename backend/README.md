@@ -2,6 +2,51 @@
 
 FastAPI + [Playwright](https://playwright.dev/) para scraping determinístico do Lattes.
 
+## Visão rápida da arquitetura
+
+Hoje o backend está organizado para separar responsabilidades e facilitar manutenção.
+
+- api: camada HTTP. Define rotas e recebe as requisições.
+- models: contratos de entrada (Pydantic) usados pelas rotas.
+- libs: utilitários reaproveitáveis (ex.: parser CSV, geração de nome de arquivo, logs).
+- core: regras e integrações principais (scraper, storage e sumarização por IA).
+
+### Estrutura de pastas
+
+```text
+backend/src/
+├── api/
+│   ├── main.py             # Cria o app FastAPI, CORS e inclui os routers
+│   └── routers/            # Um arquivo por grupo de endpoints
+│       ├── scrape.py       # /scrape
+│       ├── search.py       # /search
+│       ├── batch.py        # /scrape/batch
+│       ├── ai.py           # /summarize e /models
+│       └── health.py       # /health e /docs
+├── models/
+│   ├── scrape.py           # ScrapeRequest
+│   ├── search.py           # SearchRequest
+│   └── ai.py               # SummarizeRequest e ModelsRequest
+├── libs/
+│   ├── filename.py         # Regras para nome de PDF
+│   ├── csv_utils.py        # Leitura e deduplicação de nomes do CSV
+│   └── logging.py          # Logs com timestamp
+└── core/
+    ├── scraper.py          # Fluxo Playwright no Lattes
+    ├── storage.py          # Upload no Supabase Storage
+    └── summarizer.py       # Integração com provedores de IA
+```
+
+### Como uma requisição percorre o sistema
+
+1. A rota em api/routers recebe a chamada.
+2. O payload é validado com models.
+3. A rota chama funções de core para executar a regra principal.
+4. libs ajuda com tarefas auxiliares comuns.
+5. A rota monta a resposta HTTP.
+
+Resultado: arquivos menores, menor acoplamento e mais facilidade para evoluir sem quebrar tudo.
+
 ## Rodar com Docker Compose (Recomendado)
 
 ```bash
@@ -40,6 +85,15 @@ SUPABASE_STORAGE_FOLDER=raw
 SUPABASE_STORAGE_PUBLIC=true
 ```
 
+## Rotas disponíveis
+
+- GET /health
+- POST /search
+- POST /scrape
+- POST /scrape/batch
+- POST /summarize
+- POST /models
+
 ## Quando adicionar nova lib Python
 
 Atualize [backend/pyproject.toml](backend/pyproject.toml) e [backend/uv.lock](backend/uv.lock), depois:
@@ -48,14 +102,6 @@ Atualize [backend/pyproject.toml](backend/pyproject.toml) e [backend/uv.lock](ba
 docker compose build backend
 docker compose up -d backend
 ```
-
-## Endpoints principais
-
-- `GET /health`
-- `POST /search`
-- `POST /scrape`
-- `POST /scrape/batch`
-- `POST /summarize`
 
 ## Troubleshooting rápido
 

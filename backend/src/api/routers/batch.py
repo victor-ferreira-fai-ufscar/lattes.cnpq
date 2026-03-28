@@ -1,0 +1,165 @@
+import zipfile
+from datetime import datetime
+from io import BytesIO
+from time import perf_counter
+from typing import Optional
+
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+
+from ...core.scraper import scrape_lattes
+from ...core.storage import upload_curriculo_pdf, upload_file_bytes
+from ...libs.csv_utils import parse_csv_names
+from ...libs.filename import build_curriculo_filename
+from ...libs.logging import build_logger
+
+router = APIRouter()
+
+
+@router.post("/scrape/batch")
+async def scrape_batch(
+    arquivo: Optional[UploadFile] = File(None),
+    file: Optional[UploadFile] = File(None),
+    skip: str = Form("0"),
+    limit: Optional[str] = Form(None),
+):
+    t_total = perf_counter()
+    logs: list[str] = []
+    add_log = build_logger(logs)
+
+    arquivo_upload = arquivo or file
+    if not arquivo_upload or not arquivo_upload.filename:
+        raise HTTPException(
+            status_code=400,
+            detail="Arquivo CSV não informado. Envie no campo 'arquivo' (ou 'file').",
+        )
+
+    try:
+        skip_value = int(skip)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="skip deve ser um número inteiro.")
+
+    limit_value: Optional[int] = None
+    if limit is not None and str(limit).strip() != "":
+        try:
+            limit_value = int(limit)
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=400,
+                detail="limit deve ser um número inteiro quando informado.",
+            )
+
+    content = await arquivo_upload.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Arquivo CSV vazio.")
+
+    nomes_all = parse_csv_names(content)
+    if not nomes_all:
+        raise HTTPException(status_code=400, detail="Nenhum nome válido no CSV.")
+
+    if skip_value < 0:
+        raise HTTPException(status_code=400, detail="skip deve ser maior ou igual a 0.")
+    if limit_value is not None and limit_value <= 0:
+        raise HTTPException(status_code=400, detail="limit deve ser maior que 0.")
+
+    nomes = nomes_all[skip_value:]
+    if limit_value is not None:
+        nomes = nomes[:limit_value]
+
+    if not nomes:
+        raise HTTPException(
+            status_code=400, detail="Nenhum nome selecionado após skip/limit."
+        )
+
+    add_log(f"Request /scrape/batch recebida com {len(nomes_all)} nomes únicos no CSV.")
+    add_log(
+        f"Processando {len(nomes)} nomes após filtros skip={skip_value}, "
+        f"limit={limit_value}."
+    )
+
+    resultados: list[dict] = []
+    pdfs_sucesso: list[tuple[str, bytes]] = []
+    ok_count = 0
+    erro_count = 0
+
+    for idx, nome in enumerate(nomes, 1):
+        add_log(f"[{idx}/{len(nomes)}] Iniciando scraping de '{nome}'.")
+        t_item = perf_counter()
+        try:
+            scrape_result = await scrape_lattes(nome)
+            filename = build_curriculo_filename(nome, scrape_result.ultima_atualizacao)
+            upload_result = upload_curriculo_pdf(filename, scrape_result.pdf_bytes)
+
+            item = {
+                "nome": nome,
+                "status": "sucesso",
+                "ultima_atualizacao_curriculo": scrape_result.ultima_atualizacao.isoformat(),
+                "arquivo_pdf": filename,
+                "storage_path": upload_result.object_path,
+                "download_pdf_url": upload_result.download_url,
+                "duracao_segundos": round(perf_counter() - t_item, 2),
+            }
+            resultados.append(item)
+            pdfs_sucesso.append((filename, scrape_result.pdf_bytes))
+            ok_count += 1
+            add_log(
+                f"[{idx}/{len(nomes)}] Sucesso para '{nome}' em {item['duracao_segundos']}s."
+            )
+        except Exception as exc:
+            erro_count += 1
+            message = str(exc)
+            resultados.append(
+                {
+                    "nome": nome,
+                    "status": "erro",
+                    "erro": message,
+                    "duracao_segundos": round(perf_counter() - t_item, 2),
+                }
+            )
+            add_log(f"[{idx}/{len(nomes)}] Erro para '{nome}': {message}")
+
+    add_log(f"Lote finalizado. Sucessos: {ok_count}. Erros: {erro_count}.")
+
+    zip_filename = None
+    zip_storage_path = None
+    zip_download_url = None
+    zip_error = None
+
+    if pdfs_sucesso:
+        zip_filename = f"lattes-lote-{datetime.now().strftime('%Y%m%d-%H%M%S')}.zip"
+        add_log(f"Gerando ZIP consolidado com {len(pdfs_sucesso)} PDFs.")
+        try:
+            buffer = BytesIO()
+            with zipfile.ZipFile(
+                buffer,
+                mode="w",
+                compression=zipfile.ZIP_DEFLATED,
+            ) as zip_file:
+                for filename, pdf_bytes in pdfs_sucesso:
+                    zip_file.writestr(filename, pdf_bytes)
+
+            zip_upload = upload_file_bytes(
+                zip_filename,
+                buffer.getvalue(),
+                content_type="application/zip",
+            )
+            zip_storage_path = zip_upload.object_path
+            zip_download_url = zip_upload.download_url
+            add_log("ZIP consolidado enviado para o Storage com sucesso.")
+        except Exception as exc:
+            zip_error = str(exc)
+            add_log(f"Falha ao gerar/enviar ZIP consolidado: {zip_error}")
+
+    return {
+        "arquivo": arquivo_upload.filename,
+        "total_nomes_csv": len(nomes_all),
+        "total_processados": len(nomes),
+        "sucesso": ok_count,
+        "erro": erro_count,
+        "resultados": resultados,
+        "zip_arquivo": zip_filename,
+        "zip_storage_path": zip_storage_path,
+        "zip_download_url": zip_download_url,
+        "zip_erro": zip_error,
+        "logs": logs,
+        "duracao_segundos": round(perf_counter() - t_total, 2),
+    }
