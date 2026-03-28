@@ -75,6 +75,43 @@ function getApiKeySlot(provider: AiProvider): string {
   return `${provider}::default`;
 }
 
+function pickApiKeyForProvider(
+  savedApiKeys: Record<string, string>,
+  provider: AiProvider,
+): string {
+  const defaultKey = savedApiKeys[getApiKeySlot(provider)]?.trim();
+  if (defaultKey) return defaultKey;
+
+  const providerPrefix = `${provider}::`;
+  for (const [slot, value] of Object.entries(savedApiKeys)) {
+    if (!slot.startsWith(providerPrefix)) continue;
+    const normalized = value?.trim();
+    if (normalized) return normalized;
+  }
+
+  return "";
+}
+
+function migrateApiKeysToProviderDefault(
+  parsed: Record<string, string>,
+): Record<string, string> {
+  const next = { ...parsed };
+
+  const providers: AiProvider[] = ["openai", "gemini", "ollama"];
+  for (const provider of providers) {
+    const defaultSlot = getApiKeySlot(provider);
+    const currentDefault = next[defaultSlot]?.trim();
+    if (currentDefault) continue;
+
+    const fallback = pickApiKeyForProvider(next, provider);
+    if (fallback) {
+      next[defaultSlot] = fallback;
+    }
+  }
+
+  return next;
+}
+
 const SCRAPE_LOADING_MESSAGES = [
   "Conectando ao backend...",
   "Acessando busca do Lattes...",
@@ -376,7 +413,9 @@ export default function Home() {
       if (!raw) return;
       const parsed = JSON.parse(raw) as Record<string, string>;
       if (parsed && typeof parsed === "object") {
-        setSavedApiKeys(parsed);
+        const migrated = migrateApiKeysToProviderDefault(parsed);
+        setSavedApiKeys(migrated);
+        localStorage.setItem(API_KEYS_STORAGE_KEY, JSON.stringify(migrated));
       }
     } catch {
       setSavedApiKeys({});
@@ -384,12 +423,12 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const saved = savedApiKeys[currentApiKeySlot] ?? "";
+    const saved = pickApiKeyForProvider(savedApiKeys, provider);
     setApiKey(saved);
-  }, [currentApiKeySlot, savedApiKeys]);
+  }, [currentApiKeySlot, provider, savedApiKeys]);
 
   useEffect(() => {
-    const saved = savedApiKeys[getApiKeySlot(provider)] ?? "";
+    const saved = pickApiKeyForProvider(savedApiKeys, provider);
     void fetchModelsForProvider(provider, saved);
   }, [provider, savedApiKeys]);
 
