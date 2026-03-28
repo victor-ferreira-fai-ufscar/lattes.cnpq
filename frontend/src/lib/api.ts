@@ -96,11 +96,13 @@ export async function summarizeCurriculo(
   nome: string,
   apiKey?: string,
   modelo?: string,
+  provedor?: "openai" | "gemini" | "ollama",
 ): Promise<SummarizeResponse> {
   const response = await api.post<SummarizeResponse>("/summarize", {
     nome,
     api_key: apiKey || undefined,
     modelo: modelo || "gpt-4o-mini",
+    provedor: provedor || "openai",
   });
   return response.data;
 }

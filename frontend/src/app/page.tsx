@@ -50,6 +50,13 @@ type LogEntry = {
 };
 
 type SearchMode = "individual" | "lote";
+type AiProvider = "openai" | "gemini" | "ollama";
+
+const PROVIDER_MODELS: Record<AiProvider, string[]> = {
+  openai: ["gpt-4o-mini", "gpt-4o", "gpt-4.1", "gpt-4.1-mini"],
+  gemini: ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"],
+  ollama: ["llama3.1", "qwen2.5", "mistral", "phi4"],
+};
 
 const SCRAPE_LOADING_MESSAGES = [
   "Conectando ao backend...",
@@ -60,8 +67,8 @@ const SCRAPE_LOADING_MESSAGES = [
 
 const SUMMARY_LOADING_MESSAGES = [
   "Coletando texto do currículo...",
-  "Enviando conteúdo para a OpenAI...",
-  "Gerando resumo com ChatGPT...",
+  "Enviando conteúdo para o provedor de IA...",
+  "Gerando resumo...",
   "Finalizando resposta...",
 ];
 
@@ -106,6 +113,7 @@ export default function Home() {
   const [candidates, setCandidates] = useState<SearchCandidate[]>([]);
   const [selectedCandidateHref, setSelectedCandidateHref] = useState("");
   const [searchedName, setSearchedName] = useState("");
+  const [provider, setProvider] = useState<AiProvider>("openai");
   const [apiKey, setApiKey] = useState("");
   const [modelo, setModelo] = useState("gpt-4o-mini");
   const [summarizing, setSummarizing] = useState(false);
@@ -171,6 +179,20 @@ export default function Home() {
   }, [activeMode, loadingMessageIndex]);
 
   const isBusy = loading || summarizing || batchLoading || searchingCandidates;
+
+  const providerApiLabel =
+    provider === "openai"
+      ? "API Key OpenAI"
+      : provider === "gemini"
+        ? "API Key Gemini"
+        : "API Key Ollama (opcional)";
+
+  const providerApiPlaceholder =
+    provider === "openai"
+      ? "sk-... (opcional se configurada no backend)"
+      : provider === "gemini"
+        ? "AIza... (opcional se configurada no backend)"
+        : "geralmente não precisa para localhost";
 
   const addLog = (source: LogSource, message: string) => {
     const timestamp = new Date().toLocaleTimeString("pt-BR");
@@ -359,6 +381,7 @@ export default function Home() {
         result.nome,
         apiKey || undefined,
         modelo,
+        provider,
       );
       setSummary(response);
       addLog(
@@ -677,7 +700,7 @@ export default function Home() {
                       ? "Executando scraping em lote"
                       : activeMode === "search"
                         ? "Buscando candidatos"
-                        : "Gerando resumo com ChatGPT"}
+                        : "Gerando resumo com IA"}
                 </div>
                 <p>{activeLoadingMessage}</p>
                 <p className="mt-1 text-xs">
@@ -865,35 +888,52 @@ export default function Home() {
               <div className="space-y-3 rounded-lg border border-slate-200 p-4">
                 <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
                   <Sparkles className="h-4 w-4" />
-                  Resumir com ChatGPT
+                  Resumir com IA
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="openai-key">API Key OpenAI</Label>
+                    <Label htmlFor="provider">Provedor</Label>
+                    <select
+                      id="provider"
+                      value={provider}
+                      onChange={(event) => {
+                        const nextProvider = event.target.value as AiProvider;
+                        setProvider(nextProvider);
+                        setModelo(PROVIDER_MODELS[nextProvider][0]);
+                      }}
+                      className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                    >
+                      <option value="openai">OpenAI</option>
+                      <option value="gemini">Gemini</option>
+                      <option value="ollama">Ollama</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="openai-key">{providerApiLabel}</Label>
                     <Input
                       id="openai-key"
                       type="password"
                       value={apiKey}
                       onChange={(event) => setApiKey(event.target.value)}
-                      placeholder="sk-... (opcional se configurada no backend)"
+                      placeholder={providerApiPlaceholder}
                       autoComplete="off"
                     />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="modelo">Modelo</Label>
-                    <select
+                    <Input
                       id="modelo"
                       value={modelo}
                       onChange={(event) => setModelo(event.target.value)}
-                      className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-                    >
-                      <option value="gpt-4o-mini">gpt-4o-mini</option>
-                      <option value="gpt-4o">gpt-4o</option>
-                      <option value="gpt-4.1">gpt-4.1</option>
-                      <option value="gpt-4.1-mini">gpt-4.1-mini</option>
-                      <option value="gpt-4.1-nano">gpt-4.1-nano</option>
-                    </select>
+                      list="provider-models"
+                      placeholder="Digite o modelo do provedor selecionado"
+                    />
+                    <datalist id="provider-models">
+                      {PROVIDER_MODELS[provider].map((item) => (
+                        <option key={item} value={item} />
+                      ))}
+                    </datalist>
                   </div>
                 </div>
 
@@ -909,7 +949,7 @@ export default function Home() {
                       Resumindo...
                     </>
                   ) : (
-                    "Resumir com ChatGPT"
+                    "Resumir com IA"
                   )}
                 </Button>
               </div>
