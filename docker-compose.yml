@@ -1,43 +1,61 @@
 services:
+  # API FastAPI + Playwright (desenvolvimento)
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: lattes-backend
     ports:
+      # Porta host:container para acessar a API localmente
       - "8000:8000"
     volumes:
+      # Bind mount apenas do código-fonte do backend para hot-reload rápido
       - ./backend/src:/app/src
     environment:
+      # Evita buffering e arquivos .pyc durante desenvolvimento
       - PYTHONUNBUFFERED=1
       - PYTHONDONTWRITEBYTECODE=1
     env_file:
+      # Variáveis compartilhadas para ambiente docker local
       - .env.docker
+      # Variáveis específicas/sensíveis do backend (Supabase, chaves etc.)
+      - ./backend/.env
+    # Permite acessar serviços no host (ex.: Ollama local)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Uvicorn em modo reload para refletir alterações sem reiniciar container
     command: uv run uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
     networks:
       - lattes-network
     healthcheck:
+      # Frontend depende deste healthcheck para iniciar depois da API ficar pronta
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 10s
 
+  # Frontend Next.js (desenvolvimento)
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: lattes-frontend
     ports:
+      # Porta host:container para acessar a interface web
       - "3000:3000"
     volumes:
+      # Bind mount do projeto frontend para hot-reload completo
       - ./frontend:/app
+      # Volumes anônimos para preservar dependências/cache do container
       - /app/node_modules
       - /app/.next
     environment:
-      - NEXT_PUBLIC_API_URL=http://backend:8000
+      # Esta URL é usada no navegador (host), então deve apontar para localhost
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
     env_file:
       - .env.docker
+    # Next em modo dev ouvindo em todas as interfaces
     command: pnpm run dev --hostname 0.0.0.0 --port 3000
     depends_on:
       backend:
@@ -46,5 +64,6 @@ services:
       - lattes-network
 
 networks:
+  # Rede privada para comunicação entre serviços
   lattes-network:
     driver: bridge
