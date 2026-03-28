@@ -1,4 +1,5 @@
 import os
+from asyncio import to_thread
 
 from openai import AsyncOpenAI
 
@@ -20,10 +21,15 @@ Seja conciso, objetivo e use formatação Markdown clara.\
 _MAX_TEXTO_CHARS = 80_000
 
 
-async def resumir_curriculo(
+def _build_user_prompt(texto: str) -> str:
+    return "Analise e resuma o currículo Lattes abaixo:\n\n" + texto[:_MAX_TEXTO_CHARS]
+
+
+async def _resumir_openai(
     texto: str,
-    api_key: str | None = None,
-    modelo: str = "gpt-4o-mini",
+    *,
+    api_key: str | None,
+    modelo: str,
 ) -> str:
     chave = api_key or os.environ.get("OPENAI_API_KEY")
     if not chave:
@@ -39,12 +45,91 @@ async def resumir_curriculo(
             {"role": "system", "content": _PROMPT_SISTEMA},
             {
                 "role": "user",
-                "content": (
-                    "Analise e resuma o currículo Lattes abaixo:\n\n"
-                    + texto[:_MAX_TEXTO_CHARS]
-                ),
+                "content": _build_user_prompt(texto),
             },
         ],
         temperature=0.3,
     )
     return response.choices[0].message.content or ""
+
+
+async def _resumir_gemini(
+    texto: str,
+    *,
+    api_key: str | None,
+    modelo: str,
+) -> str:
+    chave = api_key or os.environ.get("GEMINI_API_KEY")
+    if not chave:
+        raise ValueError(
+            "Chave da API Gemini não configurada. "
+            "Defina GEMINI_API_KEY no backend ou informe via parâmetro api_key."
+        )
+
+    def _call_gemini() -> str:
+        import google.generativeai as genai
+
+        genai.configure(api_key=chave)
+        model = genai.GenerativeModel(model_name=modelo)
+        response = model.generate_content(
+            [_PROMPT_SISTEMA, _build_user_prompt(texto)],
+            generation_config={"temperature": 0.3},
+        )
+        return getattr(response, "text", "") or ""
+
+    try:
+        return await to_thread(_call_gemini)
+    except ImportError as exc:
+        raise ValueError(
+            "Dependência do Gemini não encontrada. "
+            "Adicione 'google-generativeai' nas dependências do backend."
+        ) from exc
+
+
+async def _resumir_ollama(
+    texto: str,
+    *,
+    api_key: str | None,
+    modelo: str,
+) -> str:
+    base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+    # A API compatível com OpenAI do Ollama normalmente ignora api_key.
+    client = AsyncOpenAI(
+        api_key=api_key or os.environ.get("OLLAMA_API_KEY", "ollama"),
+        base_url=f"{base_url}/v1",
+    )
+
+    response = await client.chat.completions.create(
+        model=modelo,
+        messages=[
+            {"role": "system", "content": _PROMPT_SISTEMA},
+            {
+                "role": "user",
+                "content": _build_user_prompt(texto),
+            },
+        ],
+        temperature=0.3,
+    )
+    return response.choices[0].message.content or ""
+
+
+async def resumir_curriculo(
+    texto: str,
+    api_key: str | None = None,
+    modelo: str = "gpt-4o-mini",
+    provedor: str = "openai",
+) -> str:
+    provedor_normalizado = (provedor or "openai").strip().lower()
+
+    if provedor_normalizado == "openai":
+        return await _resumir_openai(texto, api_key=api_key, modelo=modelo)
+
+    if provedor_normalizado == "gemini":
+        return await _resumir_gemini(texto, api_key=api_key, modelo=modelo)
+
+    if provedor_normalizado == "ollama":
+        return await _resumir_ollama(texto, api_key=api_key, modelo=modelo)
+
+    raise ValueError(
+        "Provedor de IA inválido. Use: openai, gemini ou ollama."
+    )

@@ -61,6 +61,7 @@ class SummarizeRequest(BaseModel):
     nome: str
     api_key: Optional[str] = None
     modelo: str = "gpt-4o-mini"
+    provedor: str = "openai"
 
 
 def _stamp() -> str:
@@ -201,13 +202,16 @@ async def summarize(request: SummarizeRequest):
         f"{(perf_counter() - t_scrape):.1f}s ({len(texto)} caracteres)."
     )
 
-    add_log(f"Enviando texto para OpenAI com modelo '{request.modelo}'.")
+    add_log(
+        f"Enviando texto para IA (provedor='{request.provedor}', modelo='{request.modelo}')."
+    )
     t_openai = perf_counter()
     try:
         resumo = await resumir_curriculo(
             texto,
             api_key=request.api_key,
             modelo=request.modelo,
+            provedor=request.provedor,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
