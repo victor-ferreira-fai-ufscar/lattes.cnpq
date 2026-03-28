@@ -2,6 +2,32 @@
 
 Frontend em Next.js 16 com React 19 para scraping interativo de currículos Lattes.
 
+## Arquitetura atual
+
+Estrutura enxuta e orientada por feature:
+
+```text
+src/
+├── app/                     # Rotas e composição de páginas
+├── components/
+│   ├── shared/              # Blocos reaproveitáveis entre features
+│   └── ui/                  # Design system base
+├── features/
+│   └── lattes/
+│       ├── components/      # Componentes específicos do domínio
+│       ├── hooks/           # Orquestração do fluxo da feature
+│       ├── schemas/         # Validação com Zod
+│       └── services/        # Integração com a API do backend
+└── lib/                     # Infra compartilhada, como cliente HTTP
+```
+
+Princípios aplicados:
+
+- `app/` não concentra regra de negócio.
+- O domínio Lattes fica isolado em `features/lattes/`.
+- `lib/` foi reduzida à infraestrutura compartilhada, sem misturar serviços de domínio.
+- Componentes de UI continuam genéricos em `components/ui/`.
+
 ## Rodar com Docker Compose (Recomendado)
 
 ```bash

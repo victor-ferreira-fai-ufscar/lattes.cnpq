@@ -1,11 +1,48 @@
 @import "tailwindcss";
 
+:root {
+  --background: #f3f6f4;
+  --foreground: #0f172a;
+  --font-heading: "Space Grotesk", sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+}
+
 @layer base {
   * {
     @apply box-border;
   }
 
+  html {
+    @apply scroll-smooth;
+  }
+
   body {
-    @apply m-0 bg-slate-50 text-slate-900 antialiased;
+    @apply m-0 antialiased;
+    background:
+      radial-gradient(circle at top left, rgba(20, 184, 166, 0.12), transparent 30%),
+      radial-gradient(circle at top right, rgba(245, 158, 11, 0.1), transparent 25%),
+      linear-gradient(180deg, #f8fafc 0%, #f1f5f9 45%, #ecfdf5 100%);
+    color: var(--foreground);
+    font-family: Arial, Helvetica, sans-serif;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading);
+  }
+
+  code,
+  pre,
+  kbd,
+  samp {
+    font-family: var(--font-mono);
+  }
+
+  a {
+    @apply transition-colors;
   }
 }
