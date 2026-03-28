@@ -39,6 +39,13 @@ export type SummarizeResponse = {
   duracao_segundos?: number;
 };
 
+export type ModelsResponse = {
+  provedor: "openai" | "gemini" | "ollama";
+  total: number;
+  modelos: string[];
+  duracao_segundos?: number;
+};
+
 export type BatchItemSuccess = {
   nome: string;
   status: "sucesso";
@@ -103,6 +110,17 @@ export async function summarizeCurriculo(
     api_key: apiKey || undefined,
     modelo: modelo || "gpt-4o-mini",
     provedor: provedor || "openai",
+  });
+  return response.data;
+}
+
+export async function listarModelosPorProvedor(
+  provedor: "openai" | "gemini" | "ollama",
+  apiKey?: string,
+): Promise<ModelsResponse> {
+  const response = await api.post<ModelsResponse>("/models", {
+    provedor,
+    api_key: apiKey || undefined,
   });
   return response.data;
 }

@@ -1,5 +1,6 @@
 import os
 from asyncio import to_thread
+from urllib.request import Request, urlopen
 
 from openai import AsyncOpenAI
 
@@ -129,6 +130,98 @@ async def resumir_curriculo(
 
     if provedor_normalizado == "ollama":
         return await _resumir_ollama(texto, api_key=api_key, modelo=modelo)
+
+    raise ValueError(
+        "Provedor de IA inválido. Use: openai, gemini ou ollama."
+    )
+
+
+async def _listar_modelos_openai(api_key: str | None) -> list[str]:
+    chave = api_key or os.environ.get("OPENAI_API_KEY")
+    if not chave:
+        raise ValueError(
+            "Chave da API OpenAI não configurada. "
+            "Defina OPENAI_API_KEY no backend ou informe via parâmetro api_key."
+        )
+
+    client = AsyncOpenAI(api_key=chave)
+    response = await client.models.list()
+    modelos = sorted({item.id for item in response.data if getattr(item, "id", None)})
+    return modelos
+
+
+async def _listar_modelos_gemini(api_key: str | None) -> list[str]:
+    chave = api_key or os.environ.get("GEMINI_API_KEY")
+    if not chave:
+        raise ValueError(
+            "Chave da API Gemini não configurada. "
+            "Defina GEMINI_API_KEY no backend ou informe via parâmetro api_key."
+        )
+
+    def _call_gemini() -> list[str]:
+        import google.generativeai as genai
+
+        genai.configure(api_key=chave)
+        modelos: list[str] = []
+        for model in genai.list_models():
+            supported = getattr(model, "supported_generation_methods", []) or []
+            if "generateContent" not in supported:
+                continue
+            name = getattr(model, "name", "")
+            if not name:
+                continue
+            modelos.append(name.replace("models/", "", 1))
+        return sorted(set(modelos))
+
+    try:
+        return await to_thread(_call_gemini)
+    except ImportError as exc:
+        raise ValueError(
+            "Dependência do Gemini não encontrada. "
+            "Adicione 'google-generativeai' nas dependências do backend."
+        ) from exc
+
+
+async def _listar_modelos_ollama(api_key: str | None) -> list[str]:
+    base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+
+    def _call_ollama() -> dict:
+        request = Request(f"{base_url}/api/tags")
+        if api_key:
+            request.add_header("Authorization", f"Bearer {api_key}")
+        with urlopen(request, timeout=20) as response:
+            payload = response.read().decode("utf-8")
+        import json
+
+        return json.loads(payload)
+
+    data = await to_thread(_call_ollama)
+    models_raw = data.get("models", []) if isinstance(data, dict) else []
+    modelos = sorted(
+        {
+            item.get("name", "")
+            for item in models_raw
+            if isinstance(item, dict) and item.get("name")
+        }
+    )
+    return modelos
+
+
+async def listar_modelos(
+    *,
+    provedor: str = "openai",
+    api_key: str | None = None,
+) -> list[str]:
+    provedor_normalizado = (provedor or "openai").strip().lower()
+
+    if provedor_normalizado == "openai":
+        return await _listar_modelos_openai(api_key)
+
+    if provedor_normalizado == "gemini":
+        return await _listar_modelos_gemini(api_key)
+
+    if provedor_normalizado == "ollama":
+        return await _listar_modelos_ollama(api_key)
 
     raise ValueError(
         "Provedor de IA inválido. Use: openai, gemini ou ollama."

@@ -18,7 +18,7 @@ from ..core.scraper import (
     scrape_lattes_text,
 )
 from ..core.storage import upload_curriculo_pdf, upload_file_bytes
-from ..core.summarizer import resumir_curriculo
+from ..core.summarizer import listar_modelos, resumir_curriculo
 
 
 def _slugify_nome(nome: str) -> str:
@@ -62,6 +62,11 @@ class SummarizeRequest(BaseModel):
     api_key: Optional[str] = None
     modelo: str = "gpt-4o-mini"
     provedor: str = "openai"
+
+
+class ModelsRequest(BaseModel):
+    provedor: str = "openai"
+    api_key: Optional[str] = None
 
 
 def _stamp() -> str:
@@ -227,6 +232,29 @@ async def summarize(request: SummarizeRequest):
         "nome": nome,
         "resumo": resumo,
         "logs": logs,
+        "duracao_segundos": round(perf_counter() - t_total, 2),
+    }
+
+
+@app.post("/models")
+async def models(request: ModelsRequest):
+    t_total = perf_counter()
+    provedor = (request.provedor or "openai").strip().lower()
+
+    try:
+        modelos = await listar_modelos(provedor=provedor, api_key=request.api_key)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Erro ao listar modelos do provedor '{provedor}': {exc}",
+        ) from exc
+
+    return {
+        "provedor": provedor,
+        "total": len(modelos),
+        "modelos": modelos,
         "duracao_segundos": round(perf_counter() - t_total, 2),
     }
 

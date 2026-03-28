@@ -3,14 +3,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { type FieldErrors, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Info, Loader2, Sparkles, Terminal, Upload } from "lucide-react";
+import {
+  Info,
+  Loader2,
+  Save,
+  Sparkles,
+  Terminal,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import Markdown from "react-markdown";
 import {
   buscarCandidatos,
   type BatchScrapeResponse,
   getApiErrorMessage,
+  listarModelosPorProvedor,
   scrapeCurriculosLote,
   scrapeCurriculoSelecionado,
+  type ModelsResponse,
   type SearchCandidate,
   summarizeCurriculo,
   type ScrapeResponse,
@@ -33,6 +43,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Form,
   FormControl,
   FormField,
@@ -52,11 +69,11 @@ type LogEntry = {
 type SearchMode = "individual" | "lote";
 type AiProvider = "openai" | "gemini" | "ollama";
 
-const PROVIDER_MODELS: Record<AiProvider, string[]> = {
-  openai: ["gpt-4o-mini", "gpt-4o", "gpt-4.1", "gpt-4.1-mini"],
-  gemini: ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"],
-  ollama: ["llama3.1", "qwen2.5", "mistral", "phi4"],
-};
+const API_KEYS_STORAGE_KEY = "lattes.ai.api_keys.v1";
+
+function getApiKeySlot(provider: AiProvider): string {
+  return `${provider}::default`;
+}
 
 const SCRAPE_LOADING_MESSAGES = [
   "Conectando ao backend...",
@@ -101,6 +118,54 @@ function InfoTooltip({ text }: { text: string }) {
   );
 }
 
+function getProviderLabel(provider: AiProvider): string {
+  if (provider === "openai") return "OpenAI";
+  if (provider === "gemini") return "Google Gemini";
+  return "Ollama";
+}
+
+function getFriendlyModelsError(provider: AiProvider, error: unknown): string {
+  const raw = getApiErrorMessage(error);
+  const normalized = raw.toLowerCase();
+  const providerLabel = getProviderLabel(provider);
+
+  if (
+    normalized.includes("não configurada") ||
+    normalized.includes("nao configurada") ||
+    normalized.includes("api key")
+  ) {
+    if (provider === "ollama") {
+      return "No Ollama normalmente a chave é opcional. Verifique se o servidor está ativo e tente atualizar os modelos.";
+    }
+    return `Adicione e salve sua chave da ${providerLabel} para carregar os modelos disponíveis.`;
+  }
+
+  if (
+    normalized.includes("invalid") ||
+    normalized.includes("incorrect") ||
+    normalized.includes("unauthorized") ||
+    normalized.includes("permission") ||
+    normalized.includes("forbidden") ||
+    normalized.includes("401") ||
+    normalized.includes("403")
+  ) {
+    return `A chave da ${providerLabel} parece inválida ou sem permissão para listar modelos.`;
+  }
+
+  if (
+    provider === "ollama" &&
+    (normalized.includes("refused") ||
+      normalized.includes("timeout") ||
+      normalized.includes("11434") ||
+      normalized.includes("conectar ao backend") ||
+      normalized.includes("conectar ao backend"))
+  ) {
+    return "Não foi possível conectar ao Ollama. Confirme se ele está rodando e se a URL base está correta.";
+  }
+
+  return `Não foi possível carregar os modelos da ${providerLabel}. Tente novamente em instantes.`;
+}
+
 export default function Home() {
   const [mode, setMode] = useState<SearchMode>("individual");
   const [loading, setLoading] = useState(false);
@@ -115,7 +180,13 @@ export default function Home() {
   const [searchedName, setSearchedName] = useState("");
   const [provider, setProvider] = useState<AiProvider>("openai");
   const [apiKey, setApiKey] = useState("");
-  const [modelo, setModelo] = useState("gpt-4o-mini");
+  const [modelo, setModelo] = useState("");
+  const [availableModelsByProvider, setAvailableModelsByProvider] = useState<
+    Record<AiProvider, string[]>
+  >(() => ({ openai: [], gemini: [], ollama: [] }));
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [modelsError, setModelsError] = useState("");
+  const [savedApiKeys, setSavedApiKeys] = useState<Record<string, string>>({});
   const [summarizing, setSummarizing] = useState(false);
   const [summaryError, setSummaryError] = useState("");
   const [summary, setSummary] = useState<SummarizeResponse | null>(null);
@@ -180,6 +251,8 @@ export default function Home() {
 
   const isBusy = loading || summarizing || batchLoading || searchingCandidates;
 
+  const currentApiKeySlot = useMemo(() => getApiKeySlot(provider), [provider]);
+
   const providerApiLabel =
     provider === "openai"
       ? "API Key OpenAI"
@@ -194,6 +267,99 @@ export default function Home() {
         ? "AIza... (opcional se configurada no backend)"
         : "geralmente não precisa para localhost";
 
+  const hasSavedApiKeyForCurrentSlot = Boolean(
+    savedApiKeys[currentApiKeySlot]?.trim(),
+  );
+
+  const providerModelOptions = useMemo(
+    () => availableModelsByProvider[provider] ?? [],
+    [availableModelsByProvider, provider],
+  );
+
+  const fetchModelsForProvider = async (
+    targetProvider: AiProvider,
+    key?: string,
+  ) => {
+    setLoadingModels(true);
+    setModelsError("");
+    try {
+      const response: ModelsResponse = await listarModelosPorProvedor(
+        targetProvider,
+        key?.trim() || undefined,
+      );
+
+      const normalized = Array.from(
+        new Set(
+          response.modelos
+            .map((item) => item.trim())
+            .filter((item) => item.length > 0),
+        ),
+      );
+
+      if (normalized.length === 0) {
+        setModelsError(
+          `Nenhum modelo disponível retornado por ${getProviderLabel(targetProvider)} para esta configuração.`,
+        );
+        setAvailableModelsByProvider((prev) => ({
+          ...prev,
+          [targetProvider]: [],
+        }));
+        return;
+      }
+
+      setAvailableModelsByProvider((prev) => ({
+        ...prev,
+        [targetProvider]: normalized,
+      }));
+    } catch (err) {
+      setModelsError(getFriendlyModelsError(targetProvider, err));
+      setAvailableModelsByProvider((prev) => ({
+        ...prev,
+        [targetProvider]: [],
+      }));
+    } finally {
+      setLoadingModels(false);
+    }
+  };
+
+  const saveApiKeysToStorage = (next: Record<string, string>) => {
+    setSavedApiKeys(next);
+    localStorage.setItem(API_KEYS_STORAGE_KEY, JSON.stringify(next));
+  };
+
+  const handleSaveApiKey = () => {
+    const value = apiKey.trim();
+    if (!value) {
+      setSummaryError("Informe uma API Key antes de salvar.");
+      return;
+    }
+
+    const next = {
+      ...savedApiKeys,
+      [currentApiKeySlot]: value,
+    };
+    saveApiKeysToStorage(next);
+    setApiKey(value);
+    setSummaryError("");
+    void fetchModelsForProvider(provider, value);
+    addLog(
+      "frontend",
+      `API Key salva localmente para ${provider}.`,
+    );
+  };
+
+  const handleRemoveApiKey = () => {
+    const next = { ...savedApiKeys };
+    delete next[currentApiKeySlot];
+    saveApiKeysToStorage(next);
+    setApiKey("");
+    void fetchModelsForProvider(provider, "");
+    addLog(
+      "frontend",
+      `API Key removida localmente para ${provider}.`,
+    );
+  };
+
   const addLog = (source: LogSource, message: string) => {
     const timestamp = new Date().toLocaleTimeString("pt-BR");
     const entry: LogEntry = {
@@ -203,6 +369,35 @@ export default function Home() {
     };
     setLogs((prev) => [...prev, entry]);
   };
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(API_KEYS_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Record<string, string>;
+      if (parsed && typeof parsed === "object") {
+        setSavedApiKeys(parsed);
+      }
+    } catch {
+      setSavedApiKeys({});
+    }
+  }, []);
+
+  useEffect(() => {
+    const saved = savedApiKeys[currentApiKeySlot] ?? "";
+    setApiKey(saved);
+  }, [currentApiKeySlot, savedApiKeys]);
+
+  useEffect(() => {
+    const saved = savedApiKeys[getApiKeySlot(provider)] ?? "";
+    void fetchModelsForProvider(provider, saved);
+  }, [provider, savedApiKeys]);
+
+  useEffect(() => {
+    if (!providerModelOptions.includes(modelo)) {
+      setModelo(providerModelOptions[0] ?? "");
+    }
+  }, [providerModelOptions, modelo]);
 
   useEffect(() => {
     if (!activeMode) {
@@ -893,47 +1088,113 @@ export default function Home() {
 
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="provider">Provedor</Label>
-                    <select
-                      id="provider"
+                    <Label htmlFor="provider-select">Provedor</Label>
+                    <Select
                       value={provider}
-                      onChange={(event) => {
-                        const nextProvider = event.target.value as AiProvider;
+                      onValueChange={(value) => {
+                        const nextProvider = value as AiProvider;
                         setProvider(nextProvider);
-                        setModelo(PROVIDER_MODELS[nextProvider][0]);
                       }}
-                      className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+                      disabled={isBusy}
                     >
-                      <option value="openai">OpenAI</option>
-                      <option value="gemini">Gemini</option>
-                      <option value="ollama">Ollama</option>
-                    </select>
+                      <SelectTrigger id="provider-select">
+                        <SelectValue placeholder="Selecione um provedor" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="openai">OpenAI</SelectItem>
+                        <SelectItem value="gemini">Gemini</SelectItem>
+                        <SelectItem value="ollama">Ollama</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="openai-key">{providerApiLabel}</Label>
-                    <Input
-                      id="openai-key"
-                      type="password"
-                      value={apiKey}
-                      onChange={(event) => setApiKey(event.target.value)}
-                      placeholder={providerApiPlaceholder}
-                      autoComplete="off"
-                    />
+                    <div className="space-y-2">
+                      <Input
+                        id="openai-key"
+                        type="password"
+                        value={apiKey}
+                        onChange={(event) => setApiKey(event.target.value)}
+                        placeholder={providerApiPlaceholder}
+                        autoComplete="off"
+                      />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleSaveApiKey}
+                          disabled={isBusy || !apiKey.trim()}
+                        >
+                          <Save className="h-3.5 w-3.5" />
+                          Salvar chave
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleRemoveApiKey}
+                          disabled={isBusy || !hasSavedApiKeyForCurrentSlot}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Remover chave
+                        </Button>
+                        <span className="text-xs text-slate-500">
+                          {hasSavedApiKeyForCurrentSlot
+                            ? "Chave salva localmente para este provedor."
+                            : "Nenhuma chave salva para este provedor."}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="modelo">Modelo</Label>
-                    <Input
-                      id="modelo"
+                    <Label htmlFor="modelo-select">Modelo</Label>
+                    <Select
                       value={modelo}
-                      onChange={(event) => setModelo(event.target.value)}
-                      list="provider-models"
-                      placeholder="Digite o modelo do provedor selecionado"
-                    />
-                    <datalist id="provider-models">
-                      {PROVIDER_MODELS[provider].map((item) => (
-                        <option key={item} value={item} />
-                      ))}
-                    </datalist>
+                      onValueChange={setModelo}
+                      disabled={
+                        isBusy ||
+                        loadingModels ||
+                        providerModelOptions.length === 0
+                      }
+                    >
+                      <SelectTrigger id="modelo-select">
+                        <SelectValue placeholder="Selecione um modelo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {providerModelOptions.map((item) => (
+                          <SelectItem key={item} value={item}>
+                            {item}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-slate-500">
+                      {loadingModels
+                        ? "Buscando modelos disponíveis no provedor..."
+                        : providerModelOptions.length > 0
+                          ? `${providerModelOptions.length} modelo(s) disponível(is) para ${provider}.`
+                          : `Nenhum modelo disponível para ${provider}.`}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => fetchModelsForProvider(provider, apiKey)}
+                      disabled={isBusy || loadingModels}
+                    >
+                      {loadingModels ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          Atualizando...
+                        </>
+                      ) : (
+                        "Atualizar modelos"
+                      )}
+                    </Button>
+                    {modelsError ? (
+                      <p className="text-xs text-amber-700">{modelsError}</p>
+                    ) : null}
                   </div>
                 </div>
 
@@ -941,7 +1202,7 @@ export default function Home() {
                   type="button"
                   variant="success"
                   onClick={handleSummarize}
-                  disabled={isBusy}
+                  disabled={isBusy || !modelo}
                 >
                   {summarizing ? (
                     <>
