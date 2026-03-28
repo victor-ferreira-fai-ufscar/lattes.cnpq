@@ -4,11 +4,28 @@ FastAPI + [Playwright](https://playwright.dev/) para scraping determinístico do
 
 ## Pré-requisitos
 
-- [uv](https://astral.sh/uv) — gerenciador de pacotes Python
-- Python 3.11+
-- Browsers do Playwright instalados
+- [Docker](https://www.docker.com/) e [Docker Compose](https://docs.docker.com/compose/) (recomendado para desenvolvimento)
+- **OU** localmente:
+  - [uv](https://astral.sh/uv) — gerenciador de pacotes Python
+  - Python 3.11+
+  - Browsers do Playwright instalados
 
-## Setup rápido
+## Setup Rápido (Docker Compose — Recomendado)
+
+```bash
+# A partir da raiz do projeto
+docker-compose up
+```
+
+- Backend: http://localhost:8000
+- Docs (Scalar): http://localhost:8000/docs
+- Health check: http://localhost:8000/health
+
+O **hot-reload** está ativado automaticamente — qualquer mudança no código reflete na hora sem reiniciar o container.
+
+---
+
+## Setup Local (Sem Docker)
 
 ```bash
 cd backend
@@ -16,23 +33,22 @@ cd backend
 # 1. Instalar dependências
 uv sync
 
-# 1.1 Instalar browser (uma vez)
+# 2. Instalar browsers
 uv run playwright install chromium
 
-# 2. Configurar variáveis de ambiente
+# 3. Configurar variáveis de ambiente
 cp .env.example .env
-# Ajuste o modo headless se necessário
+# Ajuste PLAYWRIGHT_HEADLESS, SUPABASE_* conforme necessário
 ```
 
-## Rodar o servidor
+## Rodar o servidor localmente
 
 ```bash
 uv run uvicorn src.api.main:app --reload
 ```
 
-- API: <http://localhost:8000>
-- Docs (Scalar): <http://localhost:8000/docs>
-- Health check: <http://localhost:8000/health>
+- API: http://localhost:8000
+- Docs (Scalar): http://localhost:8000/docs
 
 ## Como usar
 
