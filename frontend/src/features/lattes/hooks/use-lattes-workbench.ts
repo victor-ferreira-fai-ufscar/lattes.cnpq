@@ -47,6 +47,7 @@ export function useLattesWorkbench() {
   const [batchResult, setBatchResult] = useState<BatchScrapeResponse | null>(null);
   const [summaryResult, setSummaryResult] =
     useState<SummarizeResponse | null>(null);
+  const [liveBatchLogs, setLiveBatchLogs] = useState<string[]>([]);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [summaryConfig, setSummaryConfig] = useState<{
     provedor: AIProvider;
@@ -77,6 +78,7 @@ export function useLattesWorkbench() {
       setSummaryResult(null);
     } else {
       setBatchResult(null);
+      setLiveBatchLogs([]);
     }
   };
 
@@ -135,10 +137,31 @@ export function useLattesWorkbench() {
     setLoadingFlag("batch", true);
     setScrapeResult(null);
     setSummaryResult(null);
+    setBatchResult(null);
+    setLiveBatchLogs([]);
 
     try {
-      const response = await scrapeCurriculosLote(file, { skip, limit });
+      // Conta linhas não-vazias do CSV para calcular timeout dinâmico no serviço
+      const text = await file.text();
+      const totalNamesInCsv = text
+        .split("\n")
+        .map((l) => l.trim())
+        .filter(Boolean).length;
+
+      const response = await scrapeCurriculosLote(
+        file,
+        { skip, limit },
+        totalNamesInCsv,
+        {
+          onLog: (line) => {
+            setLiveBatchLogs((current) => [...current, line]);
+          },
+        },
+      );
       setBatchResult(response);
+      setLiveBatchLogs((current) =>
+        current.length > 0 ? current : (response.logs ?? []),
+      );
       setStatusMessage(
         `${response.total_processados} currículo(s) processado(s) no lote.`,
       );
@@ -229,7 +252,9 @@ export function useLattesWorkbench() {
   };
 
   const activeLogs =
-    summaryResult?.logs ?? scrapeResult?.logs ?? batchResult?.logs ?? [];
+    (mode === "lote" && liveBatchLogs.length > 0
+      ? liveBatchLogs
+      : summaryResult?.logs ?? scrapeResult?.logs ?? batchResult?.logs) ?? [];
 
   return {
     mode,

@@ -53,8 +53,9 @@ export function BatchUploadPanel({
             Processar múltiplos currículos via CSV
           </CardTitle>
           <CardDescription>
-            O formulário de lote vive na própria feature e conversa com a
-            camada de serviços dedicada ao domínio Lattes.
+            Envie um arquivo CSV com um nome de docente por linha. Os
+            currículos serão buscados automaticamente e empacotados em um ZIP
+            para download.
           </CardDescription>
         </div>
       </CardHeader>

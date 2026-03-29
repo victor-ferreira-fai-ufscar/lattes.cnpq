@@ -85,3 +85,20 @@ docker compose logs -f frontend
 pnpm build
 pnpm start
 ```
+
+## Testes (Playwright)
+
+Projeto padronizado com **apenas Playwright** para manter uma única estratégia de testes focada em fluxos reais de usuário (E2E), como upload de CSV e processamento em lote.
+
+```bash
+cd frontend
+
+# instalar navegadores (primeira execução)
+pnpm exec playwright install
+
+# rodar testes E2E
+pnpm test
+
+# modo UI interativo
+pnpm test:ui
+```

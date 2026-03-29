@@ -42,6 +42,10 @@ export function getApiErrorMessage(error: unknown): string {
     }
 
     if (error.code === "ECONNABORTED") {
+      const url = error.config?.url ?? "";
+      if (url.includes("batch")) {
+        return "O processamento em lote demorou mais do esperado. Tente reduzir o número de itens com o campo Limite.";
+      }
       return `Tempo limite excedido ao conectar com ${http.defaults.baseURL}.`;
     }
 

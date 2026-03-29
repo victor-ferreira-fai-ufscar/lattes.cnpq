@@ -69,6 +69,15 @@ export type BatchScrapeResponse = {
   duracao_segundos?: number;
 };
 
+type BatchOptions = {
+  skip?: number;
+  limit?: number;
+};
+
+type BatchStreamCallbacks = {
+  onLog?: (line: string) => void;
+};
+
 export async function buscarCandidatos(
   nome: string,
   limit = 20,
@@ -111,9 +120,125 @@ export async function listarModelosPorProvedor(
   return response.data;
 }
 
+// Tempo estimado por item (segundos) + margem de segurança
+const BATCH_SECONDS_PER_ITEM = 30;
+const BATCH_TIMEOUT_MIN_MS = 120_000;
+
+function buildBatchFormData(file: File, options?: BatchOptions): FormData {
+  const formData = new FormData();
+  formData.append("arquivo", file, file.name);
+  formData.append("skip", String(options?.skip ?? 0));
+
+  if (options?.limit && options.limit > 0) {
+    formData.append("limit", String(options.limit));
+  }
+
+  return formData;
+}
+
+async function scrapeCurriculosLoteStream(
+  file: File,
+  options: BatchOptions | undefined,
+  timeoutMs: number,
+  callbacks: BatchStreamCallbacks,
+): Promise<BatchScrapeResponse> {
+  const baseURL = http.defaults.baseURL || "http://localhost:8000";
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(`${baseURL}/scrape/batch/stream`, {
+      method: "POST",
+      body: buildBatchFormData(file, options),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new Error(
+        detail || `Falha ao iniciar stream do lote (HTTP ${response.status}).`,
+      );
+    }
+
+    if (!response.body) {
+      throw new Error("Stream de lote indisponível no navegador atual.");
+    }
+
+    const decoder = new TextDecoder();
+    const reader = response.body.getReader();
+    let buffer = "";
+    let finalResult: BatchScrapeResponse | null = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const chunks = buffer.split("\n\n");
+      buffer = chunks.pop() ?? "";
+
+      for (const rawChunk of chunks) {
+        if (!rawChunk.trim()) {
+          continue;
+        }
+
+        let eventName = "message";
+        const dataLines: string[] = [];
+
+        for (const line of rawChunk.split("\n")) {
+          if (line.startsWith("event:")) {
+            eventName = line.slice("event:".length).trim();
+          }
+          if (line.startsWith("data:")) {
+            dataLines.push(line.slice("data:".length).trim());
+          }
+        }
+
+        const rawData = dataLines.join("\n");
+        const payload = rawData ? (JSON.parse(rawData) as Record<string, unknown>) : {};
+
+        if (eventName === "log" && typeof payload.message === "string") {
+          callbacks.onLog?.(payload.message);
+        }
+
+        if (eventName === "error") {
+          const detail =
+            typeof payload.detail === "string"
+              ? payload.detail
+              : "Falha ao processar lote em tempo real.";
+          throw new Error(detail);
+        }
+
+        if (eventName === "result") {
+          finalResult = payload as BatchScrapeResponse;
+        }
+      }
+    }
+
+    if (!finalResult) {
+      throw new Error("A API encerrou o stream sem retornar resultado final.");
+    }
+
+    return finalResult;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error(
+        "O processamento em lote demorou além do tempo máximo configurado.",
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 export async function scrapeCurriculosLote(
   file: File,
-  options?: { skip?: number; limit?: number },
+  options?: BatchOptions,
+  totalNamesInCsv?: number,
+  callbacks?: BatchStreamCallbacks,
 ): Promise<BatchScrapeResponse> {
   const raw = await file.arrayBuffer();
   const normalizedFile = new File([raw], file.name, {
@@ -121,17 +246,29 @@ export async function scrapeCurriculosLote(
     lastModified: file.lastModified,
   });
 
-  const formData = new FormData();
-  formData.append("arquivo", normalizedFile, normalizedFile.name);
-  formData.append("skip", String(options?.skip ?? 0));
+  // Calcula timeout dinamicamente: 30s por item processado, mínimo 2 minutos
+  const itemCount =
+    options?.limit && options.limit > 0
+      ? options.limit
+      : (totalNamesInCsv ?? 50);
+  const dynamicTimeout = Math.max(
+    BATCH_TIMEOUT_MIN_MS,
+    itemCount * BATCH_SECONDS_PER_ITEM * 1000,
+  );
 
-  if (options?.limit && options.limit > 0) {
-    formData.append("limit", String(options.limit));
+  if (callbacks?.onLog) {
+    return scrapeCurriculosLoteStream(
+      normalizedFile,
+      options,
+      dynamicTimeout,
+      callbacks,
+    );
   }
 
   const response = await http.post<BatchScrapeResponse>(
     "/scrape/batch",
-    formData,
+    buildBatchFormData(normalizedFile, options),
+    { timeout: dynamicTimeout },
   );
 
   return response.data;
