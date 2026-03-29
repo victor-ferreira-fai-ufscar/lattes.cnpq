@@ -9,36 +9,31 @@ import {
   scrapeCurriculoSelecionado,
   scrapeCurriculosLote,
   summarizeCurriculo,
-  type AIProvider,
   type BatchScrapeResponse,
   type ScrapeResponse,
   type SearchCandidate,
   type SummarizeResponse,
 } from "@/features/lattes/services/lattes.service";
+import {
+  useWorkbenchFeedback,
+  useWorkbenchLoading,
+  useWorkbenchSummaryConfig,
+} from "@/features/lattes/hooks/use-lattes-workbench-state";
 
 export type WorkbenchMode = "individual" | "lote";
 
-type LoadingState = {
-  search: boolean;
-  scrape: boolean;
-  batch: boolean;
-  summarize: boolean;
-  models: boolean;
-};
-
-const defaultLoadingState: LoadingState = {
-  search: false,
-  scrape: false,
-  batch: false,
-  summarize: false,
-  models: false,
-};
-
 export function useLattesWorkbench() {
   const [mode, setMode] = useState<WorkbenchMode>("individual");
-  const [loading, setLoading] = useState<LoadingState>(defaultLoadingState);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const { loading, setLoadingFlag } = useWorkbenchLoading();
+  const {
+    errorMessage,
+    statusMessage,
+    setErrorMessage,
+    setStatusMessage,
+    resetFeedback,
+  } = useWorkbenchFeedback();
+  const { summaryConfig, setSummaryConfig, updateSummaryConfig } =
+    useWorkbenchSummaryConfig();
   const [lastSearchTerm, setLastSearchTerm] = useState<string | null>(null);
   const [candidates, setCandidates] = useState<SearchCandidate[]>([]);
   const [selectedCandidate, setSelectedCandidate] =
@@ -49,24 +44,6 @@ export function useLattesWorkbench() {
     useState<SummarizeResponse | null>(null);
   const [liveBatchLogs, setLiveBatchLogs] = useState<string[]>([]);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
-  const [summaryConfig, setSummaryConfig] = useState<{
-    provedor: AIProvider;
-    modelo: string;
-    apiKey: string;
-  }>({
-    provedor: "openai",
-    modelo: "gpt-4o-mini",
-    apiKey: "",
-  });
-
-  const setLoadingFlag = (key: keyof LoadingState, value: boolean) => {
-    setLoading((current) => ({ ...current, [key]: value }));
-  };
-
-  const resetFeedback = () => {
-    setErrorMessage(null);
-    setStatusMessage(null);
-  };
 
   const handleModeChange = (nextMode: WorkbenchMode) => {
     resetFeedback();
@@ -95,8 +72,8 @@ export function useLattesWorkbench() {
       setSelectedCandidate(response.candidatos[0] ?? null);
       setStatusMessage(
         response.total > 0
-          ? `${response.total} candidato(s) encontrado(s).`
-          : "Nenhum candidato encontrado para o nome informado.",
+          ? `${response.total} opcao(oes) encontrada(s). Escolha uma pessoa para continuar.`
+          : "Nao encontramos resultados para o nome informado.",
       );
     } catch (error) {
       setCandidates([]);
@@ -109,7 +86,7 @@ export function useLattesWorkbench() {
 
   const scrapeSelected = async () => {
     if (!selectedCandidate) {
-      setErrorMessage("Selecione um candidato antes de iniciar o scraping.");
+      setErrorMessage("Escolha uma pessoa antes de continuar.");
       return;
     }
 
@@ -124,7 +101,7 @@ export function useLattesWorkbench() {
       );
 
       setScrapeResult(response);
-      setStatusMessage("Currículo processado com sucesso.");
+      setStatusMessage("Curriculo preparado com sucesso.");
     } catch (error) {
       setErrorMessage(getApiErrorMessage(error));
     } finally {
@@ -163,7 +140,7 @@ export function useLattesWorkbench() {
         current.length > 0 ? current : (response.logs ?? []),
       );
       setStatusMessage(
-        `${response.total_processados} currículo(s) processado(s) no lote.`,
+        `Processamento concluido para ${response.total_processados} pessoa(s).`,
       );
     } catch (error) {
       setErrorMessage(getApiErrorMessage(error));
@@ -172,18 +149,8 @@ export function useLattesWorkbench() {
     }
   };
 
-  const updateSummaryConfig = (
-    patch: Partial<{
-      provedor: AIProvider;
-      modelo: string;
-      apiKey: string;
-    }>,
-  ) => {
-    setSummaryConfig((current) => ({ ...current, ...patch }));
-  };
-
   const loadModels = async (provisorio?: {
-    provedor?: AIProvider;
+    provedor?: typeof summaryConfig.provedor;
     apiKey?: string;
   }) => {
     resetFeedback();
@@ -205,7 +172,7 @@ export function useLattesWorkbench() {
             : response.modelos[0],
         }));
       }
-      setStatusMessage(`Modelos de ${provedor} carregados.`);
+      setStatusMessage(`Opcoes de ${provedor} atualizadas.`);
     } catch (error) {
       setAvailableModels([]);
       setErrorMessage(getApiErrorMessage(error));
@@ -215,12 +182,12 @@ export function useLattesWorkbench() {
   };
 
   const summarize = async (config?: {
-    provedor?: AIProvider;
+    provedor?: typeof summaryConfig.provedor;
     modelo?: string;
     apiKey?: string;
   }) => {
     if (!scrapeResult) {
-      setErrorMessage("Faça o scraping de um currículo antes de gerar o resumo.");
+      setErrorMessage("Prepare um curriculo antes de gerar o resumo.");
       return;
     }
 
