@@ -28,6 +28,14 @@ Princípios aplicados:
 - `lib/` foi reduzida à infraestrutura compartilhada, sem misturar serviços de domínio.
 - Componentes de UI continuam genéricos em `components/ui/`.
 
+### Fluxo da feature Lattes
+
+1. A página em `app/` apenas compõe o workbench.
+2. O hook da feature (`hooks/`) orquestra estado, carregamentos e mensagens.
+3. `services/` centraliza chamadas HTTP para backend, incluindo lote com stream de logs.
+4. `schemas/` valida entradas de formulário antes do envio.
+5. `components/` renderiza blocos de UI por responsabilidade (busca, lote, resumo e logs).
+
 ## Rodar com Docker Compose (Recomendado)
 
 ```bash
@@ -82,6 +90,7 @@ docker compose up -d frontend
 
 ```bash
 docker compose logs -f frontend
+pnpm lint
 pnpm build
 pnpm start
 ```
@@ -89,6 +98,8 @@ pnpm start
 ## Testes (Playwright)
 
 Projeto padronizado com **apenas Playwright** para manter uma única estratégia de testes focada em fluxos reais de usuário (E2E), como upload de CSV e processamento em lote.
+
+Para maior previsibilidade dos testes E2E, mantenha o backend disponível em http://localhost:8000 durante a execução.
 
 ```bash
 cd frontend

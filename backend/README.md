@@ -20,7 +20,7 @@ backend/src/
 │   └── routers/            # Um arquivo por grupo de endpoints
 │       ├── scrape.py       # /scrape
 │       ├── search.py       # /search
-│       ├── batch.py        # /scrape/batch
+│       ├── batch.py        # /scrape/batch e /scrape/batch/stream
 │       ├── ai.py           # /summarize e /models
 │       └── health.py       # /health e /docs
 ├── models/
@@ -83,6 +83,7 @@ SUPABASE_SERVICE_ROLE_KEY=<service_role_key>
 SUPABASE_STORAGE_BUCKET=lattes-cvs
 SUPABASE_STORAGE_FOLDER=raw
 SUPABASE_STORAGE_PUBLIC=true
+SUPABASE_SIGNED_URL_EXPIRES_IN=3600
 ```
 
 ## Rotas disponíveis
@@ -91,8 +92,17 @@ SUPABASE_STORAGE_PUBLIC=true
 - POST /search
 - POST /scrape
 - POST /scrape/batch
+- POST /scrape/batch/stream (SSE com logs em tempo real)
 - POST /summarize
 - POST /models
+
+## Batch: parâmetros principais
+
+- Campo de arquivo: `arquivo` (compatível também com `file`)
+- `skip`: inteiro >= 0 para pular linhas iniciais
+- `limit`: inteiro > 0 para limitar quantos nomes serão processados
+
+No fluxo de lote, o backend também tenta gerar um `.zip` consolidado com os PDFs processados com sucesso.
 
 ## Quando adicionar nova lib Python
 
