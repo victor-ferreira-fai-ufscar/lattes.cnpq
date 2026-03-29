@@ -163,14 +163,15 @@ export function useLattesWorkbench() {
 
       setAvailableModels(response.modelos);
       if (response.modelos[0]) {
-        setSummaryConfig((current) => ({
-          ...current,
+        const novoModelo = response.modelos.includes(summaryConfig.modelo)
+          ? summaryConfig.modelo
+          : response.modelos[0];
+        
+        updateSummaryConfig({
           provedor,
           apiKey,
-          modelo: response.modelos.includes(current.modelo)
-            ? current.modelo
-            : response.modelos[0],
-        }));
+          modelo: novoModelo,
+        });
       }
       setStatusMessage(`Opcoes de ${provedor} atualizadas.`);
     } catch (error) {
@@ -208,7 +209,7 @@ export function useLattesWorkbench() {
         nextConfig.apiKey || undefined,
       );
 
-      setSummaryConfig(nextConfig);
+      updateSummaryConfig(nextConfig);
       setSummaryResult(response);
       setStatusMessage("Resumo gerado com sucesso.");
     } catch (error) {

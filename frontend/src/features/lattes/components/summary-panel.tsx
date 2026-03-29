@@ -28,6 +28,17 @@ import {
 } from "@/features/lattes/schemas/lattes.schemas";
 import type { AIProvider } from "@/features/lattes/services/lattes.service";
 
+const STORAGE_KEY_PREFIX = "lattes_ai_key_";
+
+/**
+ * Obtém a chave de acesso armazenada para um provedor específico
+ */
+function getStoredApiKey(provider: AIProvider): string {
+  if (typeof window === "undefined") return "";
+  const stored = localStorage.getItem(`${STORAGE_KEY_PREFIX}${provider}`);
+  return stored || "";
+}
+
 type SummaryPanelProps = {
   defaultValues: SummaryFormData;
   models: string[];
@@ -65,6 +76,12 @@ export function SummaryPanel({
     control: form.control,
     name: "modelo",
   });
+
+  // Sincroniza a chave de acesso quando o provedor muda
+  useEffect(() => {
+    const storedKey = getStoredApiKey(provedor);
+    form.setValue("apiKey", storedKey, { shouldValidate: false });
+  }, [provedor, form]);
 
   const handleLoadModels = async () => {
     const values = form.getValues();
