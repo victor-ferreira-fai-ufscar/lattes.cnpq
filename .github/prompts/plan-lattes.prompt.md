@@ -1,5 +1,50 @@
 # Plan: Operacionalizar MVP Lattes
 
+## Contexto Frontend (estado atual, manter como base)
+
+Frontend em Next.js 16 + React 19 com arquitetura por feature em `frontend/src/features/lattes`.
+
+Regras de estado já adotadas e que devem ser preservadas em novos planos:
+
+1. Server State com React Query
+- Busca de candidatos e cache por nome.
+- Carregamento de modelos por provedor.
+
+2. UI State compartilhado da feature com Zustand
+- Configuração de resumo e chaves por provedor em store dedicada.
+
+3. Estado navegável com Query Params
+- Fluxo da interface (`individual`/`lote`) e termo de busca na URL.
+
+4. Estado local de inputs com React Hook Form
+- Formulários de busca, lote e resumo.
+
+Pontos de manutenção importantes para o time:
+
+- Evitar novo "god hook"; preferir hooks focados por fluxo.
+- Não colocar chamadas HTTP dentro de componentes de UI.
+- Manter `lattes-workbench` como composição, não centro de regras.
+- Sempre validar `pnpm lint` e `pnpm build` após mudanças estruturais.
+
+Arquivos-chave para contexto durante planejamento:
+
+- `frontend/src/features/lattes/components/lattes-workbench.tsx`
+- `frontend/src/features/lattes/hooks/use-lattes-workbench.ts`
+- `frontend/src/features/lattes/hooks/use-lattes-individual-flow.ts`
+- `frontend/src/features/lattes/hooks/use-lattes-batch-flow.ts`
+- `frontend/src/features/lattes/hooks/use-lattes-summary.ts`
+- `frontend/src/features/lattes/hooks/use-lattes-workbench-mode.ts`
+- `frontend/src/features/lattes/hooks/use-lattes-workbench-feedback.ts`
+- `frontend/src/features/lattes/stores/lattes-summary-store.ts`
+- `frontend/src/features/lattes/services/lattes.service.ts`
+
+Objetivo de qualquer plano frontend novo:
+
+- reduzir acoplamento,
+- manter rastreabilidade por URL,
+- reforçar previsibilidade de estado,
+- preservar simplicidade para onboarding do time.
+
 **Context**
 Aplicação de scraping de currículos Lattes com frontend em Next.js e backend em FastAPI/Playwright. Atualmente: busca individual, scraping com upload em Supabase, lote com CSV, resumo com OpenAI. Time: equipe de pesquisa UFSCAR. Horizonte: 2 a 4 semanas. Prioridade: gestores/secretarias.
 

@@ -29,7 +29,7 @@ Regras obrigatórias:
    - `ci`: mudanças de integração contínua ou automação
 
 3. Sobre a descrição:
-   - Escreva no imperativo, em inglês ou português conforme o contexto do pedido, mas mantenha a frase curta e natural.
+   - Escreva no imperativo, sempre em inglês, e mantenha a frase curta e natural.
    - Não capitalize a primeira letra da descrição.
    - Não use ponto final no fim.
    - Seja específica sobre a principal mudança.
@@ -47,6 +47,12 @@ Regras obrigatórias:
    - Não invente mudanças que não estejam no diff ou na descrição do usuário.
    - Não use mensagens vagas como `update code`, `fix stuff` ou `ajustes`.
    - Se houver múltiplas mudanças desconexas, sugira separar em mais de um commit em vez de esconder tudo em uma única mensagem ruim.
+
+7. Padrão deste repositório:
+   - Prefira escopo `frontend` para mudanças em `frontend/**`.
+   - Prefira escopo `backend` para mudanças em `backend/**`.
+   - Use `docs(frontend)` para documentação específica do frontend.
+   - Quando a mudança combinar React Query, Zustand e Query Params no frontend, prefira verbos como `refactor`, `organize`, `document`, `stabilize` em vez de mensagens genéricas.
 
 Fluxo da tarefa:
 
