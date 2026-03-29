@@ -75,8 +75,6 @@ uv run uvicorn src.api.main:app --reload
 ```env
 PLAYWRIGHT_BROWSER=chromium
 PLAYWRIGHT_HEADLESS=true
-PLAYWRIGHT_TIMEOUT_MS=45000
-SCRAPE_RETRY_COUNT=3
 BACKEND_PORT=8000
 SUPABASE_URL=https://<project>.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=<service_role_key>
@@ -84,6 +82,9 @@ SUPABASE_STORAGE_BUCKET=lattes-cvs
 SUPABASE_STORAGE_FOLDER=raw
 SUPABASE_STORAGE_PUBLIC=true
 SUPABASE_SIGNED_URL_EXPIRES_IN=3600
+OPENAI_API_KEY=<openai_key_opcional>
+GEMINI_API_KEY=<gemini_key_opcional>
+OLLAMA_BASE_URL=http://host.docker.internal:11434
 ```
 
 ## Rotas disponíveis

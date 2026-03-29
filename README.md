@@ -80,9 +80,16 @@ docker compose up -d frontend
 
 ## Configuração
 
-- Variáveis do compose: [.env.docker](.env.docker)
+- Interpolação do docker compose (portas): [.env.example](.env.example) -> copie para `.env`
+- Variáveis de runtime compartilhadas dos containers: [.env.docker](.env.docker)
 - Exemplo backend: [backend/.env.example](backend/.env.example)
 - Exemplo frontend: [frontend/.env.example](frontend/.env.example)
+
+Exemplo rápido para customizar portas:
+
+```bash
+cp .env.example .env
+```
 
 Se mudar variáveis do compose, recrie os serviços:
 
@@ -96,6 +103,7 @@ docker compose up -d --force-recreate backend frontend
 - `POST /search`
 - `POST /scrape`
 - `POST /scrape/batch`
+- `POST /scrape/batch/stream`
 - `POST /summarize`
 
 ## Troubleshooting Rápido
