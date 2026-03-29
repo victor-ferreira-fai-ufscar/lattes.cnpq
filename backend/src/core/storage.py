@@ -52,13 +52,18 @@ def upload_file_bytes(
     file_bytes: bytes,
     *,
     content_type: str,
+    folder: str | None = None,
 ) -> StorageUploadResult:
     bucket = os.getenv("SUPABASE_STORAGE_BUCKET", "lattes-cvs").strip() or "lattes-cvs"
-    folder = os.getenv("SUPABASE_STORAGE_FOLDER", "raw").strip().strip("/")
+    effective_folder = (
+        folder.strip().strip("/")
+        if folder is not None
+        else os.getenv("SUPABASE_STORAGE_FOLDER", "raw").strip().strip("/")
+    )
     is_public = _is_true(os.getenv("SUPABASE_STORAGE_PUBLIC", "true"))
     signed_url_ttl = int(os.getenv("SUPABASE_SIGNED_URL_EXPIRES_IN", "3600"))
 
-    object_path = f"{folder}/{filename}" if folder else filename
+    object_path = f"{effective_folder}/{filename}" if effective_folder else filename
     supabase = _create_supabase_client()
 
     supabase.storage.from_(bucket).upload(
@@ -71,10 +76,14 @@ def upload_file_bytes(
         public_url = supabase.storage.from_(bucket).get_public_url(object_path)
         return StorageUploadResult(object_path=object_path, download_url=public_url)
 
-    signed = supabase.storage.from_(bucket).create_signed_url(object_path, signed_url_ttl)
+    signed = supabase.storage.from_(bucket).create_signed_url(
+        object_path, signed_url_ttl
+    )
     signed_url = signed.get("signedURL") or signed.get("signedUrl")
     if not signed_url:
-        raise ValueError("Não foi possível gerar URL assinada para o arquivo no Supabase.")
+        raise ValueError(
+            "Não foi possível gerar URL assinada para o arquivo no Supabase."
+        )
 
     return StorageUploadResult(object_path=object_path, download_url=signed_url)
 

@@ -1,31 +1,33 @@
+import asyncio
+import json
 import zipfile
 from datetime import datetime
 from io import BytesIO
 from time import perf_counter
-from typing import Optional
+from typing import Any, Callable, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 
 from ...core.scraper import scrape_lattes
 from ...core.storage import upload_curriculo_pdf, upload_file_bytes
 from ...libs.csv_utils import parse_csv_names
 from ...libs.filename import build_curriculo_filename
-from ...libs.logging import build_logger
+from ...libs.logging import stamp
 
 router = APIRouter()
 
 
-@router.post("/scrape/batch")
-async def scrape_batch(
-    arquivo: Optional[UploadFile] = File(None),
-    file: Optional[UploadFile] = File(None),
-    skip: str = Form("0"),
-    limit: Optional[str] = Form(None),
-):
-    t_total = perf_counter()
-    logs: list[str] = []
-    add_log = build_logger(logs)
+def _sse_event(event: str, payload: Any) -> str:
+    return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
+
+async def _prepare_batch_input(
+    arquivo: Optional[UploadFile],
+    file: Optional[UploadFile],
+    skip: str,
+    limit: Optional[str],
+) -> tuple[str, list[str], list[str], int, Optional[int]]:
     arquivo_upload = arquivo or file
     if not arquivo_upload or not arquivo_upload.filename:
         raise HTTPException(
@@ -69,6 +71,27 @@ async def scrape_batch(
         raise HTTPException(
             status_code=400, detail="Nenhum nome selecionado após skip/limit."
         )
+
+    return arquivo_upload.filename, nomes_all, nomes, skip_value, limit_value
+
+
+async def _process_batch(
+    *,
+    arquivo_nome: str,
+    nomes_all: list[str],
+    nomes: list[str],
+    skip_value: int,
+    limit_value: Optional[int],
+    on_log: Optional[Callable[[str], None]] = None,
+) -> dict[str, Any]:
+    t_total = perf_counter()
+    logs: list[str] = []
+
+    def add_log(message: str) -> None:
+        line = f"[{stamp()}] {message}"
+        logs.append(line)
+        if on_log is not None:
+            on_log(line)
 
     add_log(f"Request /scrape/batch recebida com {len(nomes_all)} nomes únicos no CSV.")
     add_log(
@@ -141,6 +164,7 @@ async def scrape_batch(
                 zip_filename,
                 buffer.getvalue(),
                 content_type="application/zip",
+                folder="zips",
             )
             zip_storage_path = zip_upload.object_path
             zip_download_url = zip_upload.download_url
@@ -150,7 +174,7 @@ async def scrape_batch(
             add_log(f"Falha ao gerar/enviar ZIP consolidado: {zip_error}")
 
     return {
-        "arquivo": arquivo_upload.filename,
+        "arquivo": arquivo_nome,
         "total_nomes_csv": len(nomes_all),
         "total_processados": len(nomes),
         "sucesso": ok_count,
@@ -163,3 +187,100 @@ async def scrape_batch(
         "logs": logs,
         "duracao_segundos": round(perf_counter() - t_total, 2),
     }
+
+
+@router.post("/scrape/batch")
+async def scrape_batch(
+    arquivo: Optional[UploadFile] = File(None),
+    file: Optional[UploadFile] = File(None),
+    skip: str = Form("0"),
+    limit: Optional[str] = Form(None),
+):
+    arquivo_nome, nomes_all, nomes, skip_value, limit_value = (
+        await _prepare_batch_input(
+            arquivo,
+            file,
+            skip,
+            limit,
+        )
+    )
+    return await _process_batch(
+        arquivo_nome=arquivo_nome,
+        nomes_all=nomes_all,
+        nomes=nomes,
+        skip_value=skip_value,
+        limit_value=limit_value,
+    )
+
+
+@router.post("/scrape/batch/stream")
+async def scrape_batch_stream(
+    arquivo: Optional[UploadFile] = File(None),
+    file: Optional[UploadFile] = File(None),
+    skip: str = Form("0"),
+    limit: Optional[str] = Form(None),
+):
+    arquivo_nome, nomes_all, nomes, skip_value, limit_value = (
+        await _prepare_batch_input(
+            arquivo,
+            file,
+            skip,
+            limit,
+        )
+    )
+
+    queue: asyncio.Queue[str] = asyncio.Queue()
+    process_task = asyncio.create_task(
+        _process_batch(
+            arquivo_nome=arquivo_nome,
+            nomes_all=nomes_all,
+            nomes=nomes,
+            skip_value=skip_value,
+            limit_value=limit_value,
+            on_log=queue.put_nowait,
+        )
+    )
+
+    async def event_stream():
+        yield _sse_event(
+            "start",
+            {
+                "arquivo": arquivo_nome,
+                "total_nomes_csv": len(nomes_all),
+                "total_processados": len(nomes),
+            },
+        )
+
+        try:
+            while True:
+                if process_task.done() and queue.empty():
+                    break
+
+                try:
+                    line = await asyncio.wait_for(queue.get(), timeout=0.5)
+                except asyncio.TimeoutError:
+                    continue
+
+                yield _sse_event("log", {"message": line})
+
+            result = await process_task
+            yield _sse_event("result", result)
+        except Exception as exc:
+            if not process_task.done():
+                process_task.cancel()
+            yield _sse_event(
+                "error",
+                {"detail": str(exc) or "Falha ao processar lote em tempo real."},
+            )
+        finally:
+            yield _sse_event("end", {})
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
