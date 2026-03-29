@@ -46,23 +46,22 @@ export function BatchUploadPanel({
       <CardHeader className="space-y-3">
         <div className="inline-flex w-fit items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
           <FileSpreadsheet className="h-3.5 w-3.5" />
-          Fluxo em lote
+          Lista em CSV
         </div>
         <div>
           <CardTitle className="text-xl text-slate-950">
-            Processar múltiplos currículos via CSV
+            Processe varias pessoas de uma vez
           </CardTitle>
           <CardDescription>
-            Envie um arquivo CSV com um nome de docente por linha. Os
-            currículos serão buscados automaticamente e empacotados em um ZIP
-            para download.
+            Envie um arquivo CSV simples, com um nome por linha. Ao final, voce
+            podera baixar os curriculos encontrados em um unico arquivo.
           </CardDescription>
         </div>
       </CardHeader>
       <CardContent>
         <form className="grid gap-4 sm:grid-cols-2" onSubmit={handleSubmit}>
           <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="batch-csv-file">Arquivo CSV</Label>
+            <Label htmlFor="batch-csv-file">Arquivo com os nomes</Label>
             <Input
               id="batch-csv-file"
               accept=".csv,text/csv"
@@ -72,6 +71,9 @@ export function BatchUploadPanel({
                 form.setValue("csvFile", file as File, { shouldValidate: true });
               }}
             />
+            <p className="text-sm text-slate-500">
+              Use um arquivo .csv com os nomes que deseja consultar.
+            </p>
             {form.formState.errors.csvFile ? (
               <p className="text-sm font-medium text-red-600">
                 {form.formState.errors.csvFile.message}
@@ -80,8 +82,9 @@ export function BatchUploadPanel({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="batch-skip">Skip inicial</Label>
+            <Label htmlFor="batch-skip">Pular primeiras linhas</Label>
             <Input id="batch-skip" type="number" {...form.register("skip")} />
+            <p className="text-sm text-slate-500">Use 0 para comecar do inicio.</p>
             {form.formState.errors.skip ? (
               <p className="text-sm font-medium text-red-600">
                 {form.formState.errors.skip.message}
@@ -90,10 +93,10 @@ export function BatchUploadPanel({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="batch-limit">Limite de itens</Label>
+            <Label htmlFor="batch-limit">Quantidade maxima</Label>
             <Input
               id="batch-limit"
-              placeholder="Opcional"
+              placeholder="Deixe em branco para processar tudo"
               type="number"
               {...form.register("limit")}
             />
@@ -106,7 +109,7 @@ export function BatchUploadPanel({
 
           <div className="sm:col-span-2">
             <Button className="w-full sm:w-auto" disabled={isSubmitting} type="submit">
-              {isSubmitting ? "Enviando lote..." : "Executar lote"}
+              {isSubmitting ? "Enviando lista..." : "Processar lista"}
             </Button>
           </div>
         </form>

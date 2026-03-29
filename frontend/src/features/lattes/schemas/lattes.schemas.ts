@@ -15,22 +15,22 @@ export type IndividualSearchFormData = z.infer<typeof IndividualSearchSchema>;
 
 export const BatchUploadSchema = z.object({
   csvFile: z.custom<File>(isFile, {
-    message: "Arquivo CSV é obrigatório.",
+    message: "Informe um arquivo CSV.",
   })
     .refine((file) => file.name.toLowerCase().endsWith(".csv"), {
-      message: "Apenas arquivos .csv são permitidos.",
+      message: "Use apenas arquivos .csv.",
     })
     .refine((file) => file.size > 0, {
-      message: "O arquivo não pode estar vazio.",
+      message: "O arquivo nao pode estar vazio.",
     })
     .refine((file) => file.size <= 5 * 1024 * 1024, {
-      message: "O arquivo não pode exceder 5MB.",
+      message: "O arquivo nao pode exceder 5MB.",
     }),
-  skip: z.coerce.number().int().min(0, "Skip não pode ser negativo."),
+  skip: z.coerce.number().int().min(0, "Esse valor nao pode ser negativo."),
   limit: z
     .union([
       z.literal(""),
-      z.coerce.number().int().min(1, "Limit deve ser pelo menos 1."),
+      z.coerce.number().int().min(1, "Informe pelo menos 1."),
     ])
     .transform((value) => (value === "" ? undefined : value))
     .optional(),
@@ -41,7 +41,7 @@ export type BatchUploadFormInput = z.input<typeof BatchUploadSchema>;
 
 export const SummarySchema = z.object({
   provedor: z.enum(["openai", "gemini", "ollama"]),
-  modelo: z.string().trim().min(1, "Escolha ou informe um modelo."),
+  modelo: z.string().trim().min(1, "Escolha ou informe uma opcao."),
   apiKey: z.string().trim().optional(),
 });
 

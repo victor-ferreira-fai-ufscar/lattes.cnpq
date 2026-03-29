@@ -18,34 +18,27 @@ export function ScrapeResultCard({ result }: ScrapeResultCardProps) {
     <Card className="border-emerald-200/70 bg-emerald-50/70">
       <CardHeader>
         <CardTitle className="text-lg text-emerald-950">
-          Currículo processado
+          Curriculo pronto para leitura
         </CardTitle>
         <CardDescription>
-          Os metadados do scraping ficam encapsulados na feature e chegam prontos
-          para a camada de apresentação.
+          O curriculo foi localizado e preparado. Voce pode abrir o PDF abaixo.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
         <div className="space-y-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">
-              Docente
+              Pessoa encontrada
             </p>
             <p className="mt-1 text-base font-semibold text-slate-950">{result.nome}</p>
           </div>
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">
-              Atualização do currículo
+              Ultima atualizacao informada
             </p>
             <p className="mt-1 text-sm text-slate-700">
               {result.ultima_atualizacao_curriculo}
             </p>
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">
-              Storage path
-            </p>
-            <p className="mt-1 break-all text-sm text-slate-700">{result.storage_path}</p>
           </div>
         </div>
 
@@ -65,7 +58,7 @@ export function ScrapeResultCard({ result }: ScrapeResultCardProps) {
             target="_blank"
           >
             <Download className="h-4 w-4" />
-            Abrir PDF gerado
+            Abrir PDF
           </a>
         </div>
       </CardContent>

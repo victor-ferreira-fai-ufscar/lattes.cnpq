@@ -1,4 +1,4 @@
-import { TerminalSquare } from "lucide-react";
+import { ChevronDown, TerminalSquare } from "lucide-react";
 
 import {
   Card,
@@ -18,23 +18,29 @@ export function ExecutionLogCard({ logs }: ExecutionLogCardProps) {
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg text-white">
           <TerminalSquare className="h-4 w-4 text-teal-300" />
-          Logs da execução
+          Detalhes da execucao
         </CardTitle>
         <CardDescription className="text-slate-400">
-          Painel consolidado com os logs mais recentes do scraping, lote ou
-          resumo.
+          Os registros tecnicos ficam escondidos por padrao. Abra apenas se
+          quiser acompanhar o que aconteceu durante o processamento.
         </CardDescription>
       </CardHeader>
       <CardContent>
         {logs.length > 0 ? (
-          <div className="max-h-72 space-y-2 overflow-y-auto rounded-2xl border border-white/10 bg-slate-900/70 p-4 font-mono text-xs leading-6 text-slate-200">
-            {logs.map((line, index) => (
-              <p key={`${line}-${index}`}>{line}</p>
-            ))}
-          </div>
+          <details className="group rounded-2xl border border-white/10 bg-slate-900/60 p-4">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-slate-100">
+              Ver registros da execucao
+              <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
+            </summary>
+            <div className="mt-4 max-h-72 space-y-2 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/70 p-4 font-mono text-xs leading-6 text-slate-200">
+              {logs.map((line, index) => (
+                <p key={`${line}-${index}`}>{line}</p>
+              ))}
+            </div>
+          </details>
         ) : (
           <div className="rounded-2xl border border-dashed border-white/15 bg-slate-900/50 p-4 text-sm text-slate-400">
-            Nenhum log disponível ainda.
+            Nenhum registro disponivel ainda.
           </div>
         )}
       </CardContent>

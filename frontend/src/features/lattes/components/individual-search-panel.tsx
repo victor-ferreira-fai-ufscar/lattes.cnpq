@@ -56,22 +56,22 @@ export function IndividualSearchPanel({
       <CardHeader className="space-y-3">
         <div className="inline-flex w-fit items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-xs font-medium text-teal-800">
           <UserRoundSearch className="h-3.5 w-3.5" />
-          Fluxo individual
+          Busca por nome
         </div>
         <div>
           <CardTitle className="text-xl text-slate-950">
-            Buscar e selecionar currículo
+            Encontre o currículo de uma pessoa
           </CardTitle>
           <CardDescription>
-            A busca fica isolada na feature de Lattes. A página só compõe os
-            módulos e delega as interações para o hook da feature.
+            Digite o nome, escolha a opção correta e depois prepare o currículo
+            em PDF para leitura.
           </CardDescription>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
         <form className="space-y-3" onSubmit={handleSearch}>
           <div className="space-y-2">
-            <Label htmlFor="individual-search-name">Nome do docente</Label>
+            <Label htmlFor="individual-search-name">Nome da pessoa</Label>
             <Input
               id="individual-search-name"
               placeholder="Ex.: Neocles Alves Pereira"
@@ -85,22 +85,22 @@ export function IndividualSearchPanel({
           </div>
           <Button className="w-full sm:w-auto" disabled={isSearching} type="submit">
             <Search className="h-4 w-4" />
-            {isSearching ? "Buscando..." : "Buscar candidatos"}
+            {isSearching ? "Buscando..." : "Buscar"}
           </Button>
         </form>
 
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-slate-900">Resultados</p>
+              <p className="text-sm font-semibold text-slate-900">Pessoas encontradas</p>
               <p className="text-sm text-slate-500">
                 {lastSearchTerm
-                  ? `Busca atual: ${lastSearchTerm}`
-                  : "Nenhuma busca executada ainda."}
+                  ? `Ultima busca: ${lastSearchTerm}`
+                  : "Faça uma busca para ver as opções disponíveis."}
               </p>
             </div>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-              {candidates.length} candidato(s)
+              {candidates.length} opção(ões)
             </span>
           </div>
 
@@ -135,7 +135,7 @@ export function IndividualSearchPanel({
             </div>
           ) : (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-500">
-              Execute uma busca para listar os possíveis currículos.
+              Depois da busca, as opções encontradas aparecerão aqui.
             </div>
           )}
 
@@ -148,7 +148,7 @@ export function IndividualSearchPanel({
               void onScrape();
             }}
           >
-            {isScraping ? "Processando currículo..." : "Fazer scraping do selecionado"}
+            {isScraping ? "Preparando currículo..." : "Preparar currículo em PDF"}
           </Button>
         </div>
       </CardContent>

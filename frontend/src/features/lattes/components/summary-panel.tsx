@@ -83,22 +83,22 @@ export function SummaryPanel({
       <CardHeader className="space-y-3">
         <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-medium text-cyan-800">
           <BrainCircuit className="h-3.5 w-3.5" />
-          Pós-processamento
+          Resumo opcional
         </div>
         <div>
           <CardTitle className="text-xl text-slate-950">
             Gerar resumo com IA
           </CardTitle>
           <CardDescription>
-            O resumo usa um módulo próprio da feature, com configuração de
-            provedor e modelos desacoplada da camada de UI.
+            Se quiser, a ferramenta pode montar um texto mais curto para ajudar
+            na leitura rapida do curriculo.
           </CardDescription>
         </div>
       </CardHeader>
       <CardContent>
         <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit}>
           <div className="space-y-2">
-            <Label htmlFor="summary-provider">Provedor</Label>
+            <Label htmlFor="summary-provider">Servico de IA</Label>
             <Select
               value={provedor}
               onValueChange={(value) => {
@@ -108,7 +108,7 @@ export function SummaryPanel({
               }}
             >
               <SelectTrigger id="summary-provider">
-                <SelectValue placeholder="Selecione um provedor" />
+                <SelectValue placeholder="Selecione um servico" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="openai">OpenAI</SelectItem>
@@ -128,7 +128,7 @@ export function SummaryPanel({
                 }}
               >
                 <SelectTrigger id="summary-model">
-                  <SelectValue placeholder="Selecione um modelo" />
+                  <SelectValue placeholder="Selecione uma opcao" />
                 </SelectTrigger>
                 <SelectContent>
                   {models.map((model) => (
@@ -149,10 +149,10 @@ export function SummaryPanel({
           </div>
 
           <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="summary-api-key">API key</Label>
+            <Label htmlFor="summary-api-key">Chave de acesso</Label>
             <Input
               id="summary-api-key"
-              placeholder="Opcional para provedores locais; necessário conforme o backend exigir"
+              placeholder="Preencha apenas se o servico escolhido pedir essa chave"
               type="password"
               {...form.register("apiKey")}
             />
@@ -168,7 +168,7 @@ export function SummaryPanel({
               }}
             >
               <RefreshCcw className="h-4 w-4" />
-              {isLoadingModels ? "Carregando modelos..." : "Carregar modelos"}
+              {isLoadingModels ? "Atualizando opcoes..." : "Atualizar opcoes"}
             </Button>
             <Button disabled={isSubmitting} type="submit">
               {isSubmitting ? "Gerando resumo..." : "Gerar resumo"}

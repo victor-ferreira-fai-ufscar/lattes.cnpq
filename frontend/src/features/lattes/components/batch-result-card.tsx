@@ -17,18 +17,18 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
   return (
     <Card className="border-amber-200/70 bg-amber-50/80">
       <CardHeader>
-        <CardTitle className="text-lg text-amber-950">Lote concluído</CardTitle>
+        <CardTitle className="text-lg text-amber-950">Lista processada</CardTitle>
         <CardDescription>
-          Resultado consolidado da execução em CSV, separado da UI principal em
-          um componente específico da feature.
+          Sua lista foi processada. Confira abaixo o total de resultados e os
+          arquivos disponiveis.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         <div className="grid gap-3 sm:grid-cols-4">
-          <Metric label="Arquivo" value={result.arquivo} />
-          <Metric label="Processados" value={String(result.total_processados)} />
-          <Metric label="Sucessos" value={String(result.sucesso)} />
-          <Metric label="Erros" value={String(result.erro)} />
+          <Metric label="Arquivo enviado" value={result.arquivo} />
+          <Metric label="Pessoas processadas" value={String(result.total_processados)} />
+          <Metric label="Concluidos" value={String(result.sucesso)} />
+          <Metric label="Com problema" value={String(result.erro)} />
         </div>
 
         {result.zip_download_url ? (
@@ -39,7 +39,7 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
             target="_blank"
           >
             <Download className="h-4 w-4" />
-            Baixar ZIP consolidado
+            Baixar todos os PDFs
           </a>
         ) : result.zip_erro ? (
           <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
@@ -51,7 +51,7 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
             <FileArchive className="h-4 w-4 text-amber-700" />
-            Itens processados
+            Resultado por pessoa
           </div>
           <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
             {result.resultados.map((item) => (
@@ -73,7 +73,7 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
                         : "rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-800"
                     }
                   >
-                    {item.status}
+                    {item.status === "sucesso" ? "Concluido" : "Erro"}
                   </span>
                 </div>
                 {item.status === "sucesso" ? (

@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
+import { IBM_Plex_Mono, Manrope, Space_Grotesk } from "next/font/google";
 import "./globals.css";
+
+const bodyFont = Manrope({
+  subsets: ["latin"],
+  variable: "--font-body",
+});
 
 const headingFont = Space_Grotesk({
   subsets: ["latin"],
@@ -15,7 +20,7 @@ const monoFont = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: "Lattes CNPq",
-  description: "Frontend modular para busca, scraping e sumarização de currículos Lattes.",
+  description: "Ferramenta simples para buscar curriculos Lattes, preparar PDFs e gerar resumos opcionais.",
 };
 
 export default function RootLayout({
@@ -26,7 +31,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body
-        className={`${headingFont.variable} ${monoFont.variable} min-h-screen bg-[var(--background)] text-[var(--foreground)]`}
+        className={`${bodyFont.variable} ${headingFont.variable} ${monoFont.variable} min-h-screen bg-[var(--background)] text-[var(--foreground)]`}
       >
         {children}
       </body>

@@ -19,14 +19,13 @@ export function SummaryResultCard({ result }: SummaryResultCardProps) {
       <CardHeader>
         <CardTitle className="text-lg text-cyan-950">Resumo gerado</CardTitle>
         <CardDescription>
-          A resposta de IA é apresentada em um componente próprio, desacoplado
-          do fluxo de busca e scraping.
+          Texto resumido para leitura mais rapida do curriculo selecionado.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-700">
-            Docente
+            Pessoa
           </p>
           <p className="mt-1 text-base font-semibold text-slate-950">{result.nome}</p>
         </div>
