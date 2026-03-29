@@ -28,12 +28,13 @@ services:
     networks:
       - lattes-network
     healthcheck:
-      # Frontend depende deste healthcheck para iniciar depois da API ficar pronta
+      # Faz checagens no startup e depois reduz drasticamente a frequência
       test: ["CMD", "curl", "-f", "http://localhost:${BACKEND_PORT:-8000}/health"]
-      interval: 10s
+      start_interval: 10s
+      start_period: 30s
+      interval: 24h
       timeout: 5s
       retries: 3
-      start_period: 10s
 
   # Frontend Next.js (desenvolvimento)
   frontend:
