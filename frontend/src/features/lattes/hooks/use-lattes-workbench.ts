@@ -8,9 +8,13 @@ import {
   type WorkbenchMode,
 } from "@/features/lattes/hooks/use-lattes-workbench-mode";
 import { useLattesSummary } from "@/features/lattes/hooks/use-lattes-summary";
+import { useLattesWorkbenchStore } from "@/features/lattes/stores/lattes-workbench-store";
 
 export function useLattesWorkbench() {
   const { mode, searchTerm, setMode, setSearchTerm } = useLattesWorkbenchMode();
+  const resetWorkbenchState = useLattesWorkbenchStore(
+    (state) => state.resetWorkbenchState,
+  );
   const { errorMessage, statusMessage, resetFeedback, notifyError, notifySuccess } =
     useLattesWorkbenchFeedback();
 
@@ -78,6 +82,13 @@ export function useLattesWorkbench() {
     await summaryFlow.summarize(config);
   };
 
+  const clearHistory = () => {
+    resetFeedback();
+    resetWorkbenchState();
+    setSearchTerm(null);
+    notifySuccess("Historico limpo com sucesso.");
+  };
+
   const activeLogs =
     (mode === "lote" && batchFlow.liveBatchLogs.length > 0
       ? batchFlow.liveBatchLogs
@@ -113,6 +124,7 @@ export function useLattesWorkbench() {
     updateSummaryConfig: summaryFlow.updateSummaryConfig,
     loadModels,
     summarize,
+    clearHistory,
     activeLogs,
   };
 }

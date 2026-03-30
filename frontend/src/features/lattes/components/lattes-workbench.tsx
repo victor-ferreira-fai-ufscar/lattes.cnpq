@@ -6,6 +6,7 @@ import {
   FileSpreadsheet,
   Search,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 
 import { SectionHeading } from "@/components/shared/section-heading";
@@ -43,6 +44,7 @@ export function LattesWorkbench() {
     updateSummaryConfig,
     loadModels,
     summarize,
+    clearHistory,
     activeLogs,
   } = useLattesWorkbench();
 
@@ -79,7 +81,7 @@ export function LattesWorkbench() {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Button
             className={cn(
               "min-w-44 rounded-full",
@@ -103,6 +105,23 @@ export function LattesWorkbench() {
           >
             <FileSpreadsheet className="h-4 w-4" />
             Enviar lista em CSV
+          </Button>
+          <Button
+            className="rounded-full border-red-300 bg-white text-red-700 hover:bg-red-50"
+            type="button"
+            variant="outline"
+            onClick={() => {
+              const confirmed = window.confirm(
+                "Deseja limpar o historico salvo de buscas, execucoes e logs?",
+              );
+              if (!confirmed) {
+                return;
+              }
+              clearHistory();
+            }}
+          >
+            <Trash2 className="h-4 w-4" />
+            Limpar historico
           </Button>
         </div>
 

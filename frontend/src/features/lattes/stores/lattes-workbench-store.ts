@@ -26,6 +26,7 @@ type LattesWorkbenchStore = {
   setLiveBatchLogs: (logs: string[]) => void;
   appendLiveBatchLog: (line: string) => void;
   setSummaryResult: (result: SummarizeResponse | null) => void;
+  resetWorkbenchState: () => void;
 };
 
 const initialState = {
@@ -90,6 +91,9 @@ export const useLattesWorkbenchStore = create<LattesWorkbenchStore>()(
         set((state) =>
           state.summaryResult === result ? state : { summaryResult: result },
         );
+      },
+      resetWorkbenchState: () => {
+        set(() => ({ ...initialState }));
       },
     }),
     {
