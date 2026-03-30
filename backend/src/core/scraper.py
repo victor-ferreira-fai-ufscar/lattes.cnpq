@@ -1,5 +1,8 @@
-import json
 import os
+import re
+import unicodedata
+from dataclasses import dataclass
+from datetime import date, datetime
 
 try:
     from dotenv import load_dotenv
@@ -8,37 +11,381 @@ try:
 except ImportError:
     pass
 
-from browser_use import Agent, BrowserProfile, BrowserSession, ChatOpenAI
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+from playwright.async_api import async_playwright
 
-_DEFAULT_CHROME = "/opt/google/chrome-unstable/google-chrome-unstable"
+FIRST_URL = "https://lattes.cnpq.br/"
+_BASE_URL = "https://buscatextual.cnpq.br/buscatextual/busca.do?metodo=apresentar"
 
 
-async def scrape_lattes(nome: str, modelo: str = "gpt-4o-mini") -> dict:
-    """Usa browser-use para buscar e extrair dados do currículo Lattes do docente."""
-    llm = ChatOpenAI(model=modelo, api_key=os.environ.get("OPENAI_API_KEY"))
+@dataclass(frozen=True)
+class LattesScrapeResult:
+    pdf_bytes: bytes
+    ultima_atualizacao: date
 
-    chrome_path = os.environ.get("CHROME_PATH", _DEFAULT_CHROME)
-    profile = BrowserProfile(executable_path=chrome_path, headless=True)
-    browser = BrowserSession(browser_profile=profile)
 
-    task = (
-        f"Acesse https://buscatextual.cnpq.br/buscatextual/busca.do?metodo=apresentar "
-        f"e busque pelo docente '{nome}'. "
-        "Abra o currículo Lattes do resultado mais relevante e extraia as informações abaixo em JSON:\n"
-        "- graduacao: onde e qual curso\n"
-        "- mestrado: onde e qual curso/tema\n"
-        "- doutorado: onde e qual curso/tema\n"
-        "- pos_doutorado: onde e qual instituição (string vazia se não houver)\n"
-        "- vinculo_institucional: instituição atual de trabalho\n"
-        "- resumo: 2-3 parágrafos sobre a trajetória e pesquisa\n\n"
-        "Retorne APENAS o JSON com esses campos, sem formatação markdown."
+@dataclass(frozen=True)
+class LattesSearchCandidate:
+    nome: str
+    href: str
+
+
+def _is_true(value: str) -> bool:
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _normalizar(texto: str) -> str:
+    return " ".join(texto.lower().split())
+
+
+def _remover_acentos(texto: str) -> str:
+    texto_norm = unicodedata.normalize("NFD", texto)
+    return "".join(ch for ch in texto_norm if unicodedata.category(ch) != "Mn")
+
+
+def _gerar_variacoes_nome_busca(nome: str) -> list[str]:
+    nome_limpo = " ".join(nome.split())
+    if not nome_limpo:
+        return []
+
+    partes = nome_limpo.split()
+    variacoes = [
+        nome_limpo,
+        _remover_acentos(nome_limpo),
+        nome_limpo.lower(),
+        _remover_acentos(nome_limpo).lower(),
+        nome_limpo.title(),
+    ]
+
+    if len(partes) >= 2:
+        variacoes.append(f"{partes[0]} {partes[-1]}")
+        variacoes.append(partes[0])
+
+    unicos: list[str] = []
+    vistos: set[str] = set()
+    for variacao in variacoes:
+        texto = " ".join(variacao.split())
+        chave = _normalizar(texto)
+        if not texto or chave in vistos:
+            continue
+        vistos.add(chave)
+        unicos.append(texto)
+
+    return unicos
+
+
+def _parece_sem_resultado(texto: str) -> bool:
+    texto_norm = _normalizar(texto)
+    sinais_sem_resultado = [
+        "nenhum resultado encontrado",
+        "nenhum curriculo foi encontrado",
+        "nenhum currículo foi encontrado",
+        "resultado de 0",
+    ]
+    return any(sinal in texto_norm for sinal in sinais_sem_resultado)
+
+
+def _parece_pagina_cv(url: str, texto: str) -> bool:
+    texto_norm = _normalizar(texto)
+    sinais_cv = [
+        "endereço para acessar este cv",
+        "ultima atualização do currículo",
+        "resumo informado pelo autor",
+        "formação acadêmica/titulação",
+    ]
+    if any(sinal in texto_norm for sinal in sinais_cv):
+        return True
+
+    return "lattes.cnpq.br" in (url or "").lower() and "resultado de" not in texto_norm
+
+
+def _extrair_ultima_atualizacao(texto: str) -> date:
+    # Exemplo esperado: "Última atualização do currículo em 11/09/2020"
+    match = re.search(
+        r"[uú]ltima\s+atualiza(?:c|ç)[aã]o\s+do\s+curr[íi]culo\s+em\s+(\d{2}/\d{2}/\d{4})",
+        _normalizar(texto),
+    )
+    if not match:
+        raise ValueError(
+            "Não foi possível identificar a data de atualização do currículo."
+        )
+
+    return datetime.strptime(match.group(1), "%d/%m/%Y").date()
+
+
+async def _tenta_abrir_cv_final(page, botao):
+    try:
+        async with page.context.expect_page(timeout=7000) as popup_info:
+            await botao.first.click()
+        popup = await popup_info.value
+        await popup.wait_for_load_state("domcontentloaded")
+        texto_popup = await popup.locator("body").inner_text(timeout=12000)
+        if _parece_pagina_cv(popup.url, texto_popup):
+            return popup
+        await popup.close()
+    except PlaywrightTimeoutError:
+        await botao.first.click()
+        await page.wait_for_load_state("domcontentloaded")
+        await page.wait_for_timeout(1200)
+
+    texto_page = await page.locator("body").inner_text(timeout=12000)
+    if _parece_pagina_cv(page.url, texto_page):
+        return page
+    return None
+
+
+async def _executar_busca(page, nome: str):
+    tentativas = _gerar_variacoes_nome_busca(nome)
+    if not tentativas:
+        raise ValueError("Nenhum resultado encontrado para o nome informado.")
+
+    last_error = None
+    for nome_tentativa in tentativas:
+        for _ in range(3):
+            try:
+                await page.goto(_BASE_URL, wait_until="domcontentloaded", timeout=45000)
+                break
+            except PlaywrightTimeoutError as exc:
+                last_error = exc
+                await page.wait_for_timeout(1200)
+        else:
+            raise ValueError(
+                "Não foi possível acessar a busca do Lattes no momento."
+            ) from last_error
+
+        await page.locator("input[name='textoBusca']").fill(nome_tentativa)
+
+        # Em alguns momentos o Lattes precisa do grecaptcha carregado para disparar o submit.
+        try:
+            await page.wait_for_function(
+                "() => typeof window.grecaptcha !== 'undefined'",
+                timeout=10000,
+            )
+        except PlaywrightTimeoutError:
+            pass
+
+        await page.locator("#botaoBuscaFiltros:visible").first.click()
+        await page.wait_for_load_state("domcontentloaded")
+        await page.wait_for_timeout(900)
+
+        links = page.locator(".resultado a")
+        total = 0
+        sem_resultado = False
+        for _ in range(5):
+            total = await links.count()
+            if total > 0:
+                break
+
+            texto_body = await page.locator("body").inner_text(timeout=12000)
+            if _parece_sem_resultado(texto_body):
+                sem_resultado = True
+                break
+
+            await page.wait_for_timeout(700)
+
+        if total > 0:
+            return links, total
+
+    raise ValueError(
+        "Nenhum resultado encontrado para o nome informado. "
+        "Tente sem acentos, com nome e sobrenome, ou apenas o primeiro nome."
     )
 
-    agent = Agent(task=task, llm=llm, browser_session=browser)
-    result = await agent.run()
 
-    raw = result.final_result() or "{}"
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        return {"resumo": raw}
+async def _abrir_curriculo(page, nome: str, href_alvo: str | None = None):
+    links, total = await _executar_busca(page, nome)
+
+    alvo = None
+    nome_norm = _normalizar(nome)
+    if href_alvo:
+        href_alvo_norm = href_alvo.strip()
+        for i in range(total):
+            href = await links.nth(i).get_attribute("href")
+            if href and href.strip() == href_alvo_norm:
+                alvo = links.nth(i)
+                break
+
+    if alvo is None:
+        for i in range(total):
+            texto = _normalizar((await links.nth(i).inner_text()).strip())
+            if not texto:
+                continue
+            if texto == nome_norm or nome_norm in texto:
+                alvo = links.nth(i)
+                break
+
+    if alvo is None:
+        alvo = links.nth(0)
+
+    await alvo.click()
+    await page.wait_for_load_state("domcontentloaded")
+    await page.wait_for_timeout(1200)
+
+    seletores_abrir = [
+        "#idbtnabrircurriculo",
+        "input[value='Abrir Currículo']",
+        "input[value='Abrir Curriculo']",
+        "a:has-text('Abrir Currículo')",
+        "a:has-text('Abrir Curriculo')",
+    ]
+
+    # Se houver controles de "Abrir Currículo", precisamos acionar esse passo antes da captura.
+    existe_controle_abrir = False
+    for seletor in seletores_abrir:
+        if await page.locator(seletor).count() > 0:
+            existe_controle_abrir = True
+            break
+
+    if existe_controle_abrir:
+        for seletor in seletores_abrir:
+            botao = page.locator(seletor)
+            if await botao.count() == 0:
+                continue
+            cv_page = await _tenta_abrir_cv_final(page, botao)
+            if cv_page is not None:
+                return cv_page
+
+        # Fallback: alguns fluxos só respondem chamando a função JS do modal.
+        try:
+            async with page.context.expect_page(timeout=7000) as popup_info:
+                await page.evaluate(
+                    "window.chamarFuncaoAbreCV && window.chamarFuncaoAbreCV()"
+                )
+            popup = await popup_info.value
+            await popup.wait_for_load_state("domcontentloaded")
+            texto_popup = await popup.locator("body").inner_text(timeout=12000)
+            if _parece_pagina_cv(popup.url, texto_popup):
+                return popup
+            await popup.close()
+        except PlaywrightTimeoutError:
+            pass
+
+    texto_atual = await page.locator("body").inner_text(timeout=12000)
+    if _parece_pagina_cv(page.url, texto_atual):
+        return page
+
+    raise ValueError("Não foi possível abrir a página final do currículo Lattes.")
+
+
+async def buscar_lattes_candidatos(
+    nome: str, limit: int = 20
+) -> list[LattesSearchCandidate]:
+    """Retorna os candidatos encontrados na busca do Lattes para um nome."""
+    browser_name = os.environ.get("PLAYWRIGHT_BROWSER", "chromium").lower()
+    headless = _is_true(os.environ.get("PLAYWRIGHT_HEADLESS", "true"))
+
+    async with async_playwright() as p:
+        browser_type = getattr(p, browser_name, p.chromium)
+        browser = await browser_type.launch(
+            headless=headless,
+            args=["--no-sandbox", "--disable-dev-shm-usage"],
+        )
+
+        try:
+            context = await browser.new_context(locale="pt-BR")
+            page = await context.new_page()
+            links, total = await _executar_busca(page, nome)
+
+            vistos: set[tuple[str, str]] = set()
+            candidatos: list[LattesSearchCandidate] = []
+            for i in range(total):
+                if len(candidatos) >= max(limit, 1):
+                    break
+
+                link = links.nth(i)
+                texto = (await link.inner_text()).strip()
+                href = (await link.get_attribute("href") or "").strip()
+                if not texto or not href:
+                    continue
+
+                chave = (_normalizar(texto), href)
+                if chave in vistos:
+                    continue
+
+                vistos.add(chave)
+                candidatos.append(LattesSearchCandidate(nome=texto, href=href))
+
+            if not candidatos:
+                raise ValueError("Nenhum resultado encontrado para o nome informado.")
+
+            return candidatos
+        finally:
+            await browser.close()
+
+
+async def scrape_lattes(nome: str) -> LattesScrapeResult:
+    """Faz download do PDF do currículo e extrai a data de última atualização."""
+    browser_name = os.environ.get("PLAYWRIGHT_BROWSER", "chromium").lower()
+    headless = _is_true(os.environ.get("PLAYWRIGHT_HEADLESS", "true"))
+
+    async with async_playwright() as p:
+        browser_type = getattr(p, browser_name, p.chromium)
+        browser = await browser_type.launch(
+            headless=headless,
+            args=["--no-sandbox", "--disable-dev-shm-usage"],
+        )
+
+        try:
+            context = await browser.new_context(locale="pt-BR")
+            page = await context.new_page()
+            cv_page = await _abrir_curriculo(page, nome)
+            await cv_page.wait_for_load_state("domcontentloaded")
+            texto_cv = await cv_page.locator("body").inner_text(timeout=12000)
+            ultima_atualizacao = _extrair_ultima_atualizacao(texto_cv)
+            pdf_bytes = await cv_page.pdf(format="A4")
+            return LattesScrapeResult(
+                pdf_bytes=pdf_bytes,
+                ultima_atualizacao=ultima_atualizacao,
+            )
+        finally:
+            await browser.close()
+
+
+async def scrape_lattes_by_href(nome: str, href: str) -> LattesScrapeResult:
+    """Faz download do PDF do currículo a partir de um candidato já selecionado."""
+    browser_name = os.environ.get("PLAYWRIGHT_BROWSER", "chromium").lower()
+    headless = _is_true(os.environ.get("PLAYWRIGHT_HEADLESS", "true"))
+
+    async with async_playwright() as p:
+        browser_type = getattr(p, browser_name, p.chromium)
+        browser = await browser_type.launch(
+            headless=headless,
+            args=["--no-sandbox", "--disable-dev-shm-usage"],
+        )
+
+        try:
+            context = await browser.new_context(locale="pt-BR")
+            page = await context.new_page()
+            cv_page = await _abrir_curriculo(page, nome, href_alvo=href)
+            await cv_page.wait_for_load_state("domcontentloaded")
+            texto_cv = await cv_page.locator("body").inner_text(timeout=12000)
+            ultima_atualizacao = _extrair_ultima_atualizacao(texto_cv)
+            pdf_bytes = await cv_page.pdf(format="A4")
+            return LattesScrapeResult(
+                pdf_bytes=pdf_bytes,
+                ultima_atualizacao=ultima_atualizacao,
+            )
+        finally:
+            await browser.close()
+
+
+async def scrape_lattes_text(nome: str) -> str:
+    """Retorna apenas o texto bruto do currículo Lattes (sem gerar PDF)."""
+    browser_name = os.environ.get("PLAYWRIGHT_BROWSER", "chromium").lower()
+    headless = _is_true(os.environ.get("PLAYWRIGHT_HEADLESS", "true"))
+
+    async with async_playwright() as p:
+        browser_type = getattr(p, browser_name, p.chromium)
+        browser = await browser_type.launch(
+            headless=headless,
+            args=["--no-sandbox", "--disable-dev-shm-usage"],
+        )
+
+        try:
+            context = await browser.new_context(locale="pt-BR")
+            page = await context.new_page()
+            cv_page = await _abrir_curriculo(page, nome)
+            await cv_page.wait_for_load_state("domcontentloaded")
+            return await cv_page.locator("body").inner_text(timeout=12000)
+        finally:
+            await browser.close()

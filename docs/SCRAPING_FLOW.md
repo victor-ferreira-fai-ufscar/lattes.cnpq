@@ -1,77 +1,154 @@
-# Fluxo de Scraping do Lattes
+# Fluxo de Scraping do Lattes — PDF
 
-Este documento descreve o fluxo de automação do scraper em `backend/src/core/scraper.py`.
+Este documento descreve o fluxo automatizado em `backend/src/core/scraper.py` que captura PDFs dos currículos Lattes.
 
 ## 1. Página inicial de busca
 
 A automação inicia em:
 
-- `https://lattes.cnpq.br/` (interface padrão) -> rolando -> botão "Buscar currículo" (opcional)
-- diretamente em `https://buscatextual.cnpq.br/buscatextual/busca.do?metodo=apresentar` (ponto raiz usado atualmente)
+- `https://buscatextual.cnpq.br/buscatextual/busca.do?metodo=apresentar` (ponto de entrada)
 
 ## 2. Preenchimento da busca
 
-- Campo `input[name='textoBusca']` recebe o nome do docente (ex: `Neocles`).
-- Clicar em `#botaoBuscaFiltros` para submeter.
+- Campo `input[name='textoBusca']` recebe o nome do docente (ex: `Neocles`)
+- Aguarda `window.grecaptcha` estar pronto (reCAPTCHA do site)
+- Clica em `#botaoBuscaFiltros` para submeter
 
 ## 3. Resultados da busca
 
-- Identifica elementos `.resultado a`.
-- Se nenhum resultado:
-  - busca mensagens de "nenhum currículo encontrado" para lançar `DocenteNaoEncontradoError`.
+- Identifica elementos `.resultado a`
+- Se nenhum resultado: lança `ValueError("Nenhum resultado encontrado...")`
 - Se há resultados:
-  - procura correspondência exata por texto (nome completo).
-  - caso não exista, seleciona o primeiro resultado.
+  - Busca correspondência exata por nome
+  - Se não encontra, seleciona o primeiro resultado
 
-## 4. Abrir Currículo
+## 4. Abrir Currículo — Modal/Página Final
 
-- Clica no item selecionado.
-- Procura o botão de abertura do currículo com seletores:
+- Clica no item selecionado
+- Procura botão de abertura com seletores:
   - `#idbtnabrircurriculo`
   - `input[value='Abrir Currículo']`
   - `a:has-text('Abrir Currículo')`
-  - e variações sem acento.
-- Se não encontra o botão lança `CurriculoNaoEncontradoError`.
+  - e variações sem acento
 
-## 5. Página do CV Lattes
+- Se encontra: tenta abrir em nova aba/popup
+  - Aguarda `expect_page()` com timeout de 7s
+  - Valida se a nova página é o CV final (verificando marcadores de conteúdo)
+  - Se popup não pode ser capturado: tenta fallback em ação JS
+  
+- Se não encontra: verifica se a página atual já é o CV final
+  - Valida com marcadores como:
+    - "Endereço para acessar este CV"
+    - "Formação acadêmica/titulação"
+    - "Última atualização do currículo"
 
-- Na ação de abrir currículo, espera nova aba/aba atual.
-- Aguarda carregamento da página com `page_cv.wait_for_load_state("domcontentloaded")`.
-- Espera 2s adicionais para estabilizar.
+## 5. Página do CV Lattes — Validação
 
-## 6. Extração de conteúdo
+- Valida que a página final contém marcadores de CV (não é página de resultados)
+- Aguarda `wait_for_load_state("domcontentloaded")`
 
-`_extrair_contexto_pagina()` realiza:
+## 6. Geração do PDF
 
-- captura de `page.content()` (HTML completo)
-- captura de texto visível em `body.inner_text()` (timeout 10000ms)
-- validação de suficiência:
-  - HTML <200 chars e texto <100 chars -> `ExtracaoCurriculoError`
-- monta saída de contexto com:
-  - `URL_FINAL`, `TITULO_PAGINA`, `TEXTO_VISIVEL_EXTRAIDO`, `HTML_COMPLETO`
+O scraper utiliza a funcionalidade nativa do Playwright:
 
-## 7. Geração de resumo IA
+```python
+pdf_bytes = await cv_page.pdf(format="A4")
+```
 
-`gerar_resumo_ia()` faz roteamento
+- Formato: A4
+- Qualidade: renderizada pelo Chromium (mesma qualidade visual da página)
+- Retorna: bytes do PDF prontos para salva
 
-- `google gemini` -> `_gerar_resumo_gemini()`
-- `openai` -> `_gerar_resumo_openai()`
+## 7. Persistência e Download
 
-### Prompt padrão (`_get_prompt()`)
+No endpoint `POST /scrape`:
 
-- extrai campos esperados:
-  - `graduacao`, `mestrado`, `doutorado`, `pos_doutorado`, `vinculo_institucional`, `resumo`
-- controla tamanho máximo de entrada:clipping para 40k chars.
+- Salva PDF em `backend/output/raw/{nome}-{timestamp}.pdf`
+- Retorna JSON com:
+  - `nome`: nome do docente
+  - `arquivo_pdf`: nome do arquivo gerado
+  - `download_pdf_url`: URL para download via `GET /download/raw/{arquivo_pdf}`
+
+No endpoint `GET /download/raw/{filename}`:
+
+- Valida nome do arquivo (sem `../`, sem travessias)
+- Retorna o PDF com `Content-Type: application/pdf`
+- Headers de download automático
+
+## 8. Tratamento de Erros
+
+- `ValueError`: Convertido a `HTTPException(404)` no FastAPI
+  - "Nenhum resultado encontrado para o nome informado."
+  - "Não foi possível abrir a página final do currículo Lattes."
+  - "Não foi possível acessar a busca do Lattes no momento." (timeout)
+
+## 9. Retry Logic
+
+- Inicial `goto()` ao Lattes: 3 tentativas com 45s timeout cada
+  - Aguarda 1.2s entre tentativas (para instabilidade da rede)
+  - Necessário: CNPq tem variabilidade de resposta
+
+## Fluxo Resumido
+
+```
+Usuario solicita: POST /scrape { "nome": "Neocles" }
+                     ↓
+        Playwright abre Chromium
+                     ↓
+        Navega para busca.cnpq.br
+                     ↓
+        Preenche campo textoBusca
+                     ↓
+        Clica botão "Buscar"
+                     ↓
+        Identifica e clica resultado do nome
+                     ↓
+        Clica "Abrir Currículo" (modal/popup)
+                     ↓
+        Valida que a página aberta é o CV final
+                     ↓
+        page.pdf(format="A4") → gera PDF
+                     ↓
+        Salva em output/raw/{nome}-{timestamp}.pdf
+                     ↓
+        Retorna URL de download ao usuário
+```
+
+## Exemplos
+
+### Request
+
+```bash
+curl -X POST http://localhost:8000/scrape \
+  -H "Content-Type: application/json" \
+  -d '{"nome": "Neocles"}'
+```
+
+### Response
+
+```json
+{
+  "nome": "Neocles",
+  "arquivo_pdf": "neocles-20260326-182953.pdf",
+  "download_pdf_url": "/download/raw/neocles-20260326-182953.pdf"
+}
+```
+
+### Download do PDF
+
+```bash
+curl http://localhost:8000/download/raw/neocles-20260326-182953.pdf -o Neocles_CV.pdf
+```
+  - `download_html_url` (ex: `/download/raw/neocles-20260326-123456.html`)
 
 ## 8. Adaptação para FastAPI
 
-No `backend/src/api/routes.py`, o fluxo é:
+No `backend/src/api/main.py`, o fluxo é:
 
-1. chama `scrape_lattes(nome, log_callback=...)`
-2. grava raw text em `output/raw`
-3. chama `gerar_resumo_ia(...)`
-4. gera DOCX em `output/structured`
-5. retorna estrutura de JSON e caminho do arquivo.
+1. chama `scrape_lattes(nome)`
+2. grava o HTML bruto em `output/raw`
+3. retorna JSON com campos extraídos + caminho de download do HTML
+4. disponibiliza arquivo no endpoint `GET /download/raw/{filename}`
 
 ---
 

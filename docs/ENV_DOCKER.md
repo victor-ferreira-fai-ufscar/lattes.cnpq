@@ -56,3 +56,25 @@ Se por acaso você preferir usar o **Docker Desktop** (a interface gráfica base
     - **Value:** `(cole-a-chave-aqui)`
 3. Você também pode mapear a variável `HEADLESS=true` para desativar a exibição da janela invisível do browser.
 4. Clique em "Run".
+
+## Troubleshooting frontend: `Module not found`
+
+Em desenvolvimento com Docker Compose, o frontend usa bind mount do código e um volume para `node_modules`.
+Quando uma dependência nova é adicionada, esse volume pode ficar desatualizado e gerar erro como:
+
+```text
+Module not found: Can't resolve '<pacote>'
+```
+
+### Correção recomendada
+
+```bash
+docker compose up -d --build --force-recreate --renew-anon-volumes frontend
+```
+
+### Se persistir
+
+```bash
+docker compose exec frontend sh -lc "CI=true pnpm install --frozen-lockfile"
+docker compose restart frontend
+```

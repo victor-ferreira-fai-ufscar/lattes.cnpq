@@ -1,315 +1,174 @@
-# 🎓 Lattes Automator AI
+# Lattes Automator AI
 
-> **Automação Inteligente para Currículos Lattes** - Transforme dados acadêmicos em insights executivos com IA
+Automação de busca, coleta e processamento de currículos Lattes com backend em FastAPI/Playwright e frontend em Next.js.
 
-Uma ferramenta completa para extração, processamento e análise de currículos da Plataforma Lattes do CNPq. Desenvolvida para pesquisadores, gestores acadêmicos e analistas que precisam de resumos executivos de alta qualidade a partir de perfis acadêmicos.
+## Visão geral
 
-## 📋 O que é o Projeto?
+O projeto cobre o fluxo completo:
 
-O **Lattes Automator AI** automatiza o processo de coleta e análise de currículos Lattes, oferecendo:
+- Busca de candidatos por nome no Lattes
+- Scraping individual de currículo (com PDF)
+- Scraping em lote por CSV (com logs em tempo real via SSE)
+- Geração de ZIP consolidado dos PDFs processados
+- Sumarização de currículo com IA (OpenAI, Gemini e Ollama)
 
-- **Extração Automática**: Coleta dados diretamente da plataforma Lattes
-- **Resumos com IA**: Geração de perfis executivos usando Google Gemini e OpenAI
-- **Relatórios Profissionais**: Documentos Word estruturados e editáveis
-- **Processamento em Lote**: Análise de múltiplos currículos simultaneamente
-- **Interface Web Moderna**: Experiência intuitiva e responsiva
+## Estrutura do repositório
 
-### 🎯 Para quem serve?
-
-- **Pesquisadores**: Análise rápida de colaboradores e concorrentes
-- **Gestores Acadêmicos**: Avaliação de candidatos e equipe
-- **Analistas**: Estudos de mercado acadêmico e tendências
-- **Recrutadores**: Triagem eficiente de perfis acadêmicos
-- **Instituições**: Automação de processos de admissão e avaliação
-
-## 🏗️ Arquitetura e Stack Tecnológica
-
-### Arquitetura de Monorepo
-
-```
+```text
 lattes.cnpq/
-├── backend/                   # 🐍 API FastAPI (Python)
-│   ├── src/
-│   │   ├── api/               # Endpoints REST
-│   │   ├── core/              # Lógica de negócio
-│   │   └── ...
-│   ├── pyproject.toml         # 📦 Gerenciamento uv
-│   └── Dockerfile
-├── frontend/                  # ⚛️ Interface Next.js
-│   ├── src/
-│   │   ├── app/               # App Router
-│   │   ├── components/        # Componentes React
-│   │   └── ...
-│   ├── package.json           # 📦 Gerenciamento pnpm
-│   └── tsconfig.json
-├── getting-started/           # 🛠️ Scripts de automação
-│   ├── dev.sh                # Script universal
-│   ├── Makefile              # Automação Make
-│   ├── .env.example          # Configuração exemplo
-│   └── README.md             # Guia de uso
-├── supabase/                  # 🗄️ Configurações BaaS
-│   └── README.md             # Planejamento Supabase
-└── README.md                  # 📖 Esta documentação
+├── backend/             # API FastAPI, Playwright, Supabase, IA
+├── frontend/            # Interface Next.js (feature-based)
+├── docs/                # Documentação de fluxo e materiais de apoio
+├── supabase/            # Notas e informações de suporte
+├── exemplo/             # Arquivos de exemplo
+└── docker-compose.yml   # Orquestração de desenvolvimento local
 ```
 
-### Stack Tecnológica
+## Stack principal
 
-#### Backend (Python)
-- **Framework**: FastAPI - API moderna e performática
-- **Linguagem**: Python 3.11+ com tipagem completa
-- **Gerenciador**: uv - Ultrarrápido e confiável
-- **Web Scraping**: Playwright - Automação headless
-- **IA**: Google Gemini API + OpenAI API
-- **Documentos**: python-docx - Geração de Word
-- **Validação**: Pydantic - Modelos de dados robustos
+- Backend: Python 3.11+, FastAPI, Playwright, Supabase SDK, uv
+- Frontend: Next.js 16, React 19, TypeScript, React Query, Zustand, Playwright
+- Infra local: Docker Compose
 
-#### Frontend (TypeScript)
-- **Framework**: Next.js 14+ com App Router
-- **Linguagem**: TypeScript - Tipagem estática
-- **Gerenciador**: pnpm - Performático e eficiente
-- **Styling**: Tailwind CSS - Utilitário e moderno
-- **Componentes**: React 19 com hooks modernos
-- **Build**: Turbopack - Compilação ultrarrápida
+## Executar com Docker Compose (recomendado)
 
-#### Infraestrutura
-- **Containerização**: Docker para backend
-- **BaaS**: Supabase (futuro - banco e auth)
-- **Deploy**: Vercel (frontend) + On-premises (backend)
-
-## 🚀 Como Usar
-
-### Instalação Rápida
+Na raiz do projeto:
 
 ```bash
-# Clone o repositório
-git clone https://github.com/victor-ferreira-fai-ufscar/lattes.cnpq
-cd lattes.cnpq
-
-# ⚡ INÍCIO ULTRA-RÁPIDO (recomendado)
-./dev.sh dev
-
-# Ou veja o guia completo em getting-started/
-cat getting-started/QUICKSTART.md
+docker compose up -d --build
 ```
 
-### Desenvolvimento
+URLs padrão:
+
+- Frontend: http://localhost:3000
+- Backend: http://localhost:8000
+- Health: http://localhost:8000/health
+- Docs (Scalar): http://localhost:8000/docs
+
+Parar serviços:
 
 ```bash
-# Executar tudo simultaneamente (do root)
-./dev.sh dev
-
-# Ou da pasta getting-started
-./getting-started/dev.sh dev
-
-# URLs de acesso:
-# 🌐 Frontend: http://localhost:3000
-# 📡 Backend API: http://localhost:8000
-# 📚 Documentação API: http://localhost:8000/docs
+docker compose down
 ```
 
-### Desenvolvimento Individual
+## Configuração de ambiente
+
+Arquivos importantes:
+
+- [.env.example](.env.example): variáveis para interpolação do docker compose (portas)
+- [.env.docker](.env.docker): variáveis compartilhadas de runtime dos containers
+- [backend/.env.example](backend/.env.example): exemplo completo de variáveis do backend
+- [frontend/.env.example](frontend/.env.example): variáveis públicas do frontend
+
+Para customizar portas do compose:
 
 ```bash
-# Apenas backend
-./dev.sh backend
-
-# Apenas frontend
-./dev.sh frontend
+cp .env.example .env
 ```
 
-### Produção
+Se alterar variáveis de compose, recrie os serviços:
 
 ```bash
-# Docker (backend)
-./dev.sh docker
+docker compose up -d --force-recreate backend frontend
 ```
 
-## 🔑 Configuração
+## Hot-reload em desenvolvimento
 
-### Chaves de API
+- Backend: mudanças em [backend/src](backend/src) recarregam com Uvicorn `--reload`
+- Frontend: mudanças em [frontend](frontend) recompilam com `next dev`
 
-1. **Google Gemini** (Recomendado):
-   - Acesse: https://aistudio.google.com/app/apikey
-   - Crie uma chave gratuita
-   - Configure: `GEMINI_API_KEY=your_key_here`
+## Endpoints principais da API
 
-2. **OpenAI** (Alternativo):
-   - Acesse: https://platform.openai.com/api-keys
-   - Configure: `OPENAI_API_KEY=your_key_here`
+- GET /health
+- POST /search
+- POST /scrape
+- POST /scrape/batch
+- POST /scrape/batch/stream
+- POST /summarize
+- POST /models
 
-### Arquivo .env
+## Testes
+
+Frontend (E2E com Playwright):
 
 ```bash
-# API Keys
-GEMINI_API_KEY=your_gemini_key
-OPENAI_API_KEY=your_openai_key
-
-# Configurações (opcionais)
-HEADLESS=true
-LOG_LEVEL=INFO
+cd frontend
+pnpm test
 ```
 
-## 📁 Estrutura Detalhada
-
-### Backend (`/backend`)
-```
-backend/
-├── src/
-│   ├── api/               # 🎯 Camada da API
-│   │   ├── main.py        # Ponto de entrada FastAPI
-│   │   ├── routes.py      # Endpoints (/scrape, /batch)
-│   │   └── schemas.py     # Modelos Pydantic
-│   ├── core/              # 🧠 Lógica de negócio
-│   │   ├── scraper.py     # Scraping Lattes + IA
-│   │   └── document_maker.py # Geração DOCX
-│   └── __init__.py
-├── docs/                  # 📄 Dados de exemplo
-├── scripts/               # 🔧 Utilitários
-├── pyproject.toml         # ⚙️ Configuração uv
-├── uv.lock               # 🔒 Lockfile dependências
-└── Dockerfile            # 🐳 Containerização
-```
-
-### Frontend (`/frontend`)
-```
-frontend/
-├── src/
-│   ├── app/               # 🚀 App Router Next.js
-│   │   ├── layout.tsx     # Layout principal
-│   │   └── page.tsx       # Página inicial
-│   ├── components/        # 🧩 Componentes React
-│   │   ├── Header.tsx     # Cabeçalho com branding
-│   │   └── IndividualSearch.tsx # Formulário de busca
-│   ├── lib/               # 🔌 Utilitários
-│   │   └── api.ts         # Cliente HTTP para backend
-│   └── types/             # 📝 Tipos TypeScript
-│       └── api.ts         # Interfaces da API
-├── public/                # 🖼️ Assets estáticos
-├── package.json           # 📦 Dependências pnpm
-├── pnpm-lock.yaml        # 🔒 Lockfile pnpm
-└── tailwind.config.ts    # 🎨 Configuração Tailwind
-```
-
-## 🔌 API Endpoints
-
-### Core Endpoints
-
-- `GET /health` - Verificação de saúde da API
-- `POST /scrape` - Processar currículo individual
-- `POST /scrape/batch` - Processar múltiplos currículos
-- `GET /download/{filename}` - Baixar relatório gerado
-
-### Exemplo de Uso
+Backend (integração de storage):
 
 ```bash
-# Busca individual
-curl -X POST http://localhost:8000/scrape \
-  -H "Content-Type: application/json" \
-  -d '{
-    "nome": "João Silva",
-    "provedor": "Google Gemini",
-    "modelo": "gemini-2.0-flash",
-    "api_key": "your_key"
-  }'
+cd backend
+uv run pytest
 ```
 
-## 🎯 Funcionalidades
+## Como adicionar dependências
 
-### ✅ Implementadas
-- ✅ Extração automática de currículos Lattes
-- ✅ Integração com Google Gemini e OpenAI
-- ✅ Geração de relatórios Word profissionais
-- ✅ Interface web responsiva
-- ✅ Processamento individual e em lote
-- ✅ API REST completa
-- ✅ Containerização Docker
-- ✅ Monorepo organizado
+Backend (Python/uv):
 
-### 🚧 Planejadas
-- 🔄 Autenticação e usuários (Supabase Auth)
-- 🔄 Histórico de buscas (Supabase Database)
-- 🔄 Dashboard analítico
-- 🔄 Exportação para PDF
-- 🔄 API rate limiting
-- 🔄 Cache inteligente
-- 🔄 Webhooks para notificações
-
-## 🚀 Roadmap e Deploy
-
-### Fase Atual: Desenvolvimento Local
-- ✅ Monorepo configurado
-- ✅ Backend FastAPI funcional
-- ✅ Frontend Next.js responsivo
-- ✅ Scripts de automação
-
-### Próxima Fase: Deploy Híbrido
-- **Frontend**: Vercel (já configurado para Next.js)
-- **Backend**: Railway/Render ou VPS
-- **Banco**: Supabase (PostgreSQL + Auth)
-
-### Fase Final: On-Premises
-- **Infraestrutura**: Docker Compose completo
-- **Banco**: PostgreSQL local
-- **Deploy**: Servidor próprio/institucional
-- **Backup**: Estratégia de dados
-
-## 🛠️ Desenvolvimento
-
-### Pré-requisitos
-
-- **Python 3.11+**
-- **Node.js 18+**
-- **uv** (gerenciador Python)
-- **pnpm** (gerenciador Node.js)
-- **Docker** (opcional)
-
-### Comandos Úteis
+1. Atualize [backend/pyproject.toml](backend/pyproject.toml)
+2. Sincronize dependências localmente (`uv sync`) quando necessário
+3. Rebuild do serviço backend:
 
 ```bash
-# Setup inicial
-./dev.sh setup
-
-# Desenvolvimento
-./dev.sh dev
-
-# Limpeza
-./dev.sh clean
-
-# Testes
-cd backend && uv run pytest
-cd frontend && pnpm test
-
-# Build produção
-cd backend && docker build -t lattes-api .
-cd frontend && pnpm build
+docker compose build backend
+docker compose up -d backend
 ```
 
-## 🤝 Contribuição
+Frontend (pnpm):
 
-1. Fork o projeto
-2. Crie uma branch: `git checkout -b feature/nova-funcionalidade`
-3. Commit suas mudanças: `git commit -am 'Adiciona nova funcionalidade'`
-4. Push: `git push origin feature/nova-funcionalidade`
-5. Abra um Pull Request
+```bash
+docker compose exec frontend pnpm add <pacote>
+```
 
-### Padrões de Código
+Ou via rebuild:
 
-- **Backend**: Black + isort + mypy
-- **Frontend**: ESLint + Prettier
-- **Commits**: Conventional Commits
-- **Documentação**: Docstrings + JSDoc
+```bash
+docker compose build frontend
+docker compose up -d frontend
+```
 
-## 📄 Licença
+## READMEs por módulo
 
-Este projeto está sob a licença **MIT**. Veja o arquivo `LICENSE` para detalhes.
+- [backend/README.md](backend/README.md)
+- [frontend/README.md](frontend/README.md)
 
-## 🙏 Agradecimentos
+## Troubleshooting rápido
 
-- **CNPq** pela plataforma Lattes
-- **Google** pelo Gemini AI
-- **OpenAI** pela API GPT
-- **Comunidade Open Source** pelos ferramentas incríveis
+Erro comum no frontend após adicionar dependência nova (ex.: `Module not found: Can't resolve ...`):
 
----
+1. O frontend em Docker usa bind mount do código e volume para `node_modules`.
+2. Em alguns casos, o volume pode ficar desatualizado em relação ao `package.json`/`pnpm-lock.yaml`.
+3. A correção mais segura é recriar o serviço frontend.
 
-**Desenvolvido com ❤️ para a comunidade acadêmica brasileira**
+```bash
+docker compose up -d --build --force-recreate --renew-anon-volumes frontend
+```
+
+Se ainda falhar, rode uma instalação explícita dentro do container e reinicie o serviço:
+
+```bash
+docker compose exec frontend sh -lc "CI=true pnpm install --frozen-lockfile"
+docker compose restart frontend
+```
+
+Ver logs:
+
+```bash
+docker compose logs -f backend
+docker compose logs -f frontend
+```
+
+Health check da API:
+
+```bash
+curl -f http://localhost:8000/health
+```
+
+Subir do zero:
+
+```bash
+docker compose down --remove-orphans
+docker compose up -d --build
+```

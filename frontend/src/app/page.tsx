@@ -1,13 +1,12 @@
-import { Header } from "@/components/Header";
-import { IndividualSearch } from "@/components/IndividualSearch";
+import { Suspense } from "react";
 
-export default function Home() {
+import { PageLoader } from "@/components/shared/page-loader";
+import { LattesWorkbench } from "@/features/lattes/components/lattes-workbench";
+
+export default function HomePage() {
   return (
-    <div className="min-h-screen bg-gray-100 py-8 px-4">
-      <div className="max-w-4xl mx-auto">
-        <Header />
-        <IndividualSearch />
-      </div>
-    </div>
+    <Suspense fallback={<PageLoader />}>
+      <LattesWorkbench />
+    </Suspense>
   );
 }

@@ -1,0 +1,113 @@
+services:
+  # API FastAPI + Playwright (desenvolvimento)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: lattes-backend
+    ports:
+      # Porta host:container para acessar a API localmente
+      - "${BACKEND_PORT:-8000}:${BACKEND_PORT:-8000}"
+    volumes:
+      # Bind mount apenas do código-fonte do backend para hot-reload rápido
+      - ./backend/src:/app/src
+    environment:
+      # Evita buffering e arquivos .pyc durante desenvolvimento
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+    env_file:
+      # Variáveis compartilhadas para ambiente docker local
+      - .env.docker
+      # Variáveis específicas/sensíveis do backend (Supabase, chaves etc.)
+      - ./backend/.env
+    # Permite acessar serviços no host (ex.: Ollama local)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Uvicorn em modo reload para refletir alterações sem reiniciar container
+    command: uv run uvicorn src.api.main:app --host 0.0.0.0 --port ${BACKEND_PORT:-8000} --reload
+    networks:
+      - lattes-network
+    healthcheck:
+      # Faz checagens no startup e depois reduz drasticamente a frequência
+      test: ["CMD", "curl", "-f", "http://localhost:${BACKEND_PORT:-8000}/health"]
+      start_interval: 10s
+      start_period: 30s
+      interval: 24h
+      timeout: 5s
+      retries: 3
+
+  # Frontend Next.js (desenvolvimento)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: lattes-frontend
+    ports:
+      # Porta host:container para acessar a interface web
+      - "${FRONTEND_PORT:-3000}:${FRONTEND_PORT:-3000}"
+    volumes:
+      # Bind mount do projeto frontend para hot-reload completo
+      - ./frontend:/app
+      # Volumes anônimos para preservar dependências/cache do container
+      - /app/node_modules
+      - /app/.next
+    environment:
+      # Esta URL é usada no navegador (host), então deve apontar para localhost
+      - NEXT_PUBLIC_API_URL=http://localhost:${BACKEND_PORT:-8000}
+      - CI=true
+    # Next em modo dev ouvindo em todas as interfaces
+    command: sh -lc "pnpm install --frozen-lockfile && pnpm run dev --hostname 0.0.0.0 --port ${FRONTEND_PORT:-3000}"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - lattes-network
+
+  # Frontend Playwright E2E (execução pontual em container dedicado)
+  frontend-e2e:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: lattes-frontend-e2e
+    volumes:
+      - ./frontend:/app
+      - ./docs:/docs:ro
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:${BACKEND_PORT:-8000}
+      - CI=true
+    command: sh -lc "pnpm install --frozen-lockfile && pnpm test"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - lattes-network
+    profiles:
+      - test
+
+  # Backend tests (execucao pontual em container dedicado)
+  backend-test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: lattes-backend-test
+    volumes:
+      - ./backend:/app
+      - ./docs:/docs:ro
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONDONTWRITEBYTECODE=1
+    env_file:
+      - .env.docker
+      - ./backend/.env
+    command: sh -lc "uv sync --frozen --dev && uv run pytest"
+    networks:
+      - lattes-network
+    profiles:
+      - test
+
+networks:
+  # Rede privada para comunicação entre serviços
+  lattes-network:
+    driver: bridge
