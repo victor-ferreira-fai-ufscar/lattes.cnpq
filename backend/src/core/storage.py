@@ -1,6 +1,8 @@
 import os
+import re
 from importlib import import_module
 from dataclasses import dataclass
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -10,6 +12,16 @@ import httpx
 class StorageUploadResult:
     object_path: str
     download_url: str
+
+
+@dataclass(frozen=True)
+class StorageCachedPdfResult:
+    object_path: str
+    filename: str
+    download_url: str
+    last_modified: datetime
+    curriculo_date: date | None = None
+    file_bytes: bytes | None = None
 
 
 def _is_true(value: str) -> bool:
@@ -59,6 +71,167 @@ def _create_supabase_client() -> Any:
     return create_client(supabase_url, supabase_key, options=options)
 
 
+def _build_download_url(
+    supabase: Any,
+    *,
+    bucket: str,
+    object_path: str,
+    is_public: bool,
+    signed_url_ttl: int,
+) -> str:
+    if is_public:
+        return supabase.storage.from_(bucket).get_public_url(object_path)
+
+    signed = supabase.storage.from_(bucket).create_signed_url(
+        object_path, signed_url_ttl
+    )
+    signed_url = signed.get("signedURL") or signed.get("signedUrl")
+    if not signed_url:
+        raise ValueError(
+            "Não foi possível gerar URL assinada para o arquivo no Supabase."
+        )
+    return signed_url
+
+
+def _parse_iso_datetime(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+
+    raw = value.strip()
+    if raw.endswith("Z"):
+        raw = f"{raw[:-1]}+00:00"
+
+    try:
+        parsed = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+
+    return parsed
+
+
+def _extract_curriculo_date_from_filename(filename: str) -> date | None:
+    match = re.search(r"-(\d{4}-\d{2}-\d{2})\.pdf$", filename.lower())
+    if not match:
+        return None
+
+    try:
+        return datetime.strptime(match.group(1), "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def _list_storage_objects(
+    supabase: Any, *, bucket: str, folder: str
+) -> list[dict[str, Any]]:
+    bucket_ref = supabase.storage.from_(bucket)
+    options = {"limit": 1000, "offset": 0}
+
+    try:
+        items = bucket_ref.list(path=folder, options=options)
+    except TypeError:
+        try:
+            items = bucket_ref.list(folder, options)
+        except TypeError:
+            items = bucket_ref.list(folder)
+
+    if not isinstance(items, list):
+        return []
+    return [item for item in items if isinstance(item, dict)]
+
+
+def _effective_cache_max_age_days(value: int | None) -> int:
+    if value is not None:
+        return max(0, value)
+
+    raw = os.getenv("SUPABASE_STORAGE_CACHE_MAX_AGE_DAYS", "30").strip()
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return 30
+
+
+def find_fresh_curriculo_pdf(
+    nome: str,
+    *,
+    max_age_days: int | None = None,
+    include_bytes: bool = False,
+    now: datetime | None = None,
+) -> StorageCachedPdfResult | None:
+    bucket = os.getenv("SUPABASE_STORAGE_BUCKET", "lattes-cvs").strip() or "lattes-cvs"
+    folder = os.getenv("SUPABASE_STORAGE_FOLDER", "raw").strip().strip("/")
+    is_public = _is_true(os.getenv("SUPABASE_STORAGE_PUBLIC", "true"))
+    signed_url_ttl = int(os.getenv("SUPABASE_SIGNED_URL_EXPIRES_IN", "3600"))
+    cache_max_age_days = _effective_cache_max_age_days(max_age_days)
+
+    supabase = _create_supabase_client()
+    items = _list_storage_objects(supabase, bucket=bucket, folder=folder)
+
+    from ..libs.filename import slugify_nome
+
+    slug = slugify_nome(nome)
+    prefix = f"{slug}-"
+    now_dt = now or datetime.now(timezone.utc)
+    max_age = timedelta(days=cache_max_age_days)
+
+    best: dict[str, Any] | None = None
+    best_last_modified: datetime | None = None
+
+    for item in items:
+        filename = str(item.get("name") or "").strip()
+        if not filename.lower().endswith(".pdf"):
+            continue
+        if not filename.startswith(prefix):
+            continue
+
+        last_modified = _parse_iso_datetime(
+            item.get("updated_at") or item.get("last_accessed_at")
+        )
+        if last_modified is None:
+            continue
+
+        if best_last_modified is None or last_modified > best_last_modified:
+            best = item
+            best_last_modified = last_modified
+
+    if best is None or best_last_modified is None:
+        return None
+
+    if now_dt - best_last_modified > max_age:
+        return None
+
+    filename = str(best.get("name") or "").strip()
+    object_path = f"{folder}/{filename}" if folder else filename
+    download_url = _build_download_url(
+        supabase,
+        bucket=bucket,
+        object_path=object_path,
+        is_public=is_public,
+        signed_url_ttl=signed_url_ttl,
+    )
+
+    file_bytes: bytes | None = None
+    if include_bytes:
+        downloaded = supabase.storage.from_(bucket).download(object_path)
+        if isinstance(downloaded, bytes):
+            file_bytes = downloaded
+        elif hasattr(downloaded, "content"):
+            file_bytes = downloaded.content
+        elif hasattr(downloaded, "data"):
+            file_bytes = downloaded.data
+
+    return StorageCachedPdfResult(
+        object_path=object_path,
+        filename=filename,
+        download_url=download_url,
+        last_modified=best_last_modified,
+        curriculo_date=_extract_curriculo_date_from_filename(filename),
+        file_bytes=file_bytes,
+    )
+
+
 def upload_file_bytes(
     filename: str,
     file_bytes: bytes,
@@ -84,20 +257,14 @@ def upload_file_bytes(
         file_options={"content-type": content_type, "upsert": "true"},
     )
 
-    if is_public:
-        public_url = supabase.storage.from_(bucket).get_public_url(object_path)
-        return StorageUploadResult(object_path=object_path, download_url=public_url)
-
-    signed = supabase.storage.from_(bucket).create_signed_url(
-        object_path, signed_url_ttl
+    download_url = _build_download_url(
+        supabase,
+        bucket=bucket,
+        object_path=object_path,
+        is_public=is_public,
+        signed_url_ttl=signed_url_ttl,
     )
-    signed_url = signed.get("signedURL") or signed.get("signedUrl")
-    if not signed_url:
-        raise ValueError(
-            "Não foi possível gerar URL assinada para o arquivo no Supabase."
-        )
-
-    return StorageUploadResult(object_path=object_path, download_url=signed_url)
+    return StorageUploadResult(object_path=object_path, download_url=download_url)
 
 
 def upload_curriculo_pdf(filename: str, pdf_bytes: bytes) -> StorageUploadResult:

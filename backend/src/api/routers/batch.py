@@ -9,7 +9,11 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 from ...core.scraper import scrape_lattes
-from ...core.storage import upload_curriculo_pdf, upload_file_bytes
+from ...core.storage import (
+    find_fresh_curriculo_pdf,
+    upload_curriculo_pdf,
+    upload_file_bytes,
+)
 from ...libs.csv_utils import parse_csv_names
 from ...libs.filename import build_curriculo_filename
 from ...libs.logging import now_brasilia, stamp, summarize_exception
@@ -102,11 +106,55 @@ async def _process_batch(
     pdfs_sucesso: list[tuple[str, bytes]] = []
     ok_count = 0
     erro_count = 0
+    cache_hits = 0
+    cache_misses = 0
+    cache_lookup_errors = 0
 
     for idx, nome in enumerate(nomes, 1):
         add_log(f"[{idx}/{len(nomes)}] Iniciando scraping de '{nome}'.")
         t_item = perf_counter()
         try:
+            try:
+                cache_hit = find_fresh_curriculo_pdf(nome, include_bytes=True)
+            except Exception as exc:
+                cache_hit = None
+                cache_lookup_errors += 1
+                add_log(
+                    f"[{idx}/{len(nomes)}] Falha ao consultar cache para '{nome}' "
+                    f"(seguindo com scraping): {exc}"
+                )
+
+            if cache_hit is not None:
+                item = {
+                    "nome": nome,
+                    "status": "sucesso",
+                    "cache_status": "hit",
+                    "cache_last_modified": cache_hit.last_modified.isoformat(),
+                    "ultima_atualizacao_curriculo": (
+                        cache_hit.curriculo_date or cache_hit.last_modified.date()
+                    ).isoformat(),
+                    "arquivo_pdf": cache_hit.filename,
+                    "storage_path": cache_hit.object_path,
+                    "download_pdf_url": cache_hit.download_url,
+                    "duracao_segundos": round(perf_counter() - t_item, 2),
+                }
+                resultados.append(item)
+                if cache_hit.file_bytes is not None:
+                    pdfs_sucesso.append((cache_hit.filename, cache_hit.file_bytes))
+                else:
+                    add_log(
+                        f"[{idx}/{len(nomes)}] Cache de '{nome}' sem bytes do PDF; "
+                        "arquivo não entrará no ZIP consolidado."
+                    )
+                ok_count += 1
+                cache_hits += 1
+                add_log(
+                    f"[{idx}/{len(nomes)}] Cache HIT para '{nome}' "
+                    f"em {item['duracao_segundos']}s."
+                )
+                continue
+
+            cache_misses += 1
             scrape_result = await scrape_lattes(nome)
             filename = build_curriculo_filename(nome, scrape_result.ultima_atualizacao)
             upload_result = upload_curriculo_pdf(filename, scrape_result.pdf_bytes)
@@ -114,6 +162,7 @@ async def _process_batch(
             item = {
                 "nome": nome,
                 "status": "sucesso",
+                "cache_status": "miss",
                 "ultima_atualizacao_curriculo": scrape_result.ultima_atualizacao.isoformat(),
                 "arquivo_pdf": filename,
                 "storage_path": upload_result.object_path,
@@ -155,6 +204,10 @@ async def _process_batch(
             )
 
     add_log(f"Lote finalizado. Sucessos: {ok_count}. Erros: {erro_count}.")
+    add_log(
+        "Resumo de cache: "
+        f"hits={cache_hits}, misses={cache_misses}, erros_consulta={cache_lookup_errors}."
+    )
 
     zip_filename = None
     zip_storage_path = None
@@ -193,6 +246,9 @@ async def _process_batch(
         "total_processados": len(nomes),
         "sucesso": ok_count,
         "erro": erro_count,
+        "cache_hits": cache_hits,
+        "cache_misses": cache_misses,
+        "cache_lookup_errors": cache_lookup_errors,
         "resultados": resultados,
         "zip_arquivo": zip_filename,
         "zip_storage_path": zip_storage_path,
