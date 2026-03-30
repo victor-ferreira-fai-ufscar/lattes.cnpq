@@ -6,7 +6,7 @@ Checklist consolidado para acompanhar a evolucao do projeto.
 
 ### Frontend
 
-- [ ] Ajustar detalhes da execucao para horario de Brasilia (GMT-3).
+- [x] Ajustar detalhes da execucao para horario de Brasilia (GMT-3).
 - [ ] Melhorar estado e fluxo das API Keys.
 - [ ] Melhorar renderizacao de Markdown na secao de resumo com IA.
 - [ ] Adicionar botao para copiar resumo em Markdown.

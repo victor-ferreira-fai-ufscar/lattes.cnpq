@@ -1,7 +1,6 @@
 import asyncio
 import json
 import zipfile
-from datetime import datetime
 from io import BytesIO
 from time import perf_counter
 from typing import Any, Callable, Optional
@@ -13,7 +12,7 @@ from ...core.scraper import scrape_lattes
 from ...core.storage import upload_curriculo_pdf, upload_file_bytes
 from ...libs.csv_utils import parse_csv_names
 from ...libs.filename import build_curriculo_filename
-from ...libs.logging import stamp
+from ...libs.logging import now_brasilia, stamp
 
 router = APIRouter()
 
@@ -148,7 +147,7 @@ async def _process_batch(
     zip_error = None
 
     if pdfs_sucesso:
-        zip_filename = f"lattes-lote-{datetime.now().strftime('%Y%m%d-%H%M%S')}.zip"
+        zip_filename = f"lattes-lote-{now_brasilia().strftime('%Y%m%d-%H%M%S')}.zip"
         add_log(f"Gerando ZIP consolidado com {len(pdfs_sucesso)} PDFs.")
         try:
             buffer = BytesIO()

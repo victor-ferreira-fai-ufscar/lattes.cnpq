@@ -22,7 +22,8 @@ export function ExecutionLogCard({ logs }: ExecutionLogCardProps) {
         </CardTitle>
         <CardDescription className="text-slate-400">
           Os registros tecnicos ficam escondidos por padrao. Abra apenas se
-          quiser acompanhar o que aconteceu durante o processamento.
+          quiser acompanhar o que aconteceu durante o processamento no horario
+          de Brasilia (GMT-3).
         </CardDescription>
       </CardHeader>
       <CardContent>
