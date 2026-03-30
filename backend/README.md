@@ -162,6 +162,15 @@ uv run pytest
 
 Observação: esse teste depende de credenciais válidas do Supabase no ambiente.
 
+### Executar testes do backend via Docker Compose
+
+Para manter reproducibilidade entre maquinas, rode o serviço dedicado de testes:
+
+```bash
+# a partir da raiz do projeto
+docker compose --profile test run --rm backend-test
+```
+
 ## Troubleshooting rápido
 
 ```bash

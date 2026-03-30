@@ -1,4 +1,4 @@
-FROM node:22-alpine
+FROM node:22-bookworm-slim
 
 # Use pnpm para gerenciar pacotes (mais eficiente que npm)
 RUN npm install -g pnpm
@@ -12,8 +12,9 @@ WORKDIR /app
 # Copia apenas package.json e pnpm-lock.yaml para cache/download de dependências
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml* ./
 
-# Instala dependências com pnpm
-RUN pnpm install --frozen-lockfile
+# Instala dependências com pnpm e navegadores do Playwright para E2E reproduzível em container
+RUN pnpm install --frozen-lockfile \
+    && pnpm exec playwright install --with-deps chromium
 
 # Copia o código-fonte
 COPY . .

@@ -215,3 +215,14 @@ pnpm test:ui
 ```
 
 Observação: os testes E2E atuais usam o CSV em `../docs/csv/nomes_docentes_formatado.csv`, então execute os comandos a partir da pasta `frontend`.
+
+### Executar E2E via Docker Compose (padrão para o time)
+
+Para garantir que Playwright + Chromium rodem no mesmo ambiente entre máquinas, use o serviço dedicado `frontend-e2e`:
+
+```bash
+# a partir da raiz do projeto
+docker compose --profile test run --rm frontend-e2e
+```
+
+Esse fluxo evita conflito com o container `frontend` em modo `dev` e usa a imagem com Chromium já provisionado no `Dockerfile`.
