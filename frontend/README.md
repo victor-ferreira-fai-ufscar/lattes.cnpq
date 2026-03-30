@@ -2,6 +2,16 @@
 
 Frontend em Next.js 16 com React 19 para scraping interativo de currículos Lattes.
 
+## Stack atual
+
+- Next.js 16.2.1
+- React 19.2.4
+- TypeScript 5
+- Tailwind CSS 4
+- React Query 5
+- Zustand 5
+- Playwright 1.58 (E2E)
+
 ## Como o time deve ler esta base
 
 O frontend está organizado por feature para reduzir acoplamento e facilitar manutenção.
@@ -104,7 +114,7 @@ docker compose up -d --build
 - Frontend: http://localhost:3000
 - Backend: http://localhost:8000
 
-Hot-reload ativo para mudanças em [frontend](frontend).
+Hot-reload ativo para mudanças no frontend e no backend.
 
 ## Desenvolvimento Local (Sem Docker)
 
@@ -121,6 +131,11 @@ pnpm dev
 ```
 
 Abra http://localhost:3000.
+
+Requisitos locais recomendados:
+
+- Node.js 22+
+- pnpm
 
 ## Variáveis de Ambiente
 
@@ -148,6 +163,7 @@ docker compose up -d frontend
 
 ```bash
 docker compose logs -f frontend
+pnpm dev
 pnpm lint
 pnpm build
 pnpm start
@@ -157,7 +173,12 @@ pnpm start
 
 Projeto padronizado com **apenas Playwright** para manter uma única estratégia de testes focada em fluxos reais de usuário (E2E), como upload de CSV e processamento em lote.
 
-Para maior previsibilidade dos testes E2E, mantenha o backend disponível em http://localhost:8000 durante a execução.
+Configuração atual dos testes:
+
+- Diretório de testes: `tests/e2e`
+- Navegador: Chromium
+- App de teste sobe automaticamente em `http://127.0.0.1:3100` via `webServer` do Playwright
+- O cenário atual de lote mocka a rota `**/scrape/batch/stream`, sem depender de backend real
 
 ```bash
 cd frontend
@@ -171,3 +192,5 @@ pnpm test
 # modo UI interativo
 pnpm test:ui
 ```
+
+Observação: os testes E2E atuais usam o CSV em `../docs/csv/nomes_docentes_formatado.csv`, então execute os comandos a partir da pasta `frontend`.

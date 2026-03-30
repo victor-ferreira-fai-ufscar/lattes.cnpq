@@ -1,118 +1,152 @@
 # Lattes Automator AI
 
-Automação de coleta e processamento de currículos Lattes com backend em FastAPI/Playwright e frontend em Next.js.
+Automação de busca, coleta e processamento de currículos Lattes com backend em FastAPI/Playwright e frontend em Next.js.
 
-## Objetivo
+## Visão geral
 
-- Buscar docentes no Lattes
-- Fazer scraping de currículo individual e em lote (CSV)
-- Gerar PDF e resumo via API
+O projeto cobre o fluxo completo:
 
-## Estrutura do Projeto
+- Busca de candidatos por nome no Lattes
+- Scraping individual de currículo (com PDF)
+- Scraping em lote por CSV (com logs em tempo real via SSE)
+- Geração de ZIP consolidado dos PDFs processados
+- Sumarização de currículo com IA (OpenAI, Gemini e Ollama)
+
+## Estrutura do repositório
 
 ```text
 lattes.cnpq/
-├── backend/      # FastAPI + Playwright
-├── frontend/     # Next.js
-├── supabase/     # notas e planejamento
-└── docker-compose.yml
+├── backend/             # API FastAPI, Playwright, Supabase, IA
+├── frontend/            # Interface Next.js (feature-based)
+├── docs/                # Documentação de fluxo e materiais de apoio
+├── supabase/            # Notas e informações de suporte
+├── exemplo/             # Arquivos de exemplo
+└── docker-compose.yml   # Orquestração de desenvolvimento local
 ```
 
-## Rodar em Desenvolvimento (Recomendado)
+## Stack principal
 
-Pré-requisito: Docker Desktop aberto + WSL2 ativo.
+- Backend: Python 3.11+, FastAPI, Playwright, Supabase SDK, uv
+- Frontend: Next.js 16, React 19, TypeScript, React Query, Zustand, Playwright
+- Infra local: Docker Compose
+
+## Executar com Docker Compose (recomendado)
+
+Na raiz do projeto:
 
 ```bash
 docker compose up -d --build
 ```
 
-URLs:
+URLs padrão:
 
 - Frontend: http://localhost:3000
 - Backend: http://localhost:8000
 - Health: http://localhost:8000/health
-- Docs: http://localhost:8000/docs
+- Docs (Scalar): http://localhost:8000/docs
 
-Parar tudo:
+Parar serviços:
 
 ```bash
 docker compose down
 ```
 
-## Hot-Reload (VS Code com containers rodando)
+## Configuração de ambiente
 
-Sim, funciona automaticamente.
+Arquivos importantes:
 
-- Backend: mudanças em [backend/src](backend/src) recarregam com `--reload`
+- [.env.example](.env.example): variáveis para interpolação do docker compose (portas)
+- [.env.docker](.env.docker): variáveis compartilhadas de runtime dos containers
+- [backend/.env.example](backend/.env.example): exemplo completo de variáveis do backend
+- [frontend/.env.example](frontend/.env.example): variáveis públicas do frontend
+
+Para customizar portas do compose:
+
+```bash
+cp .env.example .env
+```
+
+Se alterar variáveis de compose, recrie os serviços:
+
+```bash
+docker compose up -d --force-recreate backend frontend
+```
+
+## Hot-reload em desenvolvimento
+
+- Backend: mudanças em [backend/src](backend/src) recarregam com Uvicorn `--reload`
 - Frontend: mudanças em [frontend](frontend) recompilam com `next dev`
 
-Observação importante: manter o projeto no filesystem Linux do WSL (exemplo: `/home/...`) melhora bastante o hot-reload.
+## Endpoints principais da API
 
-## Instalar Novas Dependências
+- GET /health
+- POST /search
+- POST /scrape
+- POST /scrape/batch
+- POST /scrape/batch/stream
+- POST /summarize
+- POST /models
 
-Mudança de código aplica na hora. Mudança de dependência precisa instalar/rebuildar.
+## Testes
 
-### Backend (Python/uv)
+Frontend (E2E com Playwright):
+
+```bash
+cd frontend
+pnpm test
+```
+
+Backend (integração de storage):
+
+```bash
+cd backend
+uv run pytest
+```
+
+## Como adicionar dependências
+
+Backend (Python/uv):
 
 1. Atualize [backend/pyproject.toml](backend/pyproject.toml)
-2. Gere/atualize lock localmente se necessário
-3. Rebuild do backend:
+2. Sincronize dependências localmente (`uv sync`) quando necessário
+3. Rebuild do serviço backend:
 
 ```bash
 docker compose build backend
 docker compose up -d backend
 ```
 
-### Frontend (pnpm)
-
-Opção rápida (sem rebuild completo):
+Frontend (pnpm):
 
 ```bash
 docker compose exec frontend pnpm add <pacote>
 ```
 
-Ou fluxo reproduzível por build:
+Ou via rebuild:
 
 ```bash
 docker compose build frontend
 docker compose up -d frontend
 ```
 
-## Configuração
+## READMEs por módulo
 
-- Interpolação do docker compose (portas): [.env.example](.env.example) -> copie para `.env`
-- Variáveis de runtime compartilhadas dos containers: [.env.docker](.env.docker)
-- Exemplo backend: [backend/.env.example](backend/.env.example)
-- Exemplo frontend: [frontend/.env.example](frontend/.env.example)
+- [backend/README.md](backend/README.md)
+- [frontend/README.md](frontend/README.md)
 
-Exemplo rápido para customizar portas:
-
-```bash
-cp .env.example .env
-```
-
-Se mudar variáveis do compose, recrie os serviços:
-
-```bash
-docker compose up -d --force-recreate backend frontend
-```
-
-## Endpoints Principais
-
-- `GET /health`
-- `POST /search`
-- `POST /scrape`
-- `POST /scrape/batch`
-- `POST /scrape/batch/stream`
-- `POST /summarize`
-
-## Troubleshooting Rápido
+## Troubleshooting rápido
 
 Ver logs:
 
 ```bash
 docker compose logs -f backend
 docker compose logs -f frontend
+```
+
+Health check da API:
+
+```bash
+curl -f http://localhost:8000/health
 ```
 
 Subir do zero:

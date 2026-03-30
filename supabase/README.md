@@ -2,43 +2,53 @@
 
 Esta pasta centraliza as informações do projeto Supabase usado pelo Lattes Automator AI.
 
-## Estado Atual
+## Estado atual
 
-- Projeto Supabase criado com sucesso
-- URL do projeto disponível
-- Chave publishable disponível
-- Integração no backend ainda pendente
+- Projeto Supabase ativo e acessível
+- Integração com Supabase Storage já implementada no backend
+- Upload de PDFs individuais e ZIP consolidado já usa Supabase
+- Persistência em banco (tabelas, migrations e RLS) ainda não implementada
 
-## Informacoes do Projeto
+## Informações do projeto
 
-- URL: <https://jxcdvunyobxkdlasctue.supabase.co>
-- Arquivo local com dados de acesso: infos
+- Project URL: https://jxcdvunyobxkdlasctue.supabase.co
+- Direct connection string: postgresql://postgres:[YOUR-PASSWORD]@db.jxcdvunyobxkdlasctue.supabase.co:5432/postgres
+- Arquivo local com anotações: infos
 
-Importante: nao versione credenciais sensiveis (password e service role key). Se algum segredo ja foi exposto, gere novas chaves no painel do Supabase.
+## CLI setup
 
-## Variaveis de Ambiente Recomendadas
+```bash
+supabase login
+supabase init
+supabase link --project-ref jxcdvunyobxkdlasctue
+```
 
-Use no backend (arquivo .env):
+## Variáveis de ambiente usadas pelo backend
+
+Arquivo: backend/.env
 
 ```env
 SUPABASE_URL=https://jxcdvunyobxkdlasctue.supabase.co
-SUPABASE_ANON_KEY=<chave_publishable_ou_anon>
 SUPABASE_SERVICE_ROLE_KEY=<service_role_key>
+# opcional como fallback caso SERVICE_ROLE não esteja definido
+SUPABASE_ANON_KEY=<anon_or_publishable_key>
+
+SUPABASE_STORAGE_BUCKET=lattes-cvs
+SUPABASE_STORAGE_FOLDER=raw
+SUPABASE_STORAGE_PUBLIC=true
+SUPABASE_SIGNED_URL_EXPIRES_IN=3600
 ```
 
-## Proximo Passo de Integracao (Backend)
+Observação importante: para funcionamento do upload no backend, é obrigatório definir SUPABASE_URL e ao menos uma chave entre SUPABASE_SERVICE_ROLE_KEY ou SUPABASE_ANON_KEY.
 
-1. Definir schema inicial (usuarios, buscas, documentos gerados)
-2. Criar migrations SQL no Supabase
-3. Adicionar cliente Supabase no backend para persistir:
+## Próximos passos (banco de dados)
 
-- historico de buscas
-- status de processamento
-- metadados dos DOCX gerados
+1. Definir schema inicial de tabelas para histórico e auditoria.
+2. Criar migrations versionadas via Supabase CLI.
+3. Configurar políticas RLS antes de exposição em produção.
+4. Integrar leitura/escrita dessas tabelas no backend.
 
-1. Configurar RLS antes de expor dados em producao
-
-## Estrutura Atual da Pasta
+## Estrutura da pasta
 
 ```text
 supabase/
@@ -46,9 +56,7 @@ supabase/
 └── README.md
 ```
 
-## Links
+## Links úteis
 
-- Dashboard: <https://supabase.com/dashboard>
-- Documentacao: <https://supabase.com/docs>
-
-Status: ativo (projeto criado), integracao em andamento.
+- Dashboard: https://supabase.com/dashboard
+- Documentação: https://supabase.com/docs

@@ -2,6 +2,16 @@
 
 FastAPI + [Playwright](https://playwright.dev/) para scraping determinístico do Lattes.
 
+## Stack atual
+
+- Python 3.11+
+- FastAPI 0.104+
+- Uvicorn
+- Playwright (Chromium por padrão)
+- Supabase Python SDK
+- Integrações de IA: OpenAI, Gemini e Ollama
+- Gerenciamento de dependências com uv
+
 ## Visão rápida da arquitetura
 
 Hoje o backend está organizado para separar responsabilidades e facilitar manutenção.
@@ -70,14 +80,24 @@ cp .env.example .env
 uv run uvicorn src.api.main:app --reload
 ```
 
+Comandos úteis no dia a dia:
+
+```bash
+cd backend
+uv run uvicorn src.api.main:app --reload
+uv run pytest
+```
+
 ## Variáveis principais
 
 ```env
 PLAYWRIGHT_BROWSER=chromium
 PLAYWRIGHT_HEADLESS=true
 BACKEND_PORT=8000
+FRONTEND_PORT=3000
 SUPABASE_URL=https://<project>.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=<service_role_key>
+SUPABASE_ANON_KEY=<anon_key_opcional>
 SUPABASE_STORAGE_BUCKET=lattes-cvs
 SUPABASE_STORAGE_FOLDER=raw
 SUPABASE_STORAGE_PUBLIC=true
@@ -85,7 +105,11 @@ SUPABASE_SIGNED_URL_EXPIRES_IN=3600
 OPENAI_API_KEY=<openai_key_opcional>
 GEMINI_API_KEY=<gemini_key_opcional>
 OLLAMA_BASE_URL=http://host.docker.internal:11434
+OLLAMA_MODEL=llama3.1
+OLLAMA_API_KEY=ollama
 ```
+
+Observação: para upload no Storage, o backend exige `SUPABASE_URL` e pelo menos uma chave (`SUPABASE_SERVICE_ROLE_KEY` ou `SUPABASE_ANON_KEY`).
 
 ## Rotas disponíveis
 
@@ -96,6 +120,12 @@ OLLAMA_BASE_URL=http://host.docker.internal:11434
 - POST /scrape/batch/stream (SSE com logs em tempo real)
 - POST /summarize
 - POST /models
+
+Detalhes importantes:
+
+- `/docs` usa Scalar (não Swagger/ReDoc padrão).
+- `/search` aplica limite entre 1 e 50 candidatos.
+- `/summarize` e `/models` aceitam provedores `openai`, `gemini` e `ollama`.
 
 ## Batch: parâmetros principais
 
@@ -114,8 +144,27 @@ docker compose build backend
 docker compose up -d backend
 ```
 
+Se estiver rodando sem Docker:
+
+```bash
+cd backend
+uv sync
+```
+
+## Testes
+
+O projeto possui teste de integração para upload no Supabase Storage em `tests/test_storage.py`.
+
+```bash
+cd backend
+uv run pytest
+```
+
+Observação: esse teste depende de credenciais válidas do Supabase no ambiente.
+
 ## Troubleshooting rápido
 
 ```bash
 docker compose logs -f backend
+curl -f http://localhost:8000/health
 ```
