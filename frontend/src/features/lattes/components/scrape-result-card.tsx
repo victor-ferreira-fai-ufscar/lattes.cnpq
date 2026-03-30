@@ -14,12 +14,29 @@ type ScrapeResultCardProps = {
 };
 
 export function ScrapeResultCard({ result }: ScrapeResultCardProps) {
+  const cacheLabel =
+    result.cache_status === "hit"
+      ? "Cache reutilizado"
+      : result.cache_status === "miss"
+        ? "Atualizado via scraping"
+        : "Origem nao informada";
+
+  const cacheClassName =
+    result.cache_status === "hit"
+      ? "rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800"
+      : result.cache_status === "miss"
+        ? "rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800"
+        : "rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700";
+
   return (
     <Card variant="successSubtle">
       <CardHeader>
-        <CardTitle className="text-lg text-emerald-950">
-          Curriculo pronto para leitura
-        </CardTitle>
+        <div className="flex items-center justify-between gap-3">
+          <CardTitle className="text-lg text-emerald-950">
+            Curriculo pronto para leitura
+          </CardTitle>
+          <span className={cacheClassName}>{cacheLabel}</span>
+        </div>
         <CardDescription>
           O curriculo foi localizado e preparado. Voce pode abrir o PDF abaixo.
         </CardDescription>

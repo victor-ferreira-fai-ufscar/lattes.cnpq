@@ -15,6 +15,9 @@ export type SearchResponse = {
 
 export type ScrapeResponse = {
   nome: string;
+  cache_status?: "hit" | "miss";
+  cache_last_modified?: string;
+  cache_lookup_error?: string | null;
   ultima_atualizacao_curriculo: string;
   arquivo_pdf: string;
   storage_path: string;
@@ -40,6 +43,8 @@ export type ModelsResponse = {
 export type BatchItemSuccess = {
   nome: string;
   status: "sucesso";
+  cache_status?: "hit" | "miss";
+  cache_last_modified?: string;
   ultima_atualizacao_curriculo: string;
   arquivo_pdf: string;
   storage_path: string;
@@ -64,6 +69,9 @@ export type BatchScrapeResponse = {
   total_processados: number;
   sucesso: number;
   erro: number;
+  cache_hits?: number;
+  cache_misses?: number;
+  cache_lookup_errors?: number;
   resultados: Array<BatchItemSuccess | BatchItemError>;
   zip_arquivo?: string | null;
   zip_storage_path?: string | null;

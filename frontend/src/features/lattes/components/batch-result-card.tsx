@@ -176,6 +176,12 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
           <Metric label="Pessoas processadas" value={String(result.total_processados)} />
           <Metric label="Concluidos" value={String(result.sucesso)} />
           <Metric label="Com problema" value={String(result.erro)} />
+          {typeof result.cache_hits === "number" ? (
+            <Metric label="Cache hit" value={String(result.cache_hits)} />
+          ) : null}
+          {typeof result.cache_misses === "number" ? (
+            <Metric label="Scraping" value={String(result.cache_misses)} />
+          ) : null}
         </div>
 
         {result.zip_download_url ? (
@@ -212,6 +218,21 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
                     <p className="mt-1 text-sm text-slate-600">
                       {item.duracao_segundos} s
                     </p>
+                    {item.status === "sucesso" && item.cache_status ? (
+                      <p className="mt-2">
+                        <span
+                          className={
+                            item.cache_status === "hit"
+                              ? "rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-emerald-800"
+                              : "rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-amber-800"
+                          }
+                        >
+                          {item.cache_status === "hit"
+                            ? "Origem: Cache"
+                            : "Origem: Scraping"}
+                        </span>
+                      </p>
+                    ) : null}
                   </div>
                   <span
                     className={
