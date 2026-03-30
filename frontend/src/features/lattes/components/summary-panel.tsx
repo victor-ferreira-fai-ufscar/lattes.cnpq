@@ -27,23 +27,15 @@ import {
   type SummaryFormData,
 } from "@/features/lattes/schemas/lattes.schemas";
 import type { AIProvider } from "@/features/lattes/services/lattes.service";
-
-const STORAGE_KEY_PREFIX = "lattes_ai_key_";
-
-/**
- * Obtém a chave de acesso armazenada para um provedor específico
- */
-function getStoredApiKey(provider: AIProvider): string {
-  if (typeof window === "undefined") return "";
-  const stored = localStorage.getItem(`${STORAGE_KEY_PREFIX}${provider}`);
-  return stored || "";
-}
+import type { StoredApiKeys } from "@/features/lattes/stores/lattes-summary-store";
 
 type SummaryPanelProps = {
   defaultValues: SummaryFormData;
+  storedApiKeys: StoredApiKeys;
   models: string[];
   isLoadingModels: boolean;
   isSubmitting: boolean;
+  onConfigChange: (patch: Partial<SummaryFormData>) => void;
   onLoadModels: (values: {
     provedor: AIProvider;
     apiKey?: string;
@@ -53,9 +45,11 @@ type SummaryPanelProps = {
 
 export function SummaryPanel({
   defaultValues,
+  storedApiKeys,
   models,
   isLoadingModels,
   isSubmitting,
+  onConfigChange,
   onLoadModels,
   onSubmitSummary,
 }: SummaryPanelProps) {
@@ -65,6 +59,16 @@ export function SummaryPanel({
   });
 
   useEffect(() => {
+    const currentValues = form.getValues();
+
+    if (
+      currentValues.provedor === defaultValues.provedor &&
+      currentValues.modelo === defaultValues.modelo &&
+      currentValues.apiKey === defaultValues.apiKey
+    ) {
+      return;
+    }
+
     form.reset(defaultValues);
   }, [defaultValues, form]);
 
@@ -77,11 +81,22 @@ export function SummaryPanel({
     name: "modelo",
   });
 
-  // Sincroniza a chave de acesso quando o provedor muda
   useEffect(() => {
-    const storedKey = getStoredApiKey(provedor);
+    const storedKey = storedApiKeys[provedor] ?? "";
     form.setValue("apiKey", storedKey, { shouldValidate: false });
-  }, [provedor, form]);
+  }, [provedor, form, storedApiKeys]);
+
+  const modelField = form.register("modelo", {
+    onChange: (event) => {
+      onConfigChange({ modelo: event.target.value });
+    },
+  });
+
+  const apiKeyField = form.register("apiKey", {
+    onChange: (event) => {
+      onConfigChange({ apiKey: event.target.value });
+    },
+  });
 
   const handleLoadModels = async () => {
     const values = form.getValues();
@@ -119,9 +134,11 @@ export function SummaryPanel({
             <Select
               value={provedor}
               onValueChange={(value) => {
-                form.setValue("provedor", value as AIProvider, {
+                const nextProvider = value as AIProvider;
+                form.setValue("provedor", nextProvider, {
                   shouldValidate: true,
                 });
+                onConfigChange({ provedor: nextProvider });
               }}
             >
               <SelectTrigger id="summary-provider">
@@ -142,6 +159,7 @@ export function SummaryPanel({
                 value={modelo}
                 onValueChange={(value) => {
                   form.setValue("modelo", value, { shouldValidate: true });
+                  onConfigChange({ modelo: value });
                 }}
               >
                 <SelectTrigger id="summary-model">
@@ -156,7 +174,7 @@ export function SummaryPanel({
                 </SelectContent>
               </Select>
             ) : (
-              <Input id="summary-model" {...form.register("modelo")} />
+              <Input id="summary-model" {...modelField} />
             )}
             {form.formState.errors.modelo ? (
               <p className="text-sm font-medium text-red-600">
@@ -171,7 +189,7 @@ export function SummaryPanel({
               id="summary-api-key"
               placeholder="Preencha apenas se o servico escolhido pedir essa chave"
               type="password"
-              {...form.register("apiKey")}
+              {...apiKeyField}
             />
           </div>
 

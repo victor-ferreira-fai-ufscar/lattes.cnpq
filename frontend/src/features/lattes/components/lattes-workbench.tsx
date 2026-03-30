@@ -33,12 +33,14 @@ export function LattesWorkbench() {
     batchResult,
     summaryResult,
     availableModels,
+    storedApiKeys,
     summaryConfig,
     handleModeChange,
     searchCandidates,
     setSelectedCandidate,
     scrapeSelected,
     submitBatch,
+    updateSummaryConfig,
     loadModels,
     summarize,
     activeLogs,
@@ -147,9 +149,11 @@ export function LattesWorkbench() {
             {scrapeResult ? (
               <SummaryPanel
                 defaultValues={summaryConfig}
+                storedApiKeys={storedApiKeys}
                 isLoadingModels={loading.models}
                 isSubmitting={loading.summarize}
                 models={availableModels}
+                onConfigChange={updateSummaryConfig}
                 onLoadModels={loadModels}
                 onSubmitSummary={async (values) => {
                   await summarize(values);

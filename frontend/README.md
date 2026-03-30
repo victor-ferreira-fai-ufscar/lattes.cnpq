@@ -2,39 +2,97 @@
 
 Frontend em Next.js 16 com React 19 para scraping interativo de currículos Lattes.
 
-## Arquitetura atual
+## Como o time deve ler esta base
 
-Estrutura enxuta e orientada por feature:
+O frontend está organizado por feature para reduzir acoplamento e facilitar manutenção.
+Se alguém novo entrar no projeto, o caminho recomendado é:
+
+1. Ler a página em src/app/page.tsx.
+2. Abrir o workbench em src/features/lattes/components/lattes-workbench.tsx.
+3. Seguir os hooks de fluxo em src/features/lattes/hooks.
+4. Conferir chamadas de API em src/features/lattes/services/lattes.service.ts.
+
+## Estrutura
 
 ```text
 src/
-├── app/                     # Rotas e composição de páginas
+├── app/                     # Rotas, layout e providers
 ├── components/
-│   ├── shared/              # Blocos reaproveitáveis entre features
+│   ├── shared/              # Blocos reaproveitáveis
 │   └── ui/                  # Design system base
 ├── features/
 │   └── lattes/
-│       ├── components/      # Componentes específicos do domínio
-│       ├── hooks/           # Orquestração do fluxo da feature
-│       ├── schemas/         # Validação com Zod
-│       └── services/        # Integração com a API do backend
-└── lib/                     # Infra compartilhada, como cliente HTTP
+│       ├── components/      # UI da feature
+│       ├── hooks/           # Fluxos e coordenação
+│       ├── schemas/         # Validação de formulários (Zod)
+│       ├── services/        # Chamadas HTTP para o backend
+│       └── stores/          # Estado persistido da feature (Zustand)
+└── lib/                     # Infra compartilhada (http, utilitários)
 ```
 
-Princípios aplicados:
+## Estado: regra prática (importante)
 
-- `app/` não concentra regra de negócio.
-- O domínio Lattes fica isolado em `features/lattes/`.
-- `lib/` foi reduzida à infraestrutura compartilhada, sem misturar serviços de domínio.
-- Componentes de UI continuam genéricos em `components/ui/`.
+Para evitar confusão, cada tipo de estado tem um lugar específico.
 
-### Fluxo da feature Lattes
+1. Server State (dados vindos da API): React Query
+2. UI State compartilhado da feature: Zustand
+3. Estado navegável/compartilhável: Query Params da URL
+4. Estado local de formulário: React Hook Form
 
-1. A página em `app/` apenas compõe o workbench.
-2. O hook da feature (`hooks/`) orquestra estado, carregamentos e mensagens.
-3. `services/` centraliza chamadas HTTP para backend, incluindo lote com stream de logs.
-4. `schemas/` valida entradas de formulário antes do envio.
-5. `components/` renderiza blocos de UI por responsabilidade (busca, lote, resumo e logs).
+### Onde cada um está hoje
+
+1. React Query
+- Busca de candidatos e cache por nome em src/features/lattes/hooks/use-lattes-individual-flow.ts
+- Carregamento de modelos por provedor em src/features/lattes/hooks/use-lattes-summary.ts
+- Provider global em src/app/providers.tsx
+
+2. Zustand
+- Configuração de resumo e chaves por provedor em src/features/lattes/stores/lattes-summary-store.ts
+
+3. Query Params
+- Fluxo atual (individual ou lote) e termo de busca em src/features/lattes/hooks/use-lattes-workbench-mode.ts
+
+4. Formulários
+- Busca individual, lote e resumo em componentes dentro de src/features/lattes/components
+
+## Fluxo da feature Lattes
+
+1. src/app/page.tsx renderiza o workbench da feature.
+2. src/features/lattes/components/lattes-workbench.tsx compõe os painéis de UI.
+3. src/features/lattes/hooks/use-lattes-workbench.ts coordena os subfluxos.
+4. Hooks especializados cuidam do domínio:
+- use-lattes-individual-flow.ts
+- use-lattes-batch-flow.ts
+- use-lattes-summary.ts
+- use-lattes-workbench-feedback.ts
+- use-lattes-workbench-mode.ts
+5. src/features/lattes/services/lattes.service.ts concentra integração HTTP.
+
+## Por que isso não é complexidade acidental
+
+A feature foi dividida para manter coesão:
+
+1. Cada hook resolve um problema específico.
+2. Regras de estado ficam explícitas e previsíveis.
+3. O workbench virou composição, não um hook deus.
+4. O time consegue evoluir busca, lote e resumo separadamente.
+
+## Convenções para manter o código simples
+
+1. Nunca colocar chamada HTTP direto em componente.
+2. Se estado vem de API, preferir React Query.
+3. Se estado precisa sobreviver refresh e ser compartilhável, usar URL.
+4. Se estado é da feature e compartilhado entre painéis, usar Zustand.
+5. Se for input de formulário, manter no React Hook Form.
+6. Evitar criar novos hooks grandes de orquestração.
+
+## Checklist para PRs do frontend
+
+1. O tipo de estado está no lugar correto (API, UI compartilhada, URL ou formulário)?
+2. A mudança aumentou ou reduziu acoplamento?
+3. A feature continua navegável via URL quando aplicável?
+4. O comportamento em loading e erro está claro para o usuário?
+5. Rodou pnpm lint e pnpm build?
 
 ## Rodar com Docker Compose (Recomendado)
 

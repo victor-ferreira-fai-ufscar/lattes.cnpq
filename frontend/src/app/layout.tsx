@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Manrope, Space_Grotesk } from "next/font/google";
+
+import { AppProviders } from "@/app/providers";
+
 import "./globals.css";
 
 const bodyFont = Manrope({
@@ -33,7 +36,7 @@ export default function RootLayout({
       <body
         className={`${bodyFont.variable} ${headingFont.variable} ${monoFont.variable} min-h-screen bg-[var(--background)] text-[var(--foreground)]`}
       >
-        {children}
+        <AppProviders>{children}</AppProviders>
       </body>
     </html>
   );

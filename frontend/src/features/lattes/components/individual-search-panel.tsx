@@ -2,6 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Search, UserRoundSearch } from "lucide-react";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
@@ -44,8 +45,16 @@ export function IndividualSearchPanel({
 }: IndividualSearchPanelProps) {
   const form = useForm<IndividualSearchFormData>({
     resolver: zodResolver(IndividualSearchSchema),
-    defaultValues: { nome: "" },
+    defaultValues: { nome: lastSearchTerm ?? "" },
   });
+
+  useEffect(() => {
+    form.setValue("nome", lastSearchTerm ?? "", {
+      shouldDirty: false,
+      shouldTouch: false,
+      shouldValidate: false,
+    });
+  }, [form, lastSearchTerm]);
 
   const handleSearch = form.handleSubmit(async (values) => {
     await onSearch(values.nome);
