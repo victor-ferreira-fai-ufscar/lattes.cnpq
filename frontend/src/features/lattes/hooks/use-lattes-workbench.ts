@@ -35,15 +35,14 @@ export function useLattesWorkbench() {
       return;
     }
 
-    setMode(nextMode);
-
     if (nextMode === "lote") {
-      setSearchTerm(null);
       individualFlow.reset();
       summaryFlow.reset();
     } else {
       batchFlow.reset();
     }
+
+    setMode(nextMode);
   };
 
   const searchCandidates = async (nome: string) => {
