@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 import {
   buscarCandidatos,
@@ -10,6 +10,7 @@ import {
   type ScrapeResponse,
   type SearchCandidate,
 } from "@/features/lattes/services/lattes.service";
+import { useLattesWorkbenchStore } from "@/features/lattes/stores/lattes-workbench-store";
 
 type IndividualFlowFeedback = {
   notifyError: (error: unknown) => void;
@@ -23,9 +24,22 @@ export function useLattesIndividualFlow({
 }: IndividualFlowFeedback & {
   searchTerm: string | null;
 }) {
-  const [selectedCandidateHref, setSelectedCandidateHref] = useState<string | null>(
-    null,
+  const storedCandidates = useLattesWorkbenchStore((state) => state.candidates);
+  const storedLastSearchTerm = useLattesWorkbenchStore(
+    (state) => state.lastSearchTerm,
   );
+  const selectedCandidateHref = useLattesWorkbenchStore(
+    (state) => state.selectedCandidateHref,
+  );
+  const scrapeResult = useLattesWorkbenchStore((state) => state.scrapeResult);
+  const setLastSearchTerm = useLattesWorkbenchStore(
+    (state) => state.setLastSearchTerm,
+  );
+  const setCandidates = useLattesWorkbenchStore((state) => state.setCandidates);
+  const setSelectedCandidateHref = useLattesWorkbenchStore(
+    (state) => state.setSelectedCandidateHref,
+  );
+  const setScrapeResult = useLattesWorkbenchStore((state) => state.setScrapeResult);
   const lastSearchFeedbackAt = useRef<number>(0);
   const lastSearchErrorAt = useRef<number>(0);
 
@@ -35,7 +49,7 @@ export function useLattesIndividualFlow({
     enabled: Boolean(searchTerm),
     staleTime: 60_000,
   });
-  const candidates = candidatesQuery.data?.candidatos ?? [];
+  const candidates = candidatesQuery.data?.candidatos ?? storedCandidates;
   const selectedCandidate =
     candidates.find((candidate) => candidate.href === selectedCandidateHref) ??
     candidates[0] ??
@@ -44,9 +58,6 @@ export function useLattesIndividualFlow({
   const scrapeMutation = useMutation<ScrapeResponse, unknown, SearchCandidate>({
     mutationFn: (candidate) =>
       scrapeCurriculoSelecionado(candidate.nome, candidate.href),
-    onSuccess: () => {
-      notifySuccess("Curriculo preparado com sucesso.");
-    },
     onError: (error) => {
       notifyError(error);
     },
@@ -63,12 +74,21 @@ export function useLattesIndividualFlow({
     }
 
     lastSearchFeedbackAt.current = candidatesQuery.dataUpdatedAt;
+    setCandidates(response.candidatos);
+    setLastSearchTerm(response.nome_busca || searchTerm);
     notifySuccess(
       response.total > 0
         ? `${response.total} opcao(oes) encontrada(s). Escolha uma pessoa para continuar.`
         : "Nao encontramos resultados para o nome informado.",
     );
-  }, [searchTerm, candidatesQuery.data, candidatesQuery.dataUpdatedAt, notifySuccess]);
+  }, [
+    searchTerm,
+    candidatesQuery.data,
+    candidatesQuery.dataUpdatedAt,
+    notifySuccess,
+    setCandidates,
+    setLastSearchTerm,
+  ]);
 
   useEffect(() => {
     if (!candidatesQuery.isError || !candidatesQuery.error) {
@@ -95,7 +115,10 @@ export function useLattesIndividualFlow({
     }
 
     scrapeMutation.reset();
-    await scrapeMutation.mutateAsync(selectedCandidate);
+    setScrapeResult(null);
+    const result = await scrapeMutation.mutateAsync(selectedCandidate);
+    setScrapeResult(result);
+    notifySuccess("Curriculo preparado com sucesso.");
   };
 
   const refetchCandidates = async () => {
@@ -113,13 +136,14 @@ export function useLattesIndividualFlow({
   const reset = () => {
     setSelectedCandidateHref(null);
     scrapeMutation.reset();
+    setScrapeResult(null);
   };
 
   return {
-    lastSearchTerm: searchTerm,
+    lastSearchTerm: searchTerm ?? storedLastSearchTerm,
     candidates,
     selectedCandidate,
-    scrapeResult: scrapeMutation.data ?? null,
+    scrapeResult,
     isSearching: candidatesQuery.isFetching,
     isScraping: scrapeMutation.isPending,
     setSelectedCandidate,

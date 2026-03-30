@@ -1,12 +1,12 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
 
 import {
   scrapeCurriculosLote,
   type BatchScrapeResponse,
 } from "@/features/lattes/services/lattes.service";
+import { useLattesWorkbenchStore } from "@/features/lattes/stores/lattes-workbench-store";
 
 type BatchPayload = {
   file: File;
@@ -24,7 +24,15 @@ export function useLattesBatchFlow({
   notifyError,
   notifySuccess,
 }: BatchFlowFeedback) {
-  const [liveBatchLogs, setLiveBatchLogs] = useState<string[]>([]);
+  const liveBatchLogs = useLattesWorkbenchStore((state) => state.liveBatchLogs);
+  const batchResult = useLattesWorkbenchStore((state) => state.batchResult);
+  const setLiveBatchLogs = useLattesWorkbenchStore(
+    (state) => state.setLiveBatchLogs,
+  );
+  const appendLiveBatchLog = useLattesWorkbenchStore(
+    (state) => state.appendLiveBatchLog,
+  );
+  const setBatchResult = useLattesWorkbenchStore((state) => state.setBatchResult);
 
   const batchMutation = useMutation<BatchScrapeResponse, unknown, BatchPayload>({
     mutationFn: ({ file, skip, limit, totalNamesInCsv }) =>
@@ -34,14 +42,15 @@ export function useLattesBatchFlow({
         totalNamesInCsv,
         {
           onLog: (line) => {
-            setLiveBatchLogs((current) => [...current, line]);
+            appendLiveBatchLog(line);
           },
         },
       ),
     onSuccess: (response) => {
-      setLiveBatchLogs((current) =>
-        current.length > 0 ? current : (response.logs ?? []),
-      );
+      setBatchResult(response);
+      if (liveBatchLogs.length === 0) {
+        setLiveBatchLogs(response.logs ?? []);
+      }
       notifySuccess(
         `Processamento concluido para ${response.total_processados} pessoa(s).`,
       );
@@ -53,6 +62,7 @@ export function useLattesBatchFlow({
 
   const submitBatch = async (file: File, skip: number, limit?: number) => {
     batchMutation.reset();
+    setBatchResult(null);
     setLiveBatchLogs([]);
 
     const text = await file.text();
@@ -70,12 +80,13 @@ export function useLattesBatchFlow({
   };
 
   const reset = () => {
-    setLiveBatchLogs([]);
     batchMutation.reset();
+    setBatchResult(null);
+    setLiveBatchLogs([]);
   };
 
   return {
-    batchResult: batchMutation.data ?? null,
+    batchResult,
     liveBatchLogs,
     isSubmitting: batchMutation.isPending,
     submitBatch,

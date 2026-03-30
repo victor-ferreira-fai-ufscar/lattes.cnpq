@@ -11,6 +11,7 @@ import {
   type SummarizeResponse,
 } from "@/features/lattes/services/lattes.service";
 import { useLattesSummaryStore } from "@/features/lattes/stores/lattes-summary-store";
+import { useLattesWorkbenchStore } from "@/features/lattes/stores/lattes-workbench-store";
 
 type ModelsPayload = {
   provedor: SummaryFormData["provedor"];
@@ -41,6 +42,10 @@ export function useLattesSummary({
   const updateSummaryConfig = useLattesSummaryStore(
     (state) => state.updateSummaryConfig,
   );
+  const summaryResult = useLattesWorkbenchStore((state) => state.summaryResult);
+  const setSummaryResult = useLattesWorkbenchStore(
+    (state) => state.setSummaryResult,
+  );
 
   const modelsQuery = useQuery({
     queryKey: [
@@ -62,7 +67,8 @@ export function useLattesSummary({
   const summaryMutation = useMutation<SummarizeResponse, unknown, SummaryPayload>({
     mutationFn: ({ nome, provedor, modelo, apiKey }) =>
       summarizeCurriculo(nome, provedor, modelo, apiKey || undefined),
-    onSuccess: (_, variables) => {
+    onSuccess: (response, variables) => {
+      setSummaryResult(response);
       updateSummaryConfig({
         provedor: variables.provedor,
         modelo: variables.modelo,
@@ -141,6 +147,7 @@ export function useLattesSummary({
     }
 
     summaryMutation.reset();
+    setSummaryResult(null);
 
     const nextConfig: SummaryFormData = {
       provedor: config?.provedor ?? summaryConfig.provedor,
@@ -156,13 +163,14 @@ export function useLattesSummary({
 
   const reset = () => {
     summaryMutation.reset();
+    setSummaryResult(null);
   };
 
   return {
     summaryConfig,
     storedApiKeys,
     availableModels: modelsQuery.data?.modelos ?? [],
-    summaryResult: summaryMutation.data ?? null,
+    summaryResult,
     isLoadingModels: modelsQuery.isFetching,
     isSummarizing: summaryMutation.isPending,
     updateSummaryConfig,

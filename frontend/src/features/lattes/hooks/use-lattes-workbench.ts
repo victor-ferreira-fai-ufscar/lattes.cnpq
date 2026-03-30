@@ -35,13 +35,6 @@ export function useLattesWorkbench() {
       return;
     }
 
-    if (nextMode === "lote") {
-      individualFlow.reset();
-      summaryFlow.reset();
-    } else {
-      batchFlow.reset();
-    }
-
     setMode(nextMode);
   };
 
@@ -65,8 +58,6 @@ export function useLattesWorkbench() {
 
   const submitBatch = async (file: File, skip: number, limit?: number) => {
     resetFeedback();
-    individualFlow.reset();
-    summaryFlow.reset();
     await batchFlow.submitBatch(file, skip, limit);
   };
 
