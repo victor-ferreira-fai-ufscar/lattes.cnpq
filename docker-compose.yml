@@ -54,8 +54,9 @@ services:
     environment:
       # Esta URL é usada no navegador (host), então deve apontar para localhost
       - NEXT_PUBLIC_API_URL=http://localhost:${BACKEND_PORT:-8000}
+      - CI=true
     # Next em modo dev ouvindo em todas as interfaces
-    command: pnpm run dev --hostname 0.0.0.0 --port ${FRONTEND_PORT:-3000}
+    command: sh -lc "pnpm install --frozen-lockfile && pnpm run dev --hostname 0.0.0.0 --port ${FRONTEND_PORT:-3000}"
     depends_on:
       backend:
         condition: service_healthy

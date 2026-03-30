@@ -136,6 +136,23 @@ docker compose up -d frontend
 
 ## Troubleshooting rápido
 
+Erro comum no frontend após adicionar dependência nova (ex.: `Module not found: Can't resolve ...`):
+
+1. O frontend em Docker usa bind mount do código e volume para `node_modules`.
+2. Em alguns casos, o volume pode ficar desatualizado em relação ao `package.json`/`pnpm-lock.yaml`.
+3. A correção mais segura é recriar o serviço frontend.
+
+```bash
+docker compose up -d --build --force-recreate --renew-anon-volumes frontend
+```
+
+Se ainda falhar, rode uma instalação explícita dentro do container e reinicie o serviço:
+
+```bash
+docker compose exec frontend sh -lc "CI=true pnpm install --frozen-lockfile"
+docker compose restart frontend
+```
+
 Ver logs:
 
 ```bash
