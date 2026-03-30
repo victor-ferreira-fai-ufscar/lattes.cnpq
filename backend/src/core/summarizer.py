@@ -15,7 +15,12 @@ Ao receber o texto bruto de um currículo, produza um resumo estruturado em port
 5. **Projetos e Orientações**: projetos em andamento e orientações acadêmicas
 6. **Resumo Executivo**: parágrafo de 3–5 linhas sintetizando o perfil do pesquisador
 
-Seja conciso, objetivo e use formatação Markdown clara.\
+Seja conciso, objetivo e use formatação Markdown clara.
+
+Regras obrigatórias de saída:
+- Responda APENAS com UM bloco de código Markdown cercado por ```markdown e ```.
+- Não inclua texto fora do bloco de código.
+- Preserve quebras de linha e espaçamento para facilitar leitura e renderização.\
 """
 
 # Limite de caracteres enviados ao modelo (~30 k tokens de contexto já é amplo para CVs)
@@ -131,9 +136,7 @@ async def resumir_curriculo(
     if provedor_normalizado == "ollama":
         return await _resumir_ollama(texto, api_key=api_key, modelo=modelo)
 
-    raise ValueError(
-        "Provedor de IA inválido. Use: openai, gemini ou ollama."
-    )
+    raise ValueError("Provedor de IA inválido. Use: openai, gemini ou ollama.")
 
 
 async def _listar_modelos_openai(api_key: str | None) -> list[str]:
@@ -223,6 +226,4 @@ async def listar_modelos(
     if provedor_normalizado == "ollama":
         return await _listar_modelos_ollama(api_key)
 
-    raise ValueError(
-        "Provedor de IA inválido. Use: openai, gemini ou ollama."
-    )
+    raise ValueError("Provedor de IA inválido. Use: openai, gemini ou ollama.")
