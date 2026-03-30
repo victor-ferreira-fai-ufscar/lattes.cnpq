@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { buildNameVariants } from "@/features/lattes/lib/name-variants";
 import type {
   BatchItemError,
   BatchScrapeResponse,
@@ -32,42 +33,6 @@ type BatchErrorDiagnosis = {
 
 function normalizeText(text?: string | null) {
   return (text ?? "").toLowerCase();
-}
-
-function removeAccents(text: string) {
-  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
-
-function toTitleCase(text: string) {
-  return text
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((part) => part[0].toUpperCase() + part.slice(1))
-    .join(" ");
-}
-
-function buildNameVariants(name: string) {
-  const cleaned = name.trim();
-  if (!cleaned) {
-    return [];
-  }
-
-  const variants = new Set<string>([
-    cleaned,
-    removeAccents(cleaned),
-    cleaned.toUpperCase(),
-    cleaned.toLowerCase(),
-    toTitleCase(cleaned),
-  ]);
-
-  const parts = cleaned.split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) {
-    variants.add(`${parts[0]} ${parts[parts.length - 1]}`);
-    variants.add(parts[0]);
-  }
-
-  return [...variants].filter(Boolean);
 }
 
 function diagnoseBatchError(item: BatchItemError): BatchErrorDiagnosis {

@@ -60,6 +60,15 @@ export function useLattesWorkbench() {
     await individualFlow.scrapeSelected();
   };
 
+  const trySearchVariants = async (nome: string) => {
+    resetFeedback();
+    summaryFlow.reset();
+    const matchedTerm = await individualFlow.searchWithVariants(nome);
+    if (matchedTerm) {
+      setSearchTerm(matchedTerm);
+    }
+  };
+
   const submitBatch = async (file: File, skip: number, limit?: number) => {
     resetFeedback();
     await batchFlow.submitBatch(file, skip, limit);
@@ -100,6 +109,7 @@ export function useLattesWorkbench() {
     mode,
     loading: {
       search: individualFlow.isSearching,
+      variants: individualFlow.isTryingVariants,
       scrape: individualFlow.isScraping,
       batch: batchFlow.isSubmitting,
       summarize: summaryFlow.isSummarizing,
@@ -118,6 +128,7 @@ export function useLattesWorkbench() {
     summaryConfig: summaryFlow.summaryConfig,
     handleModeChange,
     searchCandidates,
+    trySearchVariants,
     setSelectedCandidate: individualFlow.setSelectedCandidate,
     scrapeSelected,
     submitBatch,

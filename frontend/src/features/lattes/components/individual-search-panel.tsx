@@ -34,8 +34,10 @@ type IndividualSearchPanelProps = {
   selectedCandidate: SearchCandidate | null;
   lastSearchTerm: string | null;
   isSearching: boolean;
+  isTryingVariants: boolean;
   isScraping: boolean;
   onSearch: (nome: string) => Promise<void>;
+  onTrySearchVariants: (nome: string) => Promise<void>;
   onSelectCandidate: (candidate: SearchCandidate) => void;
   onScrape: () => Promise<void>;
 };
@@ -45,8 +47,10 @@ export function IndividualSearchPanel({
   selectedCandidate,
   lastSearchTerm,
   isSearching,
+  isTryingVariants,
   isScraping,
   onSearch,
+  onTrySearchVariants,
   onSelectCandidate,
   onScrape,
 }: IndividualSearchPanelProps) {
@@ -103,10 +107,23 @@ export function IndividualSearchPanel({
                 </FormItem>
               )}
             />
-            <Button className="w-full sm:w-auto" disabled={isSearching} type="submit">
-              <Search className="h-4 w-4" />
-              {isSearching ? "Buscando..." : "Buscar"}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button className="w-full sm:w-auto" disabled={isSearching} type="submit">
+                <Search className="h-4 w-4" />
+                {isSearching ? "Buscando..." : "Buscar"}
+              </Button>
+              <Button
+                className="w-full sm:w-auto"
+                disabled={isSearching || isTryingVariants}
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  void onTrySearchVariants(form.getValues("nome"));
+                }}
+              >
+                {isTryingVariants ? "Testando variacoes..." : "Testar variacoes do nome"}
+              </Button>
+            </div>
           </form>
         </Form>
 

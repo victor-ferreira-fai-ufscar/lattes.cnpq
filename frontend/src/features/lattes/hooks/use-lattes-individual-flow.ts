@@ -1,8 +1,9 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
 
+import { buildNameVariants } from "@/features/lattes/lib/name-variants";
 import {
   buscarCandidatos,
   scrapeCurriculoSelecionado,
@@ -40,6 +41,8 @@ export function useLattesIndividualFlow({
     (state) => state.setSelectedCandidateHref,
   );
   const setScrapeResult = useLattesWorkbenchStore((state) => state.setScrapeResult);
+  const queryClient = useQueryClient();
+  const [isTryingVariants, setIsTryingVariants] = useState(false);
   const lastSearchFeedbackAt = useRef<number>(0);
   const lastSearchErrorAt = useRef<number>(0);
 
@@ -129,6 +132,47 @@ export function useLattesIndividualFlow({
     await candidatesQuery.refetch();
   };
 
+  const searchWithVariants = async (rawName: string) => {
+    const baseName = rawName.trim();
+    if (!baseName) {
+      notifyError(new Error("Informe um nome para tentar variacoes."));
+      return null;
+    }
+
+    const variants = buildNameVariants(baseName);
+    setIsTryingVariants(true);
+
+    try {
+      for (const variant of variants) {
+        const response = await buscarCandidatos(variant);
+        queryClient.setQueryData(["lattes", "search-candidates", variant], response);
+
+        if (response.total > 0) {
+          setCandidates(response.candidatos);
+          setLastSearchTerm(response.nome_busca || variant);
+          notifySuccess(
+            `${response.total} opcao(oes) encontrada(s) com a variacao "${response.nome_busca || variant}".`,
+          );
+          return response.nome_busca || variant;
+        }
+      }
+
+      setCandidates([]);
+      setLastSearchTerm(baseName);
+      notifyError(
+        new Error(
+          "Nao encontramos resultados mesmo apos testar variacoes automaticas do nome.",
+        ),
+      );
+      return null;
+    } catch (error) {
+      notifyError(error);
+      return null;
+    } finally {
+      setIsTryingVariants(false);
+    }
+  };
+
   const setSelectedCandidate = (candidate: SearchCandidate) => {
     setSelectedCandidateHref(candidate.href);
   };
@@ -146,8 +190,10 @@ export function useLattesIndividualFlow({
     scrapeResult,
     isSearching: candidatesQuery.isFetching,
     isScraping: scrapeMutation.isPending,
+    isTryingVariants,
     setSelectedCandidate,
     refetchCandidates,
+    searchWithVariants,
     scrapeSelected,
     reset,
   };

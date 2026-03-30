@@ -38,6 +38,7 @@ export function LattesWorkbench() {
     summaryConfig,
     handleModeChange,
     searchCandidates,
+    trySearchVariants,
     setSelectedCandidate,
     scrapeSelected,
     submitBatch,
@@ -144,10 +145,12 @@ export function LattesWorkbench() {
             candidates={candidates}
             isScraping={loading.scrape}
             isSearching={loading.search}
+            isTryingVariants={loading.variants}
             lastSearchTerm={lastSearchTerm}
             selectedCandidate={selectedCandidate}
             onScrape={scrapeSelected}
             onSearch={searchCandidates}
+            onTrySearchVariants={trySearchVariants}
             onSelectCandidate={setSelectedCandidate}
           />
         ) : (
