@@ -1,5 +1,6 @@
 import os
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import date, datetime
 
@@ -35,6 +36,42 @@ def _is_true(value: str) -> bool:
 
 def _normalizar(texto: str) -> str:
     return " ".join(texto.lower().split())
+
+
+def _remover_acentos(texto: str) -> str:
+    texto_norm = unicodedata.normalize("NFD", texto)
+    return "".join(ch for ch in texto_norm if unicodedata.category(ch) != "Mn")
+
+
+def _gerar_variacoes_nome_busca(nome: str) -> list[str]:
+    nome_limpo = " ".join(nome.split())
+    if not nome_limpo:
+        return []
+
+    partes = nome_limpo.split()
+    variacoes = [
+        nome_limpo,
+        _remover_acentos(nome_limpo),
+        nome_limpo.lower(),
+        _remover_acentos(nome_limpo).lower(),
+        nome_limpo.title(),
+    ]
+
+    if len(partes) >= 2:
+        variacoes.append(f"{partes[0]} {partes[-1]}")
+        variacoes.append(partes[0])
+
+    unicos: list[str] = []
+    vistos: set[str] = set()
+    for variacao in variacoes:
+        texto = " ".join(variacao.split())
+        chave = _normalizar(texto)
+        if not texto or chave in vistos:
+            continue
+        vistos.add(chave)
+        unicos.append(texto)
+
+    return unicos
 
 
 def _parece_sem_resultado(texto: str) -> bool:
@@ -98,55 +135,61 @@ async def _tenta_abrir_cv_final(page, botao):
 
 
 async def _executar_busca(page, nome: str):
-    last_error = None
-    for _ in range(3):
-        try:
-            await page.goto(_BASE_URL, wait_until="domcontentloaded", timeout=45000)
-            break
-        except PlaywrightTimeoutError as exc:
-            last_error = exc
-            await page.wait_for_timeout(1200)
-    else:
-        raise ValueError(
-            "Não foi possível acessar a busca do Lattes no momento."
-        ) from last_error
-
-    await page.locator("input[name='textoBusca']").fill(nome)
-
-    # Em alguns momentos o Lattes precisa do grecaptcha carregado para disparar o submit.
-    try:
-        await page.wait_for_function(
-            "() => typeof window.grecaptcha !== 'undefined'",
-            timeout=10000,
-        )
-    except PlaywrightTimeoutError:
-        pass
-
-    await page.locator("#botaoBuscaFiltros:visible").first.click()
-    await page.wait_for_load_state("domcontentloaded")
-    await page.wait_for_timeout(900)
-
-    links = page.locator(".resultado a")
-    total = 0
-    for _ in range(5):
-        total = await links.count()
-        if total > 0:
-            break
-
-        texto_body = await page.locator("body").inner_text(timeout=12000)
-        if _parece_sem_resultado(texto_body):
-            raise ValueError("Nenhum resultado encontrado para o nome informado.")
-
-        await page.wait_for_timeout(700)
-
-    if total == 0:
-        links = page.locator("a")
-        total = await links.count()
-
-    if total == 0:
+    tentativas = _gerar_variacoes_nome_busca(nome)
+    if not tentativas:
         raise ValueError("Nenhum resultado encontrado para o nome informado.")
 
-    return links, total
+    last_error = None
+    for nome_tentativa in tentativas:
+        for _ in range(3):
+            try:
+                await page.goto(_BASE_URL, wait_until="domcontentloaded", timeout=45000)
+                break
+            except PlaywrightTimeoutError as exc:
+                last_error = exc
+                await page.wait_for_timeout(1200)
+        else:
+            raise ValueError(
+                "Não foi possível acessar a busca do Lattes no momento."
+            ) from last_error
+
+        await page.locator("input[name='textoBusca']").fill(nome_tentativa)
+
+        # Em alguns momentos o Lattes precisa do grecaptcha carregado para disparar o submit.
+        try:
+            await page.wait_for_function(
+                "() => typeof window.grecaptcha !== 'undefined'",
+                timeout=10000,
+            )
+        except PlaywrightTimeoutError:
+            pass
+
+        await page.locator("#botaoBuscaFiltros:visible").first.click()
+        await page.wait_for_load_state("domcontentloaded")
+        await page.wait_for_timeout(900)
+
+        links = page.locator(".resultado a")
+        total = 0
+        sem_resultado = False
+        for _ in range(5):
+            total = await links.count()
+            if total > 0:
+                break
+
+            texto_body = await page.locator("body").inner_text(timeout=12000)
+            if _parece_sem_resultado(texto_body):
+                sem_resultado = True
+                break
+
+            await page.wait_for_timeout(700)
+
+        if total > 0:
+            return links, total
+
+    raise ValueError(
+        "Nenhum resultado encontrado para o nome informado. "
+        "Tente sem acentos, com nome e sobrenome, ou apenas o primeiro nome."
+    )
 
 
 async def _abrir_curriculo(page, nome: str, href_alvo: str | None = None):

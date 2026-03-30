@@ -11,11 +11,175 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import type { BatchScrapeResponse } from "@/features/lattes/services/lattes.service";
+import type {
+  BatchItemError,
+  BatchScrapeResponse,
+} from "@/features/lattes/services/lattes.service";
 
 type BatchResultCardProps = {
   result: BatchScrapeResponse;
 };
+
+type BatchErrorDiagnosis = {
+  category: "nome-nao-encontrado" | "timeout-sincronizacao" | "timeout" | "generico";
+  confidence: "alta" | "media" | "baixa";
+  title: string;
+  probableCause: string;
+  evidence: string[];
+  suggestedAction: string;
+  quickChecks: string[];
+};
+
+function normalizeText(text?: string | null) {
+  return (text ?? "").toLowerCase();
+}
+
+function removeAccents(text: string) {
+  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function toTitleCase(text: string) {
+  return text
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function buildNameVariants(name: string) {
+  const cleaned = name.trim();
+  if (!cleaned) {
+    return [];
+  }
+
+  const variants = new Set<string>([
+    cleaned,
+    removeAccents(cleaned),
+    cleaned.toUpperCase(),
+    cleaned.toLowerCase(),
+    toTitleCase(cleaned),
+  ]);
+
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    variants.add(`${parts[0]} ${parts[parts.length - 1]}`);
+    variants.add(parts[0]);
+  }
+
+  return [...variants].filter(Boolean);
+}
+
+function diagnoseBatchError(item: BatchItemError): BatchErrorDiagnosis {
+  const errorText = normalizeText(item.erro);
+  const detailText = normalizeText(item.erro_detalhe);
+  const locator = item.erro_locator || "(nao informado)";
+
+  const isTimeout =
+    item.erro_tipo === "TimeoutError" ||
+    errorText.includes("timeout") ||
+    detailText.includes("timeout");
+  const isNotFound =
+    errorText.includes("nenhum resultado") ||
+    errorText.includes("nao encontrado") ||
+    errorText.includes("não encontrado") ||
+    detailText.includes("nenhum resultado") ||
+    detailText.includes("nao encontrado") ||
+    detailText.includes("não encontrado");
+  const isInvisibleElement =
+    detailText.includes("element is not visible") ||
+    detailText.includes("not visible");
+  const isClickFailure =
+    detailText.includes("click") || errorText.includes("interagir com locator");
+
+  if (isNotFound) {
+    const variants = buildNameVariants(item.nome);
+    return {
+      category: "nome-nao-encontrado",
+      confidence: "alta",
+      title: "Nome nao encontrado na busca",
+      probableCause:
+        "O nome enviado nao retornou candidatos no Lattes neste formato. Diferencas de acento, grafia ou composicao do nome podem impactar o resultado.",
+      evidence: [
+        `Nome enviado: ${item.nome}`,
+        "A API retornou sinal de nenhum resultado para este nome apos tentar variacoes automaticas de busca.",
+      ],
+      suggestedAction:
+        "Tentar variacoes do nome (sem acento e nome parcial) e, se houver homonimos, usar a busca individual para selecionar o candidato correto.",
+      quickChecks: variants.slice(0, 5),
+    };
+  }
+
+  if (isTimeout && isInvisibleElement && isClickFailure) {
+    return {
+      category: "timeout-sincronizacao",
+      confidence: "alta",
+      title: "Falha de sincronizacao da interface",
+      probableCause:
+        "O script tentou clicar em um elemento que existe no DOM, mas permaneceu invisivel ate o timeout.",
+      evidence: [
+        `Tipo de erro: ${item.erro_tipo ?? "TimeoutError"}`,
+        `Locator afetado: ${locator}`,
+        "Log indica repetidas tentativas de click com elemento invisivel.",
+      ],
+      suggestedAction:
+        "Validar se o modal/painel correto realmente abriu antes do click e trocar a espera para visibilidade explicita do elemento clicavel.",
+      quickChecks: [
+        "Conferir se o locator esta especifico o suficiente (evitar seletor generico como 'a').",
+        "Esperar explicitamente o elemento ficar visivel antes do click.",
+        "Garantir que nenhum overlay/modal esteja bloqueando a interacao.",
+      ],
+    };
+  }
+
+  if (isTimeout) {
+    return {
+      category: "timeout",
+      confidence: "media",
+      title: "Timeout durante automacao",
+      probableCause:
+        "A etapa demorou mais do que o limite configurado para a condicao esperada.",
+      evidence: [
+        `Timeout configurado: ${item.erro_timeout_ms ?? "nao informado"}ms`,
+        `Locator afetado: ${locator}`,
+      ],
+      suggestedAction:
+        "Revisar se ha variacao de carregamento na pagina e aguardar uma condicao mais estavel (rede ociosa, elemento visivel ou estado da tela).",
+      quickChecks: [
+        "Aumentar timeout apenas depois de validar condicao de espera correta.",
+        "Checar se houve redirecionamento ou captcha durante a execucao.",
+      ],
+    };
+  }
+
+  return {
+    category: "generico",
+    confidence: "baixa",
+    title: "Erro nao classificado automaticamente",
+    probableCause:
+      "Nao foi possivel inferir uma causa unica a partir do padrao conhecido deste erro.",
+    evidence: [
+      `Tipo de erro: ${item.erro_tipo ?? "nao informado"}`,
+      `Locator afetado: ${locator}`,
+    ],
+    suggestedAction:
+      "Usar os detalhes tecnicos para reproduzir o problema e ajustar a etapa correspondente do scraping.",
+    quickChecks: [
+      "Executar novamente com logs detalhados para comparar comportamento.",
+      "Validar se a pagina de destino mudou estrutura recentemente.",
+    ],
+  };
+}
+
+function confidenceBadgeStyle(confidence: BatchErrorDiagnosis["confidence"]) {
+  if (confidence === "alta") {
+    return "bg-emerald-100 text-emerald-800";
+  }
+  if (confidence === "media") {
+    return "bg-amber-100 text-amber-800";
+  }
+  return "bg-slate-200 text-slate-700";
+}
 
 export function BatchResultCard({ result }: BatchResultCardProps) {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -106,6 +270,47 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
                 ) : (
                   <div className="mt-3 space-y-2 text-sm text-red-700">
                     <p>{item.erro}</p>
+                    {(() => {
+                      const diagnosis = diagnoseBatchError(item);
+                      return (
+                        <div className="rounded-lg border border-red-200 bg-white/70 p-3 text-xs text-red-900">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <p className="font-semibold uppercase tracking-[0.1em] text-red-800">
+                              Diagnostico automatico
+                            </p>
+                            <span
+                              className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${confidenceBadgeStyle(diagnosis.confidence)}`}
+                            >
+                              Confianca {diagnosis.confidence}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-sm font-semibold text-red-900">
+                            {diagnosis.title}
+                          </p>
+                          <p className="mt-1 leading-relaxed">
+                            <span className="font-semibold">Causa provavel:</span>{" "}
+                            {diagnosis.probableCause}
+                          </p>
+                          <div className="mt-2 space-y-1 leading-relaxed">
+                            {diagnosis.evidence.map((line) => (
+                              <p key={line}>- {line}</p>
+                            ))}
+                          </div>
+                          <p className="mt-2 leading-relaxed">
+                            <span className="font-semibold">Acao sugerida:</span>{" "}
+                            {diagnosis.suggestedAction}
+                          </p>
+                          {diagnosis.quickChecks.length > 0 ? (
+                            <div className="mt-2 space-y-1 leading-relaxed">
+                              <p className="font-semibold">Testes rapidos:</p>
+                              {diagnosis.quickChecks.map((line) => (
+                                <p key={line}>- {line}</p>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })()}
 
                     {(item.erro_detalhe || item.erro_tipo || item.erro_timeout_ms || item.erro_locator) && (
                       <details className="rounded-lg border border-red-200/80 bg-red-50/50 p-2">

@@ -16,6 +16,13 @@ export function getApiErrorMessage(error: unknown): string {
     const detail = data?.detail;
 
     if (typeof detail === "string") {
+      const normalizedDetail = detail.toLowerCase();
+      if (
+        normalizedDetail.includes("nenhum resultado encontrado") ||
+        normalizedDetail.includes("nome informado")
+      ) {
+        return "Nao encontramos esse nome no Lattes apos tentar variacoes automaticas (com/sem acento, caixa e nome parcial). Confira a grafia ou tente a busca individual para selecionar entre homonimos.";
+      }
       return detail;
     }
 
