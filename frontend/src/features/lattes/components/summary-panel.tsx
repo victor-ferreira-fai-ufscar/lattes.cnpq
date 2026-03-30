@@ -13,8 +13,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -76,27 +83,11 @@ export function SummaryPanel({
     control: form.control,
     name: "provedor",
   });
-  const modelo = useWatch({
-    control: form.control,
-    name: "modelo",
-  });
 
   useEffect(() => {
     const storedKey = storedApiKeys[provedor] ?? "";
     form.setValue("apiKey", storedKey, { shouldValidate: false });
   }, [provedor, form, storedApiKeys]);
-
-  const modelField = form.register("modelo", {
-    onChange: (event) => {
-      onConfigChange({ modelo: event.target.value });
-    },
-  });
-
-  const apiKeyField = form.register("apiKey", {
-    onChange: (event) => {
-      onConfigChange({ apiKey: event.target.value });
-    },
-  });
 
   const handleLoadModels = async () => {
     const values = form.getValues();
@@ -111,7 +102,7 @@ export function SummaryPanel({
   });
 
   return (
-    <Card className="border-slate-200/80 bg-white/90 shadow-[0_24px_80px_-48px_rgba(15,23,42,0.45)] backdrop-blur">
+    <Card variant="panel">
       <CardHeader className="space-y-3">
         <div className="inline-flex w-fit items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-medium text-cyan-800">
           <BrainCircuit className="h-3.5 w-3.5" />
@@ -128,88 +119,121 @@ export function SummaryPanel({
         </div>
       </CardHeader>
       <CardContent>
-        <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit}>
-          <div className="space-y-2">
-            <Label htmlFor="summary-provider">Servico de IA</Label>
-            <Select
-              value={provedor}
-              onValueChange={(value) => {
-                const nextProvider = value as AIProvider;
-                form.setValue("provedor", nextProvider, {
-                  shouldValidate: true,
-                });
-                onConfigChange({ provedor: nextProvider });
-              }}
-            >
-              <SelectTrigger id="summary-provider">
-                <SelectValue placeholder="Selecione um servico" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="openai">OpenAI</SelectItem>
-                <SelectItem value="gemini">Gemini</SelectItem>
-                <SelectItem value="ollama">Ollama</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+        <Form {...form}>
+          <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit}>
+            <FormField
+              control={form.control}
+              name="provedor"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Servico de IA</FormLabel>
+                  <Select
+                    value={field.value}
+                    onValueChange={(value) => {
+                      const nextProvider = value as AIProvider;
+                      field.onChange(nextProvider);
+                      onConfigChange({ provedor: nextProvider });
+                    }}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um servico" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="openai">OpenAI</SelectItem>
+                      <SelectItem value="gemini">Gemini</SelectItem>
+                      <SelectItem value="ollama">Ollama</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-          <div className="space-y-2">
-            <Label htmlFor="summary-model">Modelo</Label>
-            {models.length > 0 ? (
-              <Select
-                value={modelo}
-                onValueChange={(value) => {
-                  form.setValue("modelo", value, { shouldValidate: true });
-                  onConfigChange({ modelo: value });
+            <FormField
+              control={form.control}
+              name="modelo"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Modelo</FormLabel>
+                  {models.length > 0 ? (
+                    <Select
+                      value={field.value}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        onConfigChange({ modelo: value });
+                      }}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione uma opcao" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {models.map((model) => (
+                          <SelectItem key={model} value={model}>
+                            {model}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <FormControl>
+                      <Input
+                        {...field}
+                        onChange={(event) => {
+                          field.onChange(event);
+                          onConfigChange({ modelo: event.target.value });
+                        }}
+                      />
+                    </FormControl>
+                  )}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="apiKey"
+              render={({ field }) => (
+                <FormItem className="md:col-span-2">
+                  <FormLabel>Chave de acesso</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Preencha apenas se o servico escolhido pedir essa chave"
+                      type="password"
+                      {...field}
+                      onChange={(event) => {
+                        field.onChange(event);
+                        onConfigChange({ apiKey: event.target.value });
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="flex flex-col gap-3 md:col-span-2 md:flex-row">
+              <Button
+                disabled={isLoadingModels}
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  void handleLoadModels();
                 }}
               >
-                <SelectTrigger id="summary-model">
-                  <SelectValue placeholder="Selecione uma opcao" />
-                </SelectTrigger>
-                <SelectContent>
-                  {models.map((model) => (
-                    <SelectItem key={model} value={model}>
-                      {model}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <Input id="summary-model" {...modelField} />
-            )}
-            {form.formState.errors.modelo ? (
-              <p className="text-sm font-medium text-red-600">
-                {form.formState.errors.modelo.message}
-              </p>
-            ) : null}
-          </div>
-
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="summary-api-key">Chave de acesso</Label>
-            <Input
-              id="summary-api-key"
-              placeholder="Preencha apenas se o servico escolhido pedir essa chave"
-              type="password"
-              {...apiKeyField}
-            />
-          </div>
-
-          <div className="flex flex-col gap-3 md:col-span-2 md:flex-row">
-            <Button
-              disabled={isLoadingModels}
-              type="button"
-              variant="outline"
-              onClick={() => {
-                void handleLoadModels();
-              }}
-            >
-              <RefreshCcw className="h-4 w-4" />
-              {isLoadingModels ? "Atualizando opcoes..." : "Atualizar opcoes"}
-            </Button>
-            <Button disabled={isSubmitting} type="submit">
-              {isSubmitting ? "Gerando resumo..." : "Gerar resumo"}
-            </Button>
-          </div>
-        </form>
+                <RefreshCcw className="h-4 w-4" />
+                {isLoadingModels ? "Atualizando opcoes..." : "Atualizar opcoes"}
+              </Button>
+              <Button disabled={isSubmitting} type="submit">
+                {isSubmitting ? "Gerando resumo..." : "Gerar resumo"}
+              </Button>
+            </div>
+          </form>
+        </Form>
       </CardContent>
     </Card>
   );

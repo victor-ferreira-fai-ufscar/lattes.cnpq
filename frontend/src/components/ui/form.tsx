@@ -5,6 +5,7 @@ import * as LabelPrimitive from "@radix-ui/react-label";
 import { Slot } from "@radix-ui/react-slot";
 import {
   Controller,
+  type ControllerProps,
   type FieldPath,
   FieldValues,
   FormProvider,
@@ -27,9 +28,12 @@ const FormFieldContext = React.createContext<FormFieldContextValue>(
   {} as FormFieldContextValue,
 );
 
-const FormField = ({
+const FormField = <
+  TFieldValues extends FieldValues = FieldValues,
+  TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
+>({
   ...props
-}: React.ComponentPropsWithoutRef<typeof Controller>) => (
+}: ControllerProps<TFieldValues, TName>) => (
   <FormFieldContext.Provider value={{ name: props.name }}>
     <Controller {...props} />
   </FormFieldContext.Provider>
@@ -43,8 +47,12 @@ const useFormField = () => {
 
   const fieldState = getFieldState(fieldContext.name, formState);
 
-  if (!fieldContext) {
+  if (!fieldContext.name) {
     throw new Error("useFormField should be used within <FormField>");
+  }
+
+  if (!itemContext.id) {
+    throw new Error("useFormField should be used within <FormItem>");
   }
 
   const { id } = itemContext;

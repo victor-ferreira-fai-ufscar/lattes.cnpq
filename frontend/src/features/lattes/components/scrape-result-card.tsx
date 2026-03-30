@@ -15,7 +15,7 @@ type ScrapeResultCardProps = {
 
 export function ScrapeResultCard({ result }: ScrapeResultCardProps) {
   return (
-    <Card className="border-emerald-200/70 bg-emerald-50/70">
+    <Card variant="successSubtle">
       <CardHeader>
         <CardTitle className="text-lg text-emerald-950">
           Curriculo pronto para leitura

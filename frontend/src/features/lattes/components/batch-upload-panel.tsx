@@ -12,8 +12,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   BatchUploadSchema,
   type BatchUploadFormData,
@@ -42,7 +50,7 @@ export function BatchUploadPanel({
   });
 
   return (
-    <Card className="border-slate-200/80 bg-white/90 shadow-[0_24px_80px_-48px_rgba(15,23,42,0.45)] backdrop-blur">
+    <Card variant="panel">
       <CardHeader className="space-y-3">
         <div className="inline-flex w-fit items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
           <FileSpreadsheet className="h-3.5 w-3.5" />
@@ -59,60 +67,86 @@ export function BatchUploadPanel({
         </div>
       </CardHeader>
       <CardContent>
-        <form className="grid gap-4 sm:grid-cols-2" onSubmit={handleSubmit}>
-          <div className="space-y-2 sm:col-span-2">
-            <Label htmlFor="batch-csv-file">Arquivo com os nomes</Label>
-            <Input
-              id="batch-csv-file"
-              accept=".csv,text/csv"
-              type="file"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                form.setValue("csvFile", file as File, { shouldValidate: true });
-              }}
+        <Form {...form}>
+          <form className="grid gap-4 sm:grid-cols-2" onSubmit={handleSubmit}>
+            <FormField
+              control={form.control}
+              name="csvFile"
+              render={({ field }) => (
+                <FormItem className="sm:col-span-2">
+                  <FormLabel>Arquivo com os nomes</FormLabel>
+                  <FormControl>
+                    <Input
+                      accept=".csv,text/csv"
+                      type="file"
+                      onChange={(event) => {
+                        field.onChange(event.target.files?.[0]);
+                      }}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Use um arquivo .csv com os nomes que deseja consultar.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-            <p className="text-sm text-slate-500">
-              Use um arquivo .csv com os nomes que deseja consultar.
-            </p>
-            {form.formState.errors.csvFile ? (
-              <p className="text-sm font-medium text-red-600">
-                {form.formState.errors.csvFile.message}
-              </p>
-            ) : null}
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="batch-skip">Pular primeiras linhas</Label>
-            <Input id="batch-skip" type="number" {...form.register("skip")} />
-            <p className="text-sm text-slate-500">Use 0 para comecar do inicio.</p>
-            {form.formState.errors.skip ? (
-              <p className="text-sm font-medium text-red-600">
-                {form.formState.errors.skip.message}
-              </p>
-            ) : null}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="batch-limit">Quantidade maxima</Label>
-            <Input
-              id="batch-limit"
-              placeholder="Deixe em branco para processar tudo"
-              type="number"
-              {...form.register("limit")}
+            <FormField
+              control={form.control}
+              name="skip"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Pular primeiras linhas</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      {...field}
+                      value={typeof field.value === "number" ? field.value : ""}
+                      onChange={(event) => {
+                        field.onChange(event.target.value);
+                      }}
+                    />
+                  </FormControl>
+                  <FormDescription>Use 0 para comecar do inicio.</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-            {form.formState.errors.limit ? (
-              <p className="text-sm font-medium text-red-600">
-                {form.formState.errors.limit.message as string}
-              </p>
-            ) : null}
-          </div>
 
-          <div className="sm:col-span-2">
-            <Button className="w-full sm:w-auto" disabled={isSubmitting} type="submit">
-              {isSubmitting ? "Enviando lista..." : "Processar lista"}
-            </Button>
-          </div>
-        </form>
+            <FormField
+              control={form.control}
+              name="limit"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Quantidade maxima</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Deixe em branco para processar tudo"
+                      type="number"
+                      {...field}
+                      value={
+                        typeof field.value === "number" || field.value === ""
+                          ? field.value
+                          : ""
+                      }
+                      onChange={(event) => {
+                        field.onChange(event.target.value);
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="sm:col-span-2">
+              <Button className="w-full sm:w-auto" disabled={isSubmitting} type="submit">
+                {isSubmitting ? "Enviando lista..." : "Processar lista"}
+              </Button>
+            </div>
+          </form>
+        </Form>
       </CardContent>
     </Card>
   );

@@ -14,7 +14,7 @@ type ExecutionLogCardProps = {
 
 export function ExecutionLogCard({ logs }: ExecutionLogCardProps) {
   return (
-    <Card className="border-slate-800 bg-slate-950 text-slate-50 shadow-[0_24px_80px_-40px_rgba(2,6,23,0.95)]">
+    <Card variant="inverse">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg text-white">
           <TerminalSquare className="h-4 w-4 text-teal-300" />

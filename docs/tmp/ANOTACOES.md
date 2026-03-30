@@ -2,9 +2,12 @@
 
 ## Frontend
 
+- [x] Verificar se o design system está padronizado (utilizando Shadcn UI) e se os componentes estão sendo reutilizados corretamente.
+- [ ] Deixar a parte do "resumo gerado" em baixo do "gerar resumo com IA"
+
 ## Detalhes da execução (`componente.tsx`)
 
-- [ ] Detalhes da execução (adicionar para o horário de Brasília GMT -3)
+- [x] Detalhes da execução (adicionar para o horário de Brasília GMT -3)
 
 ## Gerar resumo com IA (``)
 

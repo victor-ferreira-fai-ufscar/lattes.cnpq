@@ -13,8 +13,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   IndividualSearchSchema,
   type IndividualSearchFormData,
@@ -61,7 +68,7 @@ export function IndividualSearchPanel({
   });
 
   return (
-    <Card className="border-slate-200/80 bg-white/90 shadow-[0_24px_80px_-48px_rgba(15,23,42,0.45)] backdrop-blur">
+    <Card variant="panel">
       <CardHeader className="space-y-3">
         <div className="inline-flex w-fit items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-xs font-medium text-teal-800">
           <UserRoundSearch className="h-3.5 w-3.5" />
@@ -78,25 +85,30 @@ export function IndividualSearchPanel({
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
-        <form className="space-y-3" onSubmit={handleSearch}>
-          <div className="space-y-2">
-            <Label htmlFor="individual-search-name">Nome da pessoa</Label>
-            <Input
-              id="individual-search-name"
-              placeholder="Ex.: Neocles Alves Pereira"
-              {...form.register("nome")}
+        <Form {...form}>
+          <form className="space-y-3" onSubmit={handleSearch}>
+            <FormField
+              control={form.control}
+              name="nome"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nome da pessoa</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Ex.: Neocles Alves Pereira"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-            {form.formState.errors.nome ? (
-              <p className="text-sm font-medium text-red-600">
-                {form.formState.errors.nome.message}
-              </p>
-            ) : null}
-          </div>
-          <Button className="w-full sm:w-auto" disabled={isSearching} type="submit">
-            <Search className="h-4 w-4" />
-            {isSearching ? "Buscando..." : "Buscar"}
-          </Button>
-        </form>
+            <Button className="w-full sm:w-auto" disabled={isSearching} type="submit">
+              <Search className="h-4 w-4" />
+              {isSearching ? "Buscando..." : "Buscar"}
+            </Button>
+          </form>
+        </Form>
 
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3">

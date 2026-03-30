@@ -15,7 +15,7 @@ type SummaryResultCardProps = {
 
 export function SummaryResultCard({ result }: SummaryResultCardProps) {
   return (
-    <Card className="border-cyan-200/70 bg-cyan-50/70">
+    <Card variant="infoSubtle">
       <CardHeader>
         <CardTitle className="text-lg text-cyan-950">Resumo gerado</CardTitle>
         <CardDescription>

@@ -15,7 +15,7 @@ type BatchResultCardProps = {
 
 export function BatchResultCard({ result }: BatchResultCardProps) {
   return (
-    <Card className="border-amber-200/70 bg-amber-50/80">
+    <Card variant="warningSubtle">
       <CardHeader>
         <CardTitle className="text-lg text-amber-950">Lista processada</CardTitle>
         <CardDescription>
