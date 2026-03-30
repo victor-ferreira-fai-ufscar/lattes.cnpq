@@ -10,7 +10,7 @@ Checklist consolidado para acompanhar a evolucao do projeto.
 - [ ] Melhorar estado e fluxo das API Keys.
 - [x] Melhorar renderizacao de Markdown na secao de resumo com IA.
 - [x] Adicionar botao para copiar resumo em Markdown.
-- [ ] Adicionar selecao de provedor de IA (Gemini e Ollama).
+- [x] Adicionar selecao de provedor de IA (Gemini e Ollama).
 - [ ] Adicionar toggle para visualizar execucao headless ou nao.
 
 ### Backend e infraestrutura
