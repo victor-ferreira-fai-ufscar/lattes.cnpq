@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { FileDropzone } from "@/components/ui/file-dropzone";
 import {
   Form,
   FormControl,
@@ -72,21 +73,17 @@ export function BatchUploadPanel({
             <FormField
               control={form.control}
               name="csvFile"
-              render={({ field }) => (
+              render={({ field, fieldState }) => (
                 <FormItem className="sm:col-span-2">
                   <FormLabel>Arquivo com os nomes</FormLabel>
                   <FormControl>
-                    <Input
+                    <FileDropzone
                       accept=".csv,text/csv"
-                      type="file"
-                      onChange={(event) => {
-                        field.onChange(event.target.files?.[0]);
-                      }}
+                      error={!!fieldState.error}
+                      value={field.value as File | undefined}
+                      onChange={(file) => field.onChange(file)}
                     />
                   </FormControl>
-                  <FormDescription>
-                    Use um arquivo .csv com os nomes que deseja consultar.
-                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -101,11 +98,10 @@ export function BatchUploadPanel({
                   <FormControl>
                     <Input
                       type="number"
+                      min={0}
                       {...field}
-                      value={typeof field.value === "number" ? field.value : ""}
-                      onChange={(event) => {
-                        field.onChange(event.target.value);
-                      }}
+                      value={String(field.value ?? "")}
+                      onChange={(e) => field.onChange(e.target.value)}
                     />
                   </FormControl>
                   <FormDescription>Use 0 para comecar do inicio.</FormDescription>
@@ -124,15 +120,10 @@ export function BatchUploadPanel({
                     <Input
                       placeholder="Deixe em branco para processar tudo"
                       type="number"
+                      min={1}
                       {...field}
-                      value={
-                        typeof field.value === "number" || field.value === ""
-                          ? field.value
-                          : ""
-                      }
-                      onChange={(event) => {
-                        field.onChange(event.target.value);
-                      }}
+                      value={String(field.value ?? "")}
+                      onChange={(e) => field.onChange(e.target.value)}
                     />
                   </FormControl>
                   <FormMessage />
