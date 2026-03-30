@@ -1,5 +1,12 @@
 # Plan: Operacionalizar MVP Lattes
 
+## Contexto Operacional (fixo para o projeto)
+
+- Ja existe ambiente virtual do backend gerenciado com `uv` (nao recriar setup alternativo sem necessidade).
+- Fluxo preferencial de execucao local: `docker compose` com servicos em containers.
+- Priorizar instrucoes e planos que preservem isolamento, reproducibilidade e facilidade de onboarding em outras maquinas.
+- Sempre que houver comando de execucao no plano, indicar primeiro a opcao via containers e deixar execucao local direta como alternativa.
+
 ## Contexto Frontend (estado atual, manter como base)
 
 Frontend em Next.js 16 + React 19 com arquitetura por feature em `frontend/src/features/lattes`.
