@@ -11,6 +11,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { buildNameVariants } from "@/features/lattes/lib/name-variants";
 import type {
   BatchItemError,
@@ -177,10 +182,28 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
           <Metric label="Concluidos" value={String(result.sucesso)} />
           <Metric label="Com problema" value={String(result.erro)} />
           {typeof result.cache_hits === "number" ? (
-            <Metric label="Cache hit" value={String(result.cache_hits)} />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <Metric label="Cache hit" value={String(result.cache_hits)} />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                Quantidade de PDFs reaproveitados do Storage sem novo scraping.
+              </TooltipContent>
+            </Tooltip>
           ) : null}
           {typeof result.cache_misses === "number" ? (
-            <Metric label="Scraping" value={String(result.cache_misses)} />
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <Metric label="Scraping" value={String(result.cache_misses)} />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                Quantidade de casos em que foi necessario gerar o PDF novamente via scraping.
+              </TooltipContent>
+            </Tooltip>
           ) : null}
         </div>
 
@@ -220,17 +243,26 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
                     </p>
                     {item.status === "sucesso" && item.cache_status ? (
                       <p className="mt-2">
-                        <span
-                          className={
-                            item.cache_status === "hit"
-                              ? "rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-emerald-800"
-                              : "rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-amber-800"
-                          }
-                        >
-                          {item.cache_status === "hit"
-                            ? "Origem: Cache"
-                            : "Origem: Scraping"}
-                        </span>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              className={
+                                item.cache_status === "hit"
+                                  ? "rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-emerald-800"
+                                  : "rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-amber-800"
+                              }
+                            >
+                              {item.cache_status === "hit"
+                                ? "Origem: Cache"
+                                : "Origem: Scraping"}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {item.cache_status === "hit"
+                              ? "PDF reaproveitado do Storage dentro da janela de validade."
+                              : "Sem cache valido: PDF gerado novamente via scraping."}
+                          </TooltipContent>
+                        </Tooltip>
                       </p>
                     ) : null}
                   </div>

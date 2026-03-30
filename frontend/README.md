@@ -159,6 +159,27 @@ docker compose build frontend
 docker compose up -d frontend
 ```
 
+## Problema comum: dependência nova não encontrada no Docker
+
+Sintoma típico:
+
+- `Module not found: Can't resolve '<pacote>'`
+
+Isso pode acontecer porque o frontend roda com bind mount do código e volume para `node_modules`. Se o volume estiver desatualizado, a dependência nova pode não aparecer imediatamente.
+
+Recuperação recomendada:
+
+```bash
+docker compose up -d --build --force-recreate --renew-anon-volumes frontend
+```
+
+Se necessário, execute também:
+
+```bash
+docker compose exec frontend sh -lc "CI=true pnpm install --frozen-lockfile"
+docker compose restart frontend
+```
+
 ## Comandos úteis
 
 ```bash

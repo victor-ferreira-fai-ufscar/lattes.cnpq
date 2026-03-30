@@ -7,6 +7,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { ScrapeResponse } from "@/features/lattes/services/lattes.service";
 
 type ScrapeResultCardProps = {
@@ -28,6 +33,13 @@ export function ScrapeResultCard({ result }: ScrapeResultCardProps) {
         ? "rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800"
         : "rounded-full bg-slate-200 px-3 py-1 text-xs font-semibold text-slate-700";
 
+  const cacheTooltipMessage =
+    result.cache_status === "hit"
+      ? "PDF reaproveitado do Supabase Storage porque estava dentro da validade configurada."
+      : result.cache_status === "miss"
+        ? "PDF gerado novamente via scraping porque nao havia cache valido no Storage."
+        : "Origem nao foi informada pela API.";
+
   return (
     <Card variant="successSubtle">
       <CardHeader>
@@ -35,7 +47,12 @@ export function ScrapeResultCard({ result }: ScrapeResultCardProps) {
           <CardTitle className="text-lg text-emerald-950">
             Curriculo pronto para leitura
           </CardTitle>
-          <span className={cacheClassName}>{cacheLabel}</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className={cacheClassName}>{cacheLabel}</span>
+            </TooltipTrigger>
+            <TooltipContent side="left">{cacheTooltipMessage}</TooltipContent>
+          </Tooltip>
         </div>
         <CardDescription>
           O curriculo foi localizado e preparado. Voce pode abrir o PDF abaixo.
