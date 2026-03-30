@@ -8,8 +8,8 @@ Checklist consolidado para acompanhar a evolucao do projeto.
 
 - [x] Ajustar detalhes da execucao para horario de Brasilia (GMT-3).
 - [ ] Melhorar estado e fluxo das API Keys.
-- [ ] Melhorar renderizacao de Markdown na secao de resumo com IA.
-- [ ] Adicionar botao para copiar resumo em Markdown.
+- [x] Melhorar renderizacao de Markdown na secao de resumo com IA.
+- [x] Adicionar botao para copiar resumo em Markdown.
 - [ ] Adicionar selecao de provedor de IA (Gemini e Ollama).
 - [ ] Adicionar toggle para visualizar execucao headless ou nao.
 

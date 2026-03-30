@@ -142,7 +142,6 @@ export function LattesWorkbench() {
           <div className="space-y-6">
             {scrapeResult ? <ScrapeResultCard result={scrapeResult} /> : null}
             {batchResult ? <BatchResultCard result={batchResult} /> : null}
-            {summaryResult ? <SummaryResultCard result={summaryResult} /> : null}
           </div>
 
           <div className="space-y-6">
@@ -160,6 +159,7 @@ export function LattesWorkbench() {
                 }}
               />
             ) : null}
+            {summaryResult ? <SummaryResultCard result={summaryResult} /> : null}
             <ExecutionLogCard logs={activeLogs} />
           </div>
         </div>
