@@ -12,7 +12,7 @@ from ...core.scraper import scrape_lattes
 from ...core.storage import upload_curriculo_pdf, upload_file_bytes
 from ...libs.csv_utils import parse_csv_names
 from ...libs.filename import build_curriculo_filename
-from ...libs.logging import now_brasilia, stamp
+from ...libs.logging import now_brasilia, stamp, summarize_exception
 
 router = APIRouter()
 
@@ -128,16 +128,31 @@ async def _process_batch(
             )
         except Exception as exc:
             erro_count += 1
-            message = str(exc)
+            error_info = summarize_exception(exc)
             resultados.append(
                 {
                     "nome": nome,
                     "status": "erro",
-                    "erro": message,
+                    "erro": error_info["resumo"],
+                    "erro_detalhe": error_info["detalhe"],
+                    "erro_tipo": error_info["tipo"],
+                    "erro_timeout_ms": error_info["timeout_ms"],
+                    "erro_locator": error_info["locator"],
                     "duracao_segundos": round(perf_counter() - t_item, 2),
                 }
             )
-            add_log(f"[{idx}/{len(nomes)}] Erro para '{nome}': {message}")
+            add_log(f"[{idx}/{len(nomes)}] Erro para '{nome}': {error_info['resumo']}")
+
+            debug_parts = [f"tipo={error_info['tipo']}"]
+            if error_info["timeout_ms"] is not None:
+                debug_parts.append(f"timeout_ms={error_info['timeout_ms']}")
+            if error_info["locator"]:
+                debug_parts.append(f"locator={error_info['locator']}")
+
+            add_log(
+                f"[{idx}/{len(nomes)}] Debug erro para '{nome}': "
+                + ", ".join(debug_parts)
+            )
 
     add_log(f"Lote finalizado. Sucessos: {ok_count}. Erros: {erro_count}.")
 

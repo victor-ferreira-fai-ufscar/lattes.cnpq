@@ -3,6 +3,8 @@ from importlib import import_module
 from dataclasses import dataclass
 from typing import Any
 
+import httpx
+
 
 @dataclass(frozen=True)
 class StorageUploadResult:
@@ -44,7 +46,17 @@ def _create_supabase_client() -> Any:
             "Biblioteca 'supabase' incompatível. Atualize as dependências com 'uv sync'."
         ) from exc
 
-    return create_client(supabase_url, supabase_key)
+    try:
+        client_options_module = import_module("supabase.lib.client_options")
+        sync_client_options = getattr(client_options_module, "SyncClientOptions")
+    except (ImportError, AttributeError):
+        # Fallback para versões antigas da biblioteca.
+        return create_client(supabase_url, supabase_key)
+
+    timeout = httpx.Timeout(connect=10.0, read=20.0, write=20.0, pool=20.0)
+    http_client = httpx.Client(timeout=timeout)
+    options = sync_client_options(httpx_client=http_client)
+    return create_client(supabase_url, supabase_key, options=options)
 
 
 def upload_file_bytes(

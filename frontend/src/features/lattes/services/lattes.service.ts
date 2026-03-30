@@ -51,6 +51,10 @@ export type BatchItemError = {
   nome: string;
   status: "erro";
   erro: string;
+  erro_detalhe?: string;
+  erro_tipo?: string;
+  erro_timeout_ms?: number | null;
+  erro_locator?: string | null;
   duracao_segundos: number;
 };
 
