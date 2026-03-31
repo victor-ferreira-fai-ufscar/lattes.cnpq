@@ -60,9 +60,9 @@ export function SummaryResultCard({ result }: SummaryResultCardProps) {
     <Card variant="infoSubtle">
       <CardHeader className="gap-4 md:flex-row md:items-start md:justify-between">
         <div className="space-y-1.5">
-          <CardTitle className="text-lg text-cyan-950">Resumo gerado</CardTitle>
+          <CardTitle className="text-lg text-cyan-950">Resumo executivo e detalhes</CardTitle>
           <CardDescription>
-            Texto resumido para leitura mais rapida do curriculo selecionado.
+            Estruturado em Markdown e priorizando as informacoes extraidas do PDF do curriculo.
           </CardDescription>
         </div>
         <Button

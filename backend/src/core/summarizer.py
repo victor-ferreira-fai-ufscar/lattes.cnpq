@@ -1,21 +1,34 @@
 import os
 from asyncio import to_thread
+from importlib import import_module
+from typing import Any
 from urllib.request import Request, urlopen
 
 from openai import AsyncOpenAI
 
 _PROMPT_SISTEMA = """\
 Você é um assistente especializado em análise de currículos acadêmicos brasileiros (Lattes/CNPq).
-Ao receber o texto bruto de um currículo, produza um resumo estruturado em português com as seguintes seções:
+Ao receber o texto bruto de um currículo, produza um resumo estruturado em português.
 
-1. **Identificação**: nome completo, maior titulação, instituição atual
-2. **Formação Acadêmica**: graduação, mestrado, doutorado e pós-doutorado (com ano e instituição)
-3. **Atuação Profissional**: cargos e vínculos institucionais atuais
-4. **Produção Científica**: principais publicações, patentes ou produções relevantes (destaque quantidade e área)
-5. **Projetos e Orientações**: projetos em andamento e orientações acadêmicas
-6. **Resumo Executivo**: parágrafo de 3–5 linhas sintetizando o perfil do pesquisador
+IMPORTANTE: considere que a fonte principal é o texto extraído de um PDF do currículo.
+- Priorize sempre informações explícitas no texto extraído do PDF.
+- Se houver ambiguidade, prefira a interpretação mais conservadora.
+- Não invente dados. Quando faltar informação, escreva "Não informado no PDF".
 
-Seja conciso, objetivo e use formatação Markdown clara.
+Estruture a resposta nesta ordem:
+1. **Resumo Executivo**: 3-5 linhas com visão geral do perfil (esta seção deve vir primeiro)
+2. **Identificação**: nome completo, maior titulação, instituição atual
+3. **Formação Acadêmica**: graduação, mestrado, doutorado e pós-doutorado (ano e instituição)
+4. **Atuação Profissional**: cargos e vínculos institucionais atuais
+5. **Produção Científica**: principais publicações, patentes ou produções relevantes (inclua quantidade aproximada e área)
+6. **Projetos e Orientações**: projetos em andamento e orientações acadêmicas
+
+Estilo de Markdown (obrigatório):
+- Use títulos de seção com "##".
+- Em "Resumo Executivo", coloque o parágrafo em bloco de citação usando ">".
+- Use listas com marcadores para itens principais.
+- Use uma tabela curta (quando possível) em "Formação Acadêmica" com colunas: Nível | Instituição | Ano.
+- Destaque dados-chave com negrito, sem exagero.
 
 Regras obrigatórias de saída:
 - Responda APENAS com UM bloco de código Markdown cercado por ```markdown e ```.
@@ -28,7 +41,10 @@ _MAX_TEXTO_CHARS = 80_000
 
 
 def _build_user_prompt(texto: str) -> str:
-    return "Analise e resuma o currículo Lattes abaixo:\n\n" + texto[:_MAX_TEXTO_CHARS]
+    return (
+        "Analise e resuma o currículo Lattes abaixo (texto extraído do PDF):\n\n"
+        + texto[:_MAX_TEXTO_CHARS]
+    )
 
 
 async def _resumir_openai(
@@ -73,7 +89,7 @@ async def _resumir_gemini(
         )
 
     def _call_gemini() -> str:
-        import google.generativeai as genai
+        genai: Any = import_module("google.generativeai")
 
         genai.configure(api_key=chave)
         model = genai.GenerativeModel(model_name=modelo)
@@ -162,7 +178,7 @@ async def _listar_modelos_gemini(api_key: str | None) -> list[str]:
         )
 
     def _call_gemini() -> list[str]:
-        import google.generativeai as genai
+        genai: Any = import_module("google.generativeai")
 
         genai.configure(api_key=chave)
         modelos: list[str] = []
