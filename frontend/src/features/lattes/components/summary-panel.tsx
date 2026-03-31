@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { BrainCircuit, RefreshCcw } from "lucide-react";
+import { BrainCircuit, CheckCircle2, RefreshCcw, Server } from "lucide-react";
 import { useEffect } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
@@ -35,6 +35,12 @@ import {
 } from "@/features/lattes/schemas/lattes.schemas";
 import type { AIProvider } from "@/features/lattes/services/lattes.service";
 import type { StoredApiKeys } from "@/features/lattes/stores/lattes-summary-store";
+
+const API_KEY_PLACEHOLDER: Record<AIProvider, string> = {
+  openai: "Sua chave da API OpenAI (sk-...)",
+  gemini: "Sua chave da API Gemini (AIza...)",
+  ollama: "",
+};
 
 type SummaryPanelProps = {
   defaultValues: SummaryFormData;
@@ -88,6 +94,14 @@ export function SummaryPanel({
     const storedKey = storedApiKeys[provedor] ?? "";
     form.setValue("apiKey", storedKey, { shouldValidate: false });
   }, [provedor, form, storedApiKeys]);
+
+  const isOllama = provedor === "ollama";
+  const hasStoredKeyForProvider = !isOllama && Boolean(storedApiKeys[provedor]);
+
+  const handleClearApiKey = () => {
+    form.setValue("apiKey", "", { shouldValidate: false });
+    onConfigChange({ apiKey: "" });
+  };
 
   const handleLoadModels = async () => {
     const values = form.getValues();
@@ -194,27 +208,61 @@ export function SummaryPanel({
               )}
             />
 
-            <FormField
-              control={form.control}
-              name="apiKey"
-              render={({ field }) => (
-                <FormItem className="md:col-span-2">
-                  <FormLabel>Chave de acesso</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Preencha apenas se o servico escolhido pedir essa chave"
-                      type="password"
-                      {...field}
-                      onChange={(event) => {
-                        field.onChange(event);
-                        onConfigChange({ apiKey: event.target.value });
-                      }}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {isOllama && (
+              <div className="md:col-span-2 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+                <Server className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  <span className="font-semibold">Apenas local</span> — O Ollama precisa estar
+                  em execução na mesma máquina que o backend. Ao usar via docker-compose, adicione
+                  um serviço <code className="font-mono">ollama</code> e configure{" "}
+                  <code className="font-mono">OLLAMA_BASE_URL</code> no backend. Não é necessária
+                  chave de API.
+                </span>
+              </div>
+            )}
+
+            {!isOllama && (
+              <FormField
+                control={form.control}
+                name="apiKey"
+                render={({ field }) => (
+                  <FormItem className="md:col-span-2">
+                    <FormLabel className="flex items-center justify-between">
+                      <span className="flex items-center gap-2">
+                        Chave de acesso
+                        {hasStoredKeyForProvider && (
+                          <span className="inline-flex items-center gap-1 text-xs font-normal text-green-600">
+                            <CheckCircle2 className="h-3 w-3" />
+                            Salva
+                          </span>
+                        )}
+                      </span>
+                      {hasStoredKeyForProvider && (
+                        <button
+                          type="button"
+                          className="text-xs text-slate-400 transition-colors hover:text-slate-600"
+                          onClick={handleClearApiKey}
+                        >
+                          Limpar
+                        </button>
+                      )}
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder={API_KEY_PLACEHOLDER[provedor]}
+                        type="password"
+                        {...field}
+                        onChange={(event) => {
+                          field.onChange(event);
+                          onConfigChange({ apiKey: event.target.value });
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <div className="flex flex-col gap-3 md:col-span-2 md:flex-row">
               <Button
