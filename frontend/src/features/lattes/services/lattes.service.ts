@@ -29,6 +29,7 @@ export type ScrapeResponse = {
 export type SummarizeResponse = {
   nome: string;
   resumo: string;
+  fonte_resumo?: "pdf" | "html";
   logs?: string[];
   duracao_segundos?: number;
 };

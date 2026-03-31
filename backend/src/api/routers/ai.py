@@ -2,7 +2,7 @@ from time import perf_counter
 
 from fastapi import APIRouter, HTTPException
 
-from ...core.scraper import scrape_lattes_text
+from ...core.scraper import scrape_lattes_summary_source
 from ...core.summarizer import listar_modelos, resumir_curriculo
 from ...libs.logging import build_logger
 from ...models import ModelsRequest, SummarizeRequest
@@ -21,15 +21,28 @@ async def summarize(request: SummarizeRequest):
     if not nome:
         raise HTTPException(status_code=400, detail="Informe o nome do docente.")
 
-    add_log(f"Coletando texto bruto do currículo de '{nome}'.")
+    add_log(f"Coletando texto do currículo de '{nome}' com prioridade para PDF.")
     t_scrape = perf_counter()
     try:
-        texto = await scrape_lattes_text(nome)
+        source_result = await scrape_lattes_summary_source(nome)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
+    texto = source_result.texto
+
+    if source_result.fonte == "pdf":
+        add_log(
+            "Texto do currículo coletado a partir do PDF "
+            f"({source_result.caracteres_pdf} caracteres extraídos)."
+        )
+    else:
+        add_log(
+            "PDF indisponível ou incompleto para resumo; usando HTML da página como fallback "
+            f"({source_result.caracteres_html} caracteres, PDF extraído: {source_result.caracteres_pdf})."
+        )
+
     add_log(
-        "Texto do currículo coletado em "
+        "Texto-base do currículo coletado em "
         f"{(perf_counter() - t_scrape):.1f}s ({len(texto)} caracteres)."
     )
 
@@ -58,6 +71,7 @@ async def summarize(request: SummarizeRequest):
     return {
         "nome": nome,
         "resumo": resumo,
+        "fonte_resumo": source_result.fonte,
         "logs": logs,
         "duracao_segundos": round(perf_counter() - t_total, 2),
     }
