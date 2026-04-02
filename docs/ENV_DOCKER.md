@@ -59,7 +59,7 @@ Se por acaso você preferir usar o **Docker Desktop** (a interface gráfica base
 
 ## Troubleshooting frontend: `Module not found`
 
-Em desenvolvimento com Docker Compose, o frontend usa bind mount do código e um volume para `node_modules`.
+Em desenvolvimento com Docker Compose, o frontend usa bind mount do código e volumes nomeados para `node_modules` e `.next`.
 Quando uma dependência nova é adicionada, esse volume pode ficar desatualizado e gerar erro como:
 
 ```text
@@ -69,12 +69,10 @@ Module not found: Can't resolve '<pacote>'
 ### Correção recomendada
 
 ```bash
-docker compose up -d --build --force-recreate --renew-anon-volumes frontend
+docker compose down -v
+docker compose up -d --build frontend
 ```
 
-### Se persistir
+### Observação importante
 
-```bash
-docker compose exec frontend sh -lc "CI=true pnpm install --frozen-lockfile"
-docker compose restart frontend
-```
+O container de desenvolvimento do frontend não instala mais os navegadores do Playwright. Eles ficam isolados no perfil `frontend-e2e`, o que reduz uso de disco e tempo de build em PCs com pouco espaço livre.

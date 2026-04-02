@@ -165,20 +165,16 @@ Sintoma típico:
 
 - `Module not found: Can't resolve '<pacote>'`
 
-Isso pode acontecer porque o frontend roda com bind mount do código e volume para `node_modules`. Se o volume estiver desatualizado, a dependência nova pode não aparecer imediatamente.
+Isso pode acontecer porque o frontend roda com bind mount do código e volumes nomeados para `node_modules` e `.next`. Se esses volumes ficarem desatualizados, a dependência nova pode não aparecer imediatamente.
 
 Recuperação recomendada:
 
 ```bash
-docker compose up -d --build --force-recreate --renew-anon-volumes frontend
+docker compose down -v
+docker compose up -d --build frontend
 ```
 
-Se necessário, execute também:
-
-```bash
-docker compose exec frontend sh -lc "CI=true pnpm install --frozen-lockfile"
-docker compose restart frontend
-```
+O build de desenvolvimento do frontend foi separado do perfil E2E para evitar instalar navegadores do Playwright em máquinas que só vão rodar a aplicação.
 
 ## Comandos úteis
 

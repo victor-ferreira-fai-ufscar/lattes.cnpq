@@ -1,22 +1,21 @@
-FROM node:22-bookworm-slim
+FROM node:22-bookworm-slim AS base
 
 # Use pnpm para gerenciar pacotes (mais eficiente que npm)
 RUN npm install -g pnpm
 
-# Define variáveis de environment padrão
-ENV NEXT_TELEMETRY_DISABLED=1 \
-    NODE_ENV=development
+ENV NEXT_TELEMETRY_DISABLED=1
 
 WORKDIR /app
 
-# Copia apenas package.json e pnpm-lock.yaml para cache/download de dependências
+# Copia apenas manifestos para aproveitar cache de dependências entre builds
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml* ./
+RUN pnpm install --frozen-lockfile
 
-# Instala dependências com pnpm e navegadores do Playwright para E2E reproduzível em container
-RUN pnpm install --frozen-lockfile \
-    && pnpm exec playwright install --with-deps chromium
+FROM base AS dev
 
-# Copia o código-fonte
+ENV NODE_ENV=development
+
+# Mantém uma cópia inicial do projeto; no compose ela será sobrescrita por bind mount.
 COPY . .
 
 # Expõe a porta padrão do Next.js
@@ -24,3 +23,14 @@ EXPOSE 3000
 
 # Comando padrão: rodar dev server com polling (funciona melhor em containers)
 CMD ["pnpm", "run", "dev"]
+
+FROM base AS e2e
+
+ENV NODE_ENV=test
+
+# Os navegadores do Playwright só são necessários no perfil de testes.
+RUN pnpm exec playwright install --with-deps chromium
+
+COPY . .
+
+CMD ["pnpm", "test"]

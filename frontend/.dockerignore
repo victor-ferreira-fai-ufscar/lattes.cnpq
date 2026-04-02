@@ -1,5 +1,6 @@
 node_modules
 .next
+.pnpm-store
 .git
 .gitignore
 Dockerfile
@@ -10,3 +11,4 @@ pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 *.tsbuildinfo
+test-results

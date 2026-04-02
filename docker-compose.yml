@@ -43,6 +43,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: dev
     container_name: lattes-frontend
     ports:
       # Porta host:container para acessar a interface web
@@ -50,9 +51,9 @@ services:
     volumes:
       # Bind mount do projeto frontend para hot-reload completo
       - ./frontend:/app
-      # Volumes anônimos para preservar dependências/cache do container
-      - /app/node_modules
-      - /app/.next
+      # Volumes nomeados evitam reinstalações e ficam mais previsíveis entre recriações
+      - frontend_node_modules:/app/node_modules
+      - frontend_next_cache:/app/.next
     environment:
       # Esta URL é usada no navegador (host), então deve apontar para localhost
       - NEXT_PUBLIC_API_URL=http://localhost:${BACKEND_PORT:-8000}
@@ -72,12 +73,10 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: e2e
     container_name: lattes-frontend-e2e
     volumes:
-      - ./frontend:/app
       - ./docs:/docs:ro
-      - /app/node_modules
-      - /app/.next
     environment:
       - NEXT_PUBLIC_API_URL=http://backend:${BACKEND_PORT:-8000}
       - CI=true
@@ -116,3 +115,7 @@ networks:
   # Rede privada para comunicação entre serviços
   lattes-network:
     driver: bridge
+
+volumes:
+  frontend_node_modules:
+  frontend_next_cache:
