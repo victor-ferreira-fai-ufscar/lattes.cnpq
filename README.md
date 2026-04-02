@@ -92,6 +92,25 @@ Invoke-WebRequest http://localhost:8000/health
 Invoke-WebRequest http://localhost:3000
 ```
 
+### Checklist de homologação no Windows 11 limpo
+
+Use este checklist logo após o `git clone` em uma máquina Windows 11 sem configuração prévia do projeto:
+
+1. Abrir o Docker Desktop e confirmar que ele está rodando em modo Linux containers.
+2. Abrir PowerShell na raiz do repositório e rodar `docker compose up -d --build`.
+3. Confirmar no Docker Desktop que `lattes-backend` está `healthy` e `lattes-frontend` está `running`.
+4. Abrir `http://localhost:3000` no navegador e verificar se a interface carregou.
+5. Rodar `Invoke-WebRequest http://localhost:8000/health` e confirmar retorno HTTP 200.
+6. Rodar `Invoke-WebRequest http://localhost:3000` e confirmar retorno HTTP 200.
+7. Encerrar com `docker compose down` e subir novamente com `docker compose up -d` para verificar o segundo boot.
+
+Resultado esperado:
+
+- O primeiro boot conclui sem editar nenhum arquivo.
+- O frontend abre em `http://localhost:3000`.
+- O backend responde em `http://localhost:8000/health`.
+- O segundo boot é mais rápido que o primeiro por reaproveitar imagem e cache local.
+
 Parar serviços:
 
 ```bash
