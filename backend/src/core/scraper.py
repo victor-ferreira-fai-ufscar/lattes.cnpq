@@ -1,8 +1,10 @@
 import os
 import re
 import unicodedata
+from asyncio import to_thread
 from dataclasses import dataclass
 from datetime import date, datetime
+from io import BytesIO
 
 try:
     from dotenv import load_dotenv
@@ -28,6 +30,14 @@ class LattesScrapeResult:
 class LattesSearchCandidate:
     nome: str
     href: str
+
+
+@dataclass(frozen=True)
+class LattesSummarySourceResult:
+    texto: str
+    fonte: str
+    caracteres_pdf: int
+    caracteres_html: int
 
 
 def _is_true(value: str) -> bool:
@@ -97,6 +107,68 @@ def _parece_pagina_cv(url: str, texto: str) -> bool:
         return True
 
     return "lattes.cnpq.br" in (url or "").lower() and "resultado de" not in texto_norm
+
+
+def _pontuar_texto_curriculo(texto: str) -> int:
+    texto_norm = _normalizar(texto)
+    sinais = [
+        "ultima atualização do currículo",
+        "última atualização do currículo",
+        "resumo informado pelo autor",
+        "formação acadêmica/titulação",
+        "atuação profissional",
+        "produção bibliográfica",
+        "orientações concluídas",
+        "projetos de pesquisa",
+    ]
+    return sum(1 for sinal in sinais if sinal in texto_norm)
+
+
+def _pdf_parece_completo(texto_pdf: str, texto_html: str) -> bool:
+    pdf_limpo = texto_pdf.strip()
+    html_limpo = texto_html.strip()
+    if not pdf_limpo:
+        return False
+
+    if not html_limpo:
+        return True
+
+    pdf_chars = len(pdf_limpo)
+    html_chars = len(html_limpo)
+    score_pdf = _pontuar_texto_curriculo(pdf_limpo)
+    score_html = _pontuar_texto_curriculo(html_limpo)
+
+    if pdf_chars < 1200:
+        return False
+
+    if score_pdf >= score_html:
+        return True
+
+    return pdf_chars >= max(1200, int(html_chars * 0.35)) and score_pdf >= 2
+
+
+def _extrair_texto_pdf_bytes(pdf_bytes: bytes) -> str:
+    try:
+        from pypdf import PdfReader
+    except ImportError:
+        return ""
+
+    try:
+        reader = PdfReader(BytesIO(pdf_bytes))
+    except Exception:
+        return ""
+
+    paginas: list[str] = []
+    for page in reader.pages:
+        try:
+            texto_pagina = page.extract_text() or ""
+        except Exception:
+            continue
+        texto_pagina = texto_pagina.strip()
+        if texto_pagina:
+            paginas.append(texto_pagina)
+
+    return "\n\n".join(paginas).strip()
 
 
 def _extrair_ultima_atualizacao(texto: str) -> date:
@@ -387,5 +459,50 @@ async def scrape_lattes_text(nome: str) -> str:
             cv_page = await _abrir_curriculo(page, nome)
             await cv_page.wait_for_load_state("domcontentloaded")
             return await cv_page.locator("body").inner_text(timeout=12000)
+        finally:
+            await browser.close()
+
+
+async def scrape_lattes_summary_source(nome: str) -> LattesSummarySourceResult:
+    """Coleta texto priorizando o PDF do currículo e usa HTML como fallback."""
+    browser_name = os.environ.get("PLAYWRIGHT_BROWSER", "chromium").lower()
+    headless = _is_true(os.environ.get("PLAYWRIGHT_HEADLESS", "true"))
+
+    async with async_playwright() as p:
+        browser_type = getattr(p, browser_name, p.chromium)
+        browser = await browser_type.launch(
+            headless=headless,
+            args=["--no-sandbox", "--disable-dev-shm-usage"],
+        )
+
+        try:
+            context = await browser.new_context(locale="pt-BR")
+            page = await context.new_page()
+            cv_page = await _abrir_curriculo(page, nome)
+            await cv_page.wait_for_load_state("domcontentloaded")
+
+            texto_html = await cv_page.locator("body").inner_text(timeout=12000)
+            texto_pdf = ""
+
+            try:
+                pdf_bytes = await cv_page.pdf(format="A4")
+                texto_pdf = await to_thread(_extrair_texto_pdf_bytes, pdf_bytes)
+            except Exception:
+                texto_pdf = ""
+
+            if _pdf_parece_completo(texto_pdf, texto_html):
+                return LattesSummarySourceResult(
+                    texto=texto_pdf,
+                    fonte="pdf",
+                    caracteres_pdf=len(texto_pdf.strip()),
+                    caracteres_html=len(texto_html.strip()),
+                )
+
+            return LattesSummarySourceResult(
+                texto=texto_html,
+                fonte="html",
+                caracteres_pdf=len(texto_pdf.strip()),
+                caracteres_html=len(texto_html.strip()),
+            )
         finally:
             await browser.close()

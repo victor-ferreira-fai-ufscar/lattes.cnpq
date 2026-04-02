@@ -60,9 +60,9 @@ export function SummaryResultCard({ result }: SummaryResultCardProps) {
     <Card variant="infoSubtle">
       <CardHeader className="gap-4 md:flex-row md:items-start md:justify-between">
         <div className="space-y-1.5">
-          <CardTitle className="text-lg text-cyan-950">Resumo gerado</CardTitle>
+          <CardTitle className="text-lg text-cyan-950">Resumo executivo e detalhes</CardTitle>
           <CardDescription>
-            Texto resumido para leitura mais rapida do curriculo selecionado.
+            Estruturado em Markdown e priorizando as informacoes extraidas do PDF do curriculo.
           </CardDescription>
         </div>
         <Button
@@ -84,6 +84,11 @@ export function SummaryResultCard({ result }: SummaryResultCardProps) {
             Pessoa
           </p>
           <p className="mt-1 text-base font-semibold text-slate-950">{result.nome}</p>
+          {result.fonte_resumo ? (
+            <p className="mt-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-500">
+              Base do resumo: {result.fonte_resumo === "pdf" ? "PDF" : "HTML (fallback)"}
+            </p>
+          ) : null}
         </div>
         <article className="prose prose-slate max-w-none whitespace-pre-wrap rounded-2xl border border-cyan-100/80 bg-gradient-to-br from-white/90 via-cyan-50/30 to-teal-50/50 p-5 shadow-[0_14px_40px_-30px_rgba(8,145,178,0.5)] prose-headings:font-heading prose-headings:text-slate-950 prose-p:my-3 prose-p:leading-7 prose-p:text-slate-700 prose-strong:text-slate-950 prose-a:text-cyan-700 prose-a:no-underline hover:prose-a:text-cyan-800 hover:prose-a:underline prose-code:rounded prose-code:bg-slate-100 prose-code:px-1.5 prose-code:py-0.5 prose-code:text-[0.9em] prose-code:text-slate-900 prose-pre:whitespace-pre-wrap prose-pre:break-words prose-pre:border prose-pre:border-slate-200 prose-pre:bg-slate-950 prose-pre:text-slate-100 prose-blockquote:border-l-cyan-500 prose-blockquote:text-slate-700 prose-li:my-1 prose-li:marker:text-cyan-700">
           <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>

@@ -5,6 +5,7 @@
 - [x] Verificar se o design system está padronizado (utilizando Shadcn UI) e se os componentes estão sendo reutilizados corretamente.
 - [x] Deixar a parte do "resumo gerado" em baixo do "gerar resumo com IA"
 - [x] Implementar um state persistente para as pesquisas e execuções, para que o usuário possa voltar e ver os resultados anteriores mesmo após fechar a aplicação. (Para quando ele dar F5 ou fechar e abrir novamente, os dados continuarem lá)
+- [ ] Adicionar um loading durante as requests para melhorar a experiência do usuário, indicando que a aplicação está processando a solicitação.
 
 ## Detalhes da execução (`componente.tsx`)
 
