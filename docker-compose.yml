@@ -19,7 +19,9 @@ services:
       # Variáveis compartilhadas para ambiente docker local
       - .env.docker
       # Variáveis específicas/sensíveis do backend (Supabase, chaves etc.)
-      - ./backend/.env
+      # Mantido como opcional para o primeiro boot funcionar sem backend/.env
+      - path: ./backend/.env
+        required: false
     # Permite acessar serviços no host (ex.: Ollama local)
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -54,9 +56,11 @@ services:
     environment:
       # Esta URL é usada no navegador (host), então deve apontar para localhost
       - NEXT_PUBLIC_API_URL=http://localhost:${BACKEND_PORT:-8000}
+      - CHOKIDAR_USEPOLLING=true
+      - WATCHPACK_POLLING=true
       - CI=true
     # Next em modo dev ouvindo em todas as interfaces
-    command: sh -lc "pnpm install --frozen-lockfile && pnpm run dev --hostname 0.0.0.0 --port ${FRONTEND_PORT:-3000}"
+    command: pnpm run dev --hostname 0.0.0.0 --port ${FRONTEND_PORT:-3000}
     depends_on:
       backend:
         condition: service_healthy
@@ -77,7 +81,7 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=http://backend:${BACKEND_PORT:-8000}
       - CI=true
-    command: sh -lc "pnpm install --frozen-lockfile && pnpm test"
+    command: pnpm test
     depends_on:
       backend:
         condition: service_healthy
@@ -100,7 +104,8 @@ services:
       - PYTHONDONTWRITEBYTECODE=1
     env_file:
       - .env.docker
-      - ./backend/.env
+      - path: ./backend/.env
+        required: false
     command: sh -lc "uv sync --frozen --dev && uv run pytest"
     networks:
       - lattes-network
