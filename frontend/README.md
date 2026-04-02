@@ -114,7 +114,16 @@ docker compose up -d --build
 - Frontend: http://localhost:3000
 - Backend: http://localhost:8000
 
-Hot-reload ativo para mudanças no frontend e no backend.
+Esse modo é o mais estável para validar a aplicação localmente, sem hot reload.
+
+## Rodar com hot reload (desenvolvimento)
+
+```bash
+# a partir da raiz do projeto
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+Nesse modo, o frontend usa bind mount do projeto e volumes nomeados para `node_modules` e `.next`.
 
 ## Desenvolvimento Local (Sem Docker)
 
@@ -165,16 +174,16 @@ Sintoma típico:
 
 - `Module not found: Can't resolve '<pacote>'`
 
-Isso pode acontecer porque o frontend roda com bind mount do código e volumes nomeados para `node_modules` e `.next`. Se esses volumes ficarem desatualizados, a dependência nova pode não aparecer imediatamente.
+Isso pode acontecer no modo de desenvolvimento, porque o frontend roda com bind mount do código e volumes nomeados para `node_modules` e `.next`. Se esses volumes ficarem desatualizados, a dependência nova pode não aparecer imediatamente.
 
 Recuperação recomendada:
 
 ```bash
 docker compose down -v
-docker compose up -d --build frontend
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build frontend
 ```
 
-O build de desenvolvimento do frontend foi separado do perfil E2E para evitar instalar navegadores do Playwright em máquinas que só vão rodar a aplicação.
+O build padrão do frontend foi separado do perfil E2E para evitar instalar navegadores do Playwright em máquinas que só vão rodar a aplicação.
 
 ## Comandos úteis
 

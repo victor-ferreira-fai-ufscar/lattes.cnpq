@@ -24,6 +24,17 @@ EXPOSE 3000
 # Comando padrão: rodar dev server com polling (funciona melhor em containers)
 CMD ["pnpm", "run", "dev"]
 
+FROM base AS prod
+
+ENV NODE_ENV=production
+
+COPY . .
+RUN pnpm build
+
+EXPOSE 3000
+
+CMD ["pnpm", "run", "start", "--hostname", "0.0.0.0", "--port", "3000"]
+
 FROM base AS e2e
 
 ENV NODE_ENV=test

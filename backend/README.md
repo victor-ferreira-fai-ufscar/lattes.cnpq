@@ -68,7 +68,16 @@ docker compose up -d --build
 - Docs: http://localhost:8000/docs
 - Health: http://localhost:8000/health
 
-Hot-reload ativo para mudanças em [backend/src](backend/src).
+Esse modo é o mais estável para validação local, sem hot reload.
+
+## Rodar com hot reload (desenvolvimento)
+
+```bash
+# a partir da raiz do projeto
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+Nesse modo, mudanças em [backend/src](backend/src) recarregam com Uvicorn `--reload`.
 
 ## Desenvolvimento Local (Sem Docker)
 

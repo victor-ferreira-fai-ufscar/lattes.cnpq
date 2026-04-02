@@ -59,7 +59,7 @@ Se por acaso você preferir usar o **Docker Desktop** (a interface gráfica base
 
 ## Troubleshooting frontend: `Module not found`
 
-Em desenvolvimento com Docker Compose, o frontend usa bind mount do código e volumes nomeados para `node_modules` e `.next`.
+No modo de desenvolvimento com Docker Compose, o frontend usa bind mount do código e volumes nomeados para `node_modules` e `.next`.
 Quando uma dependência nova é adicionada, esse volume pode ficar desatualizado e gerar erro como:
 
 ```text
@@ -76,3 +76,15 @@ docker compose up -d --build frontend
 ### Observação importante
 
 O container de desenvolvimento do frontend não instala mais os navegadores do Playwright. Eles ficam isolados no perfil `frontend-e2e`, o que reduz uso de disco e tempo de build em PCs com pouco espaço livre.
+
+Para uso rápido e estável, prefira o compose padrão:
+
+```bash
+docker compose up -d --build
+```
+
+Para desenvolvimento com hot reload, use o override:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```

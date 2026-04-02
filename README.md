@@ -38,6 +38,12 @@ Na raiz do projeto:
 docker compose up -d --build
 ```
 
+Esse é o modo indicado para professor, apresentação e validação rápida:
+
+- Sem hot reload
+- Sem bind mounts no frontend
+- Menor chance de comportamento inconsistente entre Linux e Windows
+
 URLs padrão:
 
 - Frontend: http://localhost:3000
@@ -45,11 +51,32 @@ URLs padrão:
 - Health: http://localhost:8000/health
 - Docs (Scalar): http://localhost:8000/docs
 
+Verificação rápida após subir:
+
+```bash
+curl -f http://localhost:8000/health
+curl -I http://localhost:3000
+```
+
 Parar serviços:
 
 ```bash
 docker compose down
 ```
+
+## Modo desenvolvimento com hot reload
+
+Quando for editar código localmente, use o override de desenvolvimento:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+Nesse modo:
+
+- Backend roda com `uvicorn --reload`
+- Frontend usa bind mount do projeto
+- O container do frontend usa volumes nomeados para `node_modules` e `.next`
 
 ## Configuração de ambiente
 
@@ -72,10 +99,10 @@ Se alterar variáveis de compose, recrie os serviços:
 docker compose up -d --force-recreate backend frontend
 ```
 
-## Hot-reload em desenvolvimento
+## Modos de execução
 
-- Backend: mudanças em [backend/src](backend/src) recarregam com Uvicorn `--reload`
-- Frontend: mudanças em [frontend](frontend) recompilam com `next dev`
+- Padrão: execução estável, sem hot reload, para rodar rápido e testar localmente.
+- Desenvolvimento: use [docker-compose.dev.yml](docker-compose.dev.yml) para hot reload no backend e no frontend.
 
 ## Endpoints principais da API
 
@@ -138,7 +165,7 @@ docker compose up -d frontend
 
 Erro comum no frontend após adicionar dependência nova (ex.: `Module not found: Can't resolve ...`):
 
-1. O frontend em Docker usa bind mount do código e volumes nomeados para `node_modules` e `.next`.
+1. No modo desenvolvimento, o frontend em Docker usa bind mount do código e volumes nomeados para `node_modules` e `.next`.
 2. Em alguns casos, esses volumes podem ficar desatualizados em relação ao `package.json`/`pnpm-lock.yaml`.
 3. A correção mais segura é recriar o serviço frontend.
 
@@ -149,15 +176,15 @@ docker compose up -d --build frontend
 
 Observações importantes para máquinas com pouco espaço:
 
-- O build de desenvolvimento do frontend não instala mais os navegadores do Playwright.
+- O build padrão do frontend não instala navegadores do Playwright.
 - Os navegadores ficam restritos ao perfil `frontend-e2e`, reduzindo tempo de build e uso de disco no fluxo normal.
 - O contexto de build agora ignora `.pnpm-store`, evitando enviar centenas de megabytes desnecessários para o Docker.
 
-Se ainda falhar, derrube os serviços, remova os volumes nomeados do frontend e suba novamente:
+Se estiver usando o modo desenvolvimento e ainda falhar, derrube os serviços, remova os volumes nomeados do frontend e suba novamente:
 
 ```bash
 docker compose down -v
-docker compose up -d --build frontend
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build frontend
 ```
 
 Ver logs:
