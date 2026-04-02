@@ -115,6 +115,7 @@ docker compose up -d --build
 - Backend: http://localhost:8000
 
 Esse modo é o mais estável para validar a aplicação localmente, sem hot reload.
+O container estável do frontend usa build `standalone` do Next.js para reduzir tamanho da imagem e tempo de startup.
 
 ## Rodar com hot reload (desenvolvimento)
 

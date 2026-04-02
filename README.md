@@ -42,6 +42,7 @@ Esse é o modo indicado para professor, apresentação e validação rápida:
 
 - Sem hot reload
 - Sem bind mounts no frontend
+- Frontend empacotado com build `standalone` do Next.js
 - Menor chance de comportamento inconsistente entre Linux e Windows
 
 URLs padrão:

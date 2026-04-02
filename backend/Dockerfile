@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.7
+
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1 \
@@ -7,7 +9,9 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # Instala ferramentas basicas
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -17,10 +21,12 @@ COPY --from=ghcr.io/astral-sh/uv:0.5.2 /uv /uvx /bin/
 
 # Instala dependencias exatamente como travadas no projeto
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev
+RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
+    uv sync --frozen --no-dev
 
 # Instala browser do Playwright dentro do ambiente do projeto
-RUN uv run playwright install --with-deps chromium
+RUN --mount=type=cache,target=/root/.cache/uv,sharing=locked \
+    uv run playwright install --with-deps chromium
 
 # Copia o código do projeto com a estrutura organizada
 COPY src/ ./src/
