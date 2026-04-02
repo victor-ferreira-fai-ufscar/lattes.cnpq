@@ -59,6 +59,39 @@ curl -f http://localhost:8000/health
 curl -I http://localhost:3000
 ```
 
+## Primeira execução após git clone
+
+Este é o fluxo recomendado para primeira execução em qualquer máquina, inclusive Windows 11 com Docker Desktop sem WSL2:
+
+1. Clone o repositório.
+2. Abra um terminal na raiz do projeto.
+3. Rode `docker compose up -d --build`.
+4. Aguarde o primeiro build terminar.
+5. Abra `http://localhost:3000` no navegador.
+
+Observações importantes para esse cenário:
+
+- O modo padrão não usa hot reload nem bind mounts no frontend.
+- Isso evita os problemas mais comuns de compartilhamento de arquivos entre host e container no Windows.
+- Não é necessário criar `.env` na raiz para a primeira execução; o compose já usa valores padrão.
+- O arquivo `backend/.env` é opcional no primeiro boot.
+- O primeiro build é pesado porque o backend instala o Chromium do Playwright.
+- Para primeira execução, reserve idealmente pelo menos 12 GB livres no Docker Desktop.
+
+### Windows 11 + Docker Desktop
+
+- Use Docker Desktop em modo Linux containers.
+- Você pode rodar o comando acima no PowerShell, Prompt de Comando ou terminal do VS Code.
+- Não é necessário WSL2 para o modo padrão estável.
+- Se o Docker Desktop estiver com pouco espaço de disco, o primeiro build pode falhar ou parecer travado.
+
+Verificação rápida no PowerShell:
+
+```powershell
+Invoke-WebRequest http://localhost:8000/health
+Invoke-WebRequest http://localhost:3000
+```
+
 Parar serviços:
 
 ```bash
@@ -92,6 +125,12 @@ Para customizar portas do compose:
 
 ```bash
 cp .env.example .env
+```
+
+No PowerShell:
+
+```powershell
+Copy-Item .env.example .env
 ```
 
 Se alterar variáveis de compose, recrie os serviços:
