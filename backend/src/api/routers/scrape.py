@@ -6,7 +6,11 @@ from ...core.exporter import (
     artifacts_to_payload,
     ensure_curriculo_artifacts,
 )
-from ...core.scraper import scrape_lattes, scrape_lattes_by_href
+from ...core.scraper import (
+    scrape_lattes,
+    scrape_lattes_by_href,
+    scrape_lattes_profile_assets_by_href,
+)
 from ...core.storage import find_fresh_curriculo_pdf, upload_curriculo_pdf
 from ...libs.filename import build_curriculo_filename
 from ...libs.logging import build_logger
@@ -47,6 +51,20 @@ async def scrape(request: ScrapeRequest):
         )
 
     if cache_hit is not None:
+        profile_assets = None
+        if request.href:
+            try:
+                add_log(
+                    "Cache HIT de PDF; buscando HTML e foto do currículo selecionado para enriquecer o perfil vitrine."
+                )
+                profile_assets = await scrape_lattes_profile_assets_by_href(
+                    nome, request.href
+                )
+            except Exception as exc:
+                add_log(
+                    f"Falha ao extrair HTML/foto do currículo selecionado (seguindo sem foto): {exc}"
+                )
+
         artifacts = ensure_curriculo_artifacts(
             nome=nome,
             ultima_atualizacao=(
@@ -58,6 +76,11 @@ async def scrape(request: ScrapeRequest):
             pdf_bytes=cache_hit.file_bytes or b"",
             output_format=output_format,
             cache_status="hit",
+            html_text=profile_assets.html_text if profile_assets else None,
+            photo_bytes=profile_assets.photo_bytes if profile_assets else None,
+            photo_content_type=(
+                profile_assets.photo_content_type if profile_assets else None
+            ),
         )
         add_log(
             "Cache HIT no Storage em "
@@ -131,6 +154,9 @@ async def scrape(request: ScrapeRequest):
         pdf_bytes=scrape_result.pdf_bytes,
         output_format=output_format,
         cache_status="miss",
+        html_text=scrape_result.html_text,
+        photo_bytes=scrape_result.photo_bytes,
+        photo_content_type=scrape_result.photo_content_type,
     )
     add_log(
         f"Artefatos estruturados resolvidos em '{artifacts.output_directory}' "

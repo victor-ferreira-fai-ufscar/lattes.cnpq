@@ -3,8 +3,10 @@ import json
 import os
 import re
 import zipfile
+from base64 import b64encode
 from dataclasses import asdict, dataclass
 from datetime import date, datetime
+from html import escape
 from io import BytesIO, StringIO
 from typing import Literal
 
@@ -22,9 +24,9 @@ DEFAULT_OUTPUT_FORMAT: OutputFormat = "docx"
 _FORMAT_ORDER: tuple[OutputFormat, ...] = ("docx", "json", "html", "csv", "pdf")
 _SUPPORTED_FORMATS: set[str] = set(_FORMAT_ORDER) | {"all"}
 _MANIFEST_FILENAME = "manifest.json"
-_SUMMARY_TEMPLATE_NAME = "vitrine-resumo-v1 (refs: claudia_martinez.docx, Antonio José Gonçalves da Cruz devolutiva 1.docx)"
+_SUMMARY_TEMPLATE_NAME = "vitrine-resumo-v2-com-foto (refs: claudia_martinez.docx, Antonio José Gonçalves da Cruz devolutiva 1.docx)"
 _DEFAULT_STORAGE_ROOT = "structured/outputs"
-_DEFAULT_TEMPLATE_VERSION = "v2"
+_DEFAULT_TEMPLATE_VERSION = "v3"
 
 
 @dataclass(frozen=True)
@@ -57,6 +59,7 @@ class ExportSummaryContext:
     focus_topics: str
     ods: list[str]
     source_excerpt: str
+    has_profile_photo: bool = False
 
 
 def normalize_output_format(value: str | None) -> OutputFormat:
@@ -99,6 +102,13 @@ def build_curriculo_output_label(nome: str, ultima_atualizacao: date) -> str:
     return f"{_normalize_display_name(nome)} - {ultima_atualizacao.isoformat()}"
 
 
+def build_curriculo_docx_filename(nome: str, ultima_atualizacao: date) -> str:
+    normalized = re.sub(
+        r"-+", "-", _normalize_display_name(nome).replace(" ", "-")
+    ).strip("-")
+    return f"perfil-vitrine-{normalized}-{ultima_atualizacao.isoformat()}.docx"
+
+
 def build_curriculo_storage_folder(nome: str, ultima_atualizacao: date) -> str:
     return "/".join(
         [
@@ -126,11 +136,13 @@ def _package_zip_filename(nome: str, ultima_atualizacao: date) -> str:
     return f"pacote-{slugify_nome(nome)}-{ultima_atualizacao.isoformat()}.zip"
 
 
-def _artifact_file_specs() -> dict[str, tuple[str, str]]:
+def _artifact_file_specs(
+    nome: str, ultima_atualizacao: date
+) -> dict[str, tuple[str, str]]:
     return {
         "pdf": ("curriculo-lattes.pdf", "application/pdf"),
         "docx": (
-            "perfil-vitrine.docx",
+            build_curriculo_docx_filename(nome, ultima_atualizacao),
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         ),
         "json": ("dados-extraidos.json", "application/json"),
@@ -368,7 +380,7 @@ def _build_source_excerpt(lines: list[str]) -> str:
 
 
 def build_export_summary_context(
-    texto_extraido: str, nome: str
+    texto_extraido: str, nome: str, *, has_profile_photo: bool = False
 ) -> ExportSummaryContext:
     lines = _clean_text_lines(texto_extraido)
     summary = _build_summary_paragraph(lines, nome)
@@ -389,6 +401,7 @@ def build_export_summary_context(
         focus_topics=focus_topics,
         ods=ods,
         source_excerpt=excerpt,
+        has_profile_photo=has_profile_photo,
     )
 
 
@@ -413,6 +426,7 @@ def _write_json_bytes(
         "template_docx": _SUMMARY_TEMPLATE_NAME,
         "gerado_em": datetime.now().isoformat(),
         "resumo_contextual": asdict(context),
+        "foto_extraida": context.has_profile_photo,
         "texto_extraido": texto_extraido,
     }
     return json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
@@ -424,6 +438,8 @@ def _write_html_bytes(
     ultima_atualizacao: date,
     cache_status: str | None,
     context: ExportSummaryContext,
+    photo_bytes: bytes | None,
+    photo_content_type: str | None,
 ) -> bytes:
     social_html = "".join(f"<li>{link}</li>" for link in context.social_links)
     if not social_html:
@@ -431,13 +447,21 @@ def _write_html_bytes(
     ods_html = "".join(f"<li>{item}</li>" for item in context.ods)
     if not ods_html:
         ods_html = "<li>Não inferido automaticamente.</li>"
+    photo_html = ""
+    if photo_bytes:
+        content_type = photo_content_type or "image/png"
+        photo_src = b64encode(photo_bytes).decode("ascii")
+        photo_html = (
+            f'<div class="portrait"><img alt="Foto de perfil de {escape(nome)}" '
+            f'src="data:{content_type};base64,{photo_src}" /></div>'
+        )
 
     html = f"""<!DOCTYPE html>
 <html lang=\"pt-BR\">
   <head>
     <meta charset=\"utf-8\" />
     <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
-    <title>Perfil Vitrine - {nome}</title>
+    <title>Perfil Vitrine - {escape(nome)}</title>
     <style>
       :root {{
         color-scheme: light;
@@ -450,9 +474,13 @@ def _write_html_bytes(
       body {{ margin: 0; font-family: Georgia, \"Times New Roman\", serif; background: linear-gradient(180deg, #fbf7ef 0%, var(--bg) 100%); color: var(--ink); }}
       main {{ width: min(980px, calc(100% - 32px)); margin: 32px auto; padding: 32px; background: var(--panel); border: 1px solid var(--line); border-radius: 28px; box-shadow: 0 24px 80px -56px rgba(15, 23, 42, 0.55); }}
       h1, h2 {{ margin-top: 0; }}
+            .hero {{ display: grid; grid-template-columns: minmax(180px, 240px) 1fr; gap: 24px; align-items: start; margin-bottom: 24px; }}
       .tag {{ display: inline-block; margin-bottom: 12px; padding: 6px 12px; background: rgba(154, 52, 18, 0.12); color: var(--accent); border-radius: 999px; font-weight: 700; font-size: 0.85rem; }}
       .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }}
       .card {{ padding: 18px; border-radius: 18px; border: 1px solid var(--line); background: rgba(255,255,255,0.76); }}
+            .portrait {{ border-radius: 22px; overflow: hidden; border: 1px solid var(--line); background: linear-gradient(180deg, #f7ede0 0%, #fff 100%); min-height: 220px; display: flex; align-items: center; justify-content: center; }}
+            .portrait img {{ display: block; width: 100%; height: auto; object-fit: cover; }}
+            .muted {{ color: #6b7280; }}
       p, li {{ line-height: 1.7; }}
       pre {{ white-space: pre-wrap; font-family: inherit; margin: 0; }}
     </style>
@@ -460,15 +488,21 @@ def _write_html_bytes(
   <body>
     <main>
       <span class=\"tag\">Perfil Vitrine resumido</span>
-      <h1>{nome}</h1>
-      <p>Última atualização do currículo: {ultima_atualizacao.isoformat()} | Origem: {cache_status or 'não informada'}</p>
+            <div class=\"hero\">
+                {photo_html or '<div class="portrait"><p class="muted">Foto não extraída automaticamente.</p></div>'}
+                <div>
+                    <h1>{escape(nome)}</h1>
+                    <p><strong>Área do conhecimento:</strong> {escape(context.knowledge_area)}</p>
+                    <p class=\"muted\">Última atualização do currículo: {ultima_atualizacao.isoformat()} | Origem: {escape(cache_status or 'não informada')}</p>
+                    <div class=\"card\"><h2>Parágrafo síntese</h2><p>{escape(context.summary_paragraph)}</p></div>
+                </div>
+            </div>
       <div class=\"grid\">
-        <section class=\"card\"><h2>Parágrafo síntese</h2><p>{context.summary_paragraph}</p></section>
-        <section class=\"card\"><h2>Área do conhecimento</h2><p>{context.knowledge_area}</p></section>
-        <section class=\"card\"><h2>Palavras-chave</h2><p>{context.keywords}</p></section>
+                <section class=\"card\"><h2>Palavras-chave</h2><p>{escape(context.keywords)}</p></section>
         <section class=\"card\"><h2>ODS</h2><ul>{ods_html}</ul></section>
         <section class=\"card\"><h2>Redes e plataformas</h2><ul>{social_html}</ul></section>
-        <section class=\"card\"><h2>Trecho-base</h2><pre>{context.source_excerpt}</pre></section>
+                <section class=\"card\"><h2>Temas de interesse</h2><p>{escape(context.focus_topics)}</p></section>
+                <section class=\"card\"><h2>Trecho-base</h2><pre>{escape(context.source_excerpt)}</pre></section>
       </div>
     </main>
   </body>
@@ -529,9 +563,13 @@ def _write_docx_bytes(
     ultima_atualizacao: date,
     cache_status: str | None,
     context: ExportSummaryContext,
+    photo_bytes: bytes | None,
 ) -> bytes:
     try:
         from docx import Document
+        from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from docx.shared import Cm, Pt, RGBColor
     except ImportError as exc:
         raise ValueError(
             "Dependência 'python-docx' não encontrada. Atualize o backend com 'uv sync'."
@@ -539,44 +577,145 @@ def _write_docx_bytes(
 
     document = Document()
 
-    def add_field(label: str, value: str | list[str]) -> None:
-        document.add_paragraph(label)
-        if isinstance(value, list):
-            if value:
-                for item in value:
-                    document.add_paragraph(item)
-            else:
-                document.add_paragraph("Não identificado automaticamente.")
-        else:
-            document.add_paragraph(value)
+    section = document.sections[0]
+    section.top_margin = Cm(1.8)
+    section.bottom_margin = Cm(1.8)
+    section.left_margin = Cm(1.8)
+    section.right_margin = Cm(1.8)
 
-    add_field("CAMPO 1 – NOME", nome)
-    add_field("CAMPO 2 – PARÁGRAFO SÍNTESE", context.summary_paragraph)
-    add_field("CAMPO 3 – PALAVRAS-CHAVE", context.keywords)
-    add_field("CAMPO 4 – ÁREA DO CONHECIMENTO", context.knowledge_area)
-    add_field(
-        "CAMPO 5 – ODS",
-        context.ods or ["Não inferido automaticamente a partir do currículo extraído."],
+    normal_style = document.styles["Normal"]
+    normal_style.font.name = "Aptos"
+    normal_style.font.size = Pt(10.5)
+
+    accent = RGBColor(0x9A, 0x34, 0x12)
+    muted = RGBColor(0x5B, 0x63, 0x70)
+
+    def add_heading(text: str) -> None:
+        paragraph = document.add_paragraph()
+        paragraph.paragraph_format.space_before = Pt(12)
+        paragraph.paragraph_format.space_after = Pt(6)
+        run = paragraph.add_run(text)
+        run.bold = True
+        run.font.size = Pt(12)
+        run.font.color.rgb = accent
+
+    def add_body(text: str) -> None:
+        paragraph = document.add_paragraph(text)
+        paragraph.paragraph_format.space_after = Pt(6)
+        paragraph.paragraph_format.line_spacing = 1.25
+
+    def add_list(items: list[str], empty_message: str) -> None:
+        if not items:
+            add_body(empty_message)
+            return
+        for item in items:
+            paragraph = document.add_paragraph(style="List Bullet")
+            paragraph.paragraph_format.space_after = Pt(3)
+            paragraph.add_run(item)
+
+    overline = document.add_paragraph()
+    overline.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    overline_run = overline.add_run("PERFIL VITRINE")
+    overline_run.bold = True
+    overline_run.font.size = Pt(10)
+    overline_run.font.color.rgb = accent
+
+    hero = document.add_table(rows=1, cols=2)
+    hero.autofit = False
+    hero.columns[0].width = Cm(4.8)
+    hero.columns[1].width = Cm(11.8)
+
+    photo_cell = hero.rows[0].cells[0]
+    photo_cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+    photo_paragraph = photo_cell.paragraphs[0]
+    photo_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    if photo_bytes:
+        photo_paragraph.add_run().add_picture(BytesIO(photo_bytes), width=Cm(4.2))
+    else:
+        placeholder = photo_paragraph.add_run("Foto não extraída automaticamente")
+        placeholder.italic = True
+        placeholder.font.color.rgb = muted
+
+    info_cell = hero.rows[0].cells[1]
+    info_cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.TOP
+    title = info_cell.paragraphs[0]
+    title.paragraph_format.space_after = Pt(4)
+    title_run = title.add_run(nome)
+    title_run.bold = True
+    title_run.font.size = Pt(18)
+    title_run.font.color.rgb = RGBColor(0x1F, 0x2A, 0x37)
+
+    subtitle = info_cell.add_paragraph()
+    subtitle.paragraph_format.space_after = Pt(4)
+    subtitle_run = subtitle.add_run(context.knowledge_area)
+    subtitle_run.font.size = Pt(11)
+    subtitle_run.font.color.rgb = accent
+
+    meta = info_cell.add_paragraph()
+    meta.paragraph_format.space_after = Pt(8)
+    meta_run = meta.add_run(
+        f"Última atualização do currículo: {ultima_atualizacao.isoformat()} | Origem: {cache_status or 'não informada'}"
     )
-    add_field(
-        "CAMPO 6 – REDES SOCIAIS E PLATAFORMAS EDUCACIONAIS",
-        context.social_links
-        or ["Não identificadas automaticamente no currículo extraído."],
+    meta_run.italic = True
+    meta_run.font.size = Pt(9.5)
+    meta_run.font.color.rgb = muted
+
+    synthesis_label = info_cell.add_paragraph()
+    synthesis_label.paragraph_format.space_after = Pt(2)
+    synthesis_label_run = synthesis_label.add_run("Parágrafo síntese")
+    synthesis_label_run.bold = True
+    synthesis_label_run.font.color.rgb = accent
+    synthesis = info_cell.add_paragraph(context.summary_paragraph)
+    synthesis.paragraph_format.line_spacing = 1.25
+    synthesis.paragraph_format.space_after = Pt(0)
+
+    add_heading("Palavras-chave")
+    add_body(context.keywords)
+
+    add_heading("ODS")
+    add_list(
+        context.ods,
+        "Não inferido automaticamente a partir do currículo extraído.",
     )
-    add_field("CAMPO 7 – TEMAS DE INTERESSE", context.focus_topics)
-    add_field(
-        "CAMPO 8 – FOTO",
-        "Imagem não disponível na extração automática do Lattes. Inserção manual necessária.",
+
+    add_heading("Redes sociais e plataformas educacionais")
+    add_list(
+        context.social_links,
+        "Não identificadas automaticamente no currículo extraído.",
     )
-    add_field("CAMPO 9 – TRECHO-BASE PARA EDIÇÃO", context.source_excerpt)
-    add_field(
-        "CAMPO 10 – METADADOS",
-        f"Última atualização do currículo: {ultima_atualizacao.isoformat()} | Origem: {cache_status or 'não informada'} | Modelo editorial: {_SUMMARY_TEMPLATE_NAME}",
+
+    add_heading("Temas de interesse")
+    add_body(context.focus_topics)
+
+    add_heading("Trecho-base para edição")
+    add_body(context.source_excerpt)
+
+    add_heading("Metadados")
+    add_body(
+        f"Modelo editorial: {_SUMMARY_TEMPLATE_NAME}. Foto extraída automaticamente: {'sim' if context.has_profile_photo else 'não'}."
     )
 
     buffer = BytesIO()
     document.save(buffer)
     return buffer.getvalue()
+
+
+def _merge_source_texts(pdf_text: str, html_text: str | None) -> str:
+    if not html_text:
+        return pdf_text
+    if not pdf_text:
+        return html_text
+
+    merged_lines: list[str] = []
+    seen: set[str] = set()
+    for source in [pdf_text, html_text]:
+        for line in _clean_text_lines(source):
+            key = line.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            merged_lines.append(line)
+    return "\n".join(merged_lines)
 
 
 def _build_artifact_contents(
@@ -589,10 +728,18 @@ def _build_artifact_contents(
     pdf_bytes: bytes,
     requested_formats: list[OutputFormat],
     cache_status: str | None,
+    html_text: str | None = None,
+    photo_bytes: bytes | None = None,
+    photo_content_type: str | None = None,
 ) -> tuple[dict[str, tuple[str, bytes, str]], ExportSummaryContext, int]:
-    texto_extraido = _extrair_texto_pdf_bytes(pdf_bytes).strip()
-    context = build_export_summary_context(texto_extraido, nome)
-    specs = _artifact_file_specs()
+    texto_pdf = _extrair_texto_pdf_bytes(pdf_bytes).strip()
+    texto_extraido = _merge_source_texts(texto_pdf, html_text).strip()
+    context = build_export_summary_context(
+        texto_extraido,
+        nome,
+        has_profile_photo=photo_bytes is not None,
+    )
+    specs = _artifact_file_specs(nome, ultima_atualizacao)
     contents: dict[str, tuple[str, bytes, str]] = {}
 
     for file_format in requested_formats:
@@ -622,6 +769,8 @@ def _build_artifact_contents(
                     ultima_atualizacao=ultima_atualizacao,
                     cache_status=cache_status,
                     context=context,
+                    photo_bytes=photo_bytes,
+                    photo_content_type=photo_content_type,
                 ),
                 content_type,
             )
@@ -647,6 +796,7 @@ def _build_artifact_contents(
                     ultima_atualizacao=ultima_atualizacao,
                     cache_status=cache_status,
                     context=context,
+                    photo_bytes=photo_bytes,
                 ),
                 content_type,
             )
@@ -688,9 +838,16 @@ def _coerce_int(value: object, default: int = 0) -> int:
 
 
 def _artifact_format_by_filename(filename: str) -> str | None:
-    for file_format, (expected_filename, _) in _artifact_file_specs().items():
-        if filename == expected_filename:
-            return file_format
+    if filename.startswith("perfil-vitrine-") and filename.endswith(".docx"):
+        return "docx"
+    if filename == "curriculo-lattes.pdf":
+        return "pdf"
+    if filename == "dados-extraidos.json":
+        return "json"
+    if filename == "curriculo-lattes.html":
+        return "html"
+    if filename == "dados-extraidos.csv":
+        return "csv"
     if filename.endswith(".zip"):
         return "zip"
     return None
@@ -698,6 +855,8 @@ def _artifact_format_by_filename(filename: str) -> str | None:
 
 def _build_bundle_from_storage(
     *,
+    nome: str,
+    ultima_atualizacao: date,
     folder: str,
     output_label: str,
     output_format: OutputFormat,
@@ -708,7 +867,7 @@ def _build_bundle_from_storage(
 ) -> GeneratedArtifactBundle:
     files = list_storage_files(folder)
     files_by_name = {item.filename: item for item in files}
-    specs = _artifact_file_specs()
+    specs = _artifact_file_specs(nome, ultima_atualizacao)
 
     generated_files: list[GeneratedArtifact] = []
     for file_format in requested_formats:
@@ -756,6 +915,7 @@ def _build_manifest_payload(
     output_label: str,
     extracted_text_length: int,
     generated_files: list[GeneratedArtifact],
+    has_profile_photo: bool,
 ) -> bytes:
     payload = {
         "nome": nome,
@@ -766,6 +926,7 @@ def _build_manifest_payload(
         "template_version": _artifact_template_version(),
         "generated_at": datetime.now().isoformat(),
         "extracted_text_length": extracted_text_length,
+        "has_profile_photo": has_profile_photo,
         "generated_files": [asdict(item) for item in generated_files],
     }
     return json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
@@ -829,11 +990,14 @@ def ensure_curriculo_artifacts(
     pdf_bytes: bytes,
     output_format: OutputFormat,
     cache_status: str | None = None,
+    html_text: str | None = None,
+    photo_bytes: bytes | None = None,
+    photo_content_type: str | None = None,
 ) -> GeneratedArtifactBundle:
     folder = build_curriculo_storage_folder(nome, ultima_atualizacao)
     output_label = build_curriculo_output_label(nome, ultima_atualizacao)
     requested_formats = expand_output_formats(output_format)
-    specs = _artifact_file_specs()
+    specs = _artifact_file_specs(nome, ultima_atualizacao)
     manifest = _load_manifest(folder) or {}
     existing = _artifact_lookup(folder)
 
@@ -855,6 +1019,9 @@ def ensure_curriculo_artifacts(
             pdf_bytes=pdf_bytes,
             requested_formats=missing_formats,
             cache_status=cache_status,
+            html_text=html_text,
+            photo_bytes=photo_bytes,
+            photo_content_type=photo_content_type,
         )
         for _, (filename, file_bytes, content_type) in contents.items():
             upload_file_bytes(
@@ -884,6 +1051,7 @@ def ensure_curriculo_artifacts(
             output_label=output_label,
             extracted_text_length=extracted_text_length,
             generated_files=generated_files,
+            has_profile_photo=photo_bytes is not None,
         )
         upload_file_bytes(
             _MANIFEST_FILENAME,
@@ -898,6 +1066,8 @@ def ensure_curriculo_artifacts(
             force_regenerate=True,
         )
         bundle = _build_bundle_from_storage(
+            nome=nome,
+            ultima_atualizacao=ultima_atualizacao,
             folder=folder,
             output_label=output_label,
             output_format=output_format,
@@ -924,6 +1094,8 @@ def ensure_curriculo_artifacts(
         force_regenerate=False,
     )
     bundle = _build_bundle_from_storage(
+        nome=nome,
+        ultima_atualizacao=ultima_atualizacao,
         folder=folder,
         output_label=str(manifest.get("output_label") or output_label),
         output_format=output_format,

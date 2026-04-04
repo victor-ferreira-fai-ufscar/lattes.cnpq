@@ -24,6 +24,17 @@ _BASE_URL = "https://buscatextual.cnpq.br/buscatextual/busca.do?metodo=apresenta
 class LattesScrapeResult:
     pdf_bytes: bytes
     ultima_atualizacao: date
+    html_text: str = ""
+    photo_bytes: bytes | None = None
+    photo_content_type: str | None = None
+
+
+@dataclass(frozen=True)
+class LattesProfileAssetsResult:
+    ultima_atualizacao: date
+    html_text: str
+    photo_bytes: bytes | None = None
+    photo_content_type: str | None = None
 
 
 @dataclass(frozen=True)
@@ -204,6 +215,115 @@ async def _tenta_abrir_cv_final(page, botao):
     if _parece_pagina_cv(page.url, texto_page):
         return page
     return None
+
+
+async def _capturar_foto_perfil(cv_page) -> tuple[bytes | None, str | None]:
+    imagens = cv_page.locator("img")
+    total_imagens = await imagens.count()
+    if total_imagens == 0:
+        return None, None
+
+    try:
+        candidatos = await imagens.evaluate_all(
+            """
+            (elements) => elements.map((element, index) => {
+              const rect = element.getBoundingClientRect();
+              const style = window.getComputedStyle(element);
+              return {
+                index,
+                width: rect.width || element.naturalWidth || 0,
+                height: rect.height || element.naturalHeight || 0,
+                top: rect.top || 0,
+                left: rect.left || 0,
+                src: element.currentSrc || element.src || "",
+                alt: (element.alt || "").toLowerCase(),
+                className: String(element.className || "").toLowerCase(),
+                id: String(element.id || "").toLowerCase(),
+                visible:
+                  style.display !== "none" &&
+                  style.visibility !== "hidden" &&
+                  style.opacity !== "0" &&
+                  (rect.width || element.naturalWidth || 0) >= 48 &&
+                  (rect.height || element.naturalHeight || 0) >= 48,
+              };
+            })
+            """
+        )
+    except Exception:
+        return None, None
+
+    melhor_indice: int | None = None
+    melhor_score = float("-inf")
+
+    for candidato in candidatos:
+        if not candidato.get("visible"):
+            continue
+
+        largura = float(candidato.get("width") or 0)
+        altura = float(candidato.get("height") or 0)
+        if largura <= 0 or altura <= 0:
+            continue
+
+        contexto = " ".join(
+            [
+                str(candidato.get("src") or "").lower(),
+                str(candidato.get("alt") or "").lower(),
+                str(candidato.get("className") or "").lower(),
+                str(candidato.get("id") or "").lower(),
+            ]
+        )
+
+        penalidades = 0.0
+        if any(
+            token in contexto
+            for token in [
+                "logo",
+                "marca",
+                "banner",
+                "captcha",
+                "icon",
+                "icone",
+                "lattes",
+                "cnpq",
+            ]
+        ):
+            penalidades += 12000
+
+        razao_retrato = altura / largura if largura else 0
+        bonus_retrato = 3000 if 0.9 <= razao_retrato <= 1.6 else 0
+        bonus_topo = max(0.0, 800.0 - abs(float(candidato.get("top") or 0) - 220.0))
+        score = (largura * altura) + bonus_retrato + bonus_topo - penalidades
+
+        if score > melhor_score:
+            melhor_score = score
+            melhor_indice = int(candidato.get("index") or 0)
+
+    if melhor_indice is None:
+        return None, None
+
+    try:
+        alvo = imagens.nth(melhor_indice)
+        await alvo.scroll_into_view_if_needed(timeout=5000)
+        foto_bytes = await alvo.screenshot(type="png")
+    except Exception:
+        return None, None
+
+    if not foto_bytes:
+        return None, None
+
+    return foto_bytes, "image/png"
+
+
+async def _coletar_assets_curriculo(cv_page) -> LattesProfileAssetsResult:
+    texto_cv = await cv_page.locator("body").inner_text(timeout=12000)
+    ultima_atualizacao = _extrair_ultima_atualizacao(texto_cv)
+    photo_bytes, photo_content_type = await _capturar_foto_perfil(cv_page)
+    return LattesProfileAssetsResult(
+        ultima_atualizacao=ultima_atualizacao,
+        html_text=texto_cv,
+        photo_bytes=photo_bytes,
+        photo_content_type=photo_content_type,
+    )
 
 
 async def _executar_busca(page, nome: str):
@@ -402,12 +522,14 @@ async def scrape_lattes(nome: str) -> LattesScrapeResult:
             page = await context.new_page()
             cv_page = await _abrir_curriculo(page, nome)
             await cv_page.wait_for_load_state("domcontentloaded")
-            texto_cv = await cv_page.locator("body").inner_text(timeout=12000)
-            ultima_atualizacao = _extrair_ultima_atualizacao(texto_cv)
+            assets = await _coletar_assets_curriculo(cv_page)
             pdf_bytes = await cv_page.pdf(format="A4")
             return LattesScrapeResult(
                 pdf_bytes=pdf_bytes,
-                ultima_atualizacao=ultima_atualizacao,
+                ultima_atualizacao=assets.ultima_atualizacao,
+                html_text=assets.html_text,
+                photo_bytes=assets.photo_bytes,
+                photo_content_type=assets.photo_content_type,
             )
         finally:
             await browser.close()
@@ -430,13 +552,39 @@ async def scrape_lattes_by_href(nome: str, href: str) -> LattesScrapeResult:
             page = await context.new_page()
             cv_page = await _abrir_curriculo(page, nome, href_alvo=href)
             await cv_page.wait_for_load_state("domcontentloaded")
-            texto_cv = await cv_page.locator("body").inner_text(timeout=12000)
-            ultima_atualizacao = _extrair_ultima_atualizacao(texto_cv)
+            assets = await _coletar_assets_curriculo(cv_page)
             pdf_bytes = await cv_page.pdf(format="A4")
             return LattesScrapeResult(
                 pdf_bytes=pdf_bytes,
-                ultima_atualizacao=ultima_atualizacao,
+                ultima_atualizacao=assets.ultima_atualizacao,
+                html_text=assets.html_text,
+                photo_bytes=assets.photo_bytes,
+                photo_content_type=assets.photo_content_type,
             )
+        finally:
+            await browser.close()
+
+
+async def scrape_lattes_profile_assets_by_href(
+    nome: str, href: str
+) -> LattesProfileAssetsResult:
+    """Extrai HTML e foto do currículo a partir de um candidato já selecionado."""
+    browser_name = os.environ.get("PLAYWRIGHT_BROWSER", "chromium").lower()
+    headless = _is_true(os.environ.get("PLAYWRIGHT_HEADLESS", "true"))
+
+    async with async_playwright() as p:
+        browser_type = getattr(p, browser_name, p.chromium)
+        browser = await browser_type.launch(
+            headless=headless,
+            args=["--no-sandbox", "--disable-dev-shm-usage"],
+        )
+
+        try:
+            context = await browser.new_context(locale="pt-BR")
+            page = await context.new_page()
+            cv_page = await _abrir_curriculo(page, nome, href_alvo=href)
+            await cv_page.wait_for_load_state("domcontentloaded")
+            return await _coletar_assets_curriculo(cv_page)
         finally:
             await browser.close()
 

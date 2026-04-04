@@ -210,6 +210,9 @@ async def _process_batch(
                 pdf_bytes=scrape_result.pdf_bytes,
                 output_format=output_format,
                 cache_status="miss",
+                html_text=scrape_result.html_text,
+                photo_bytes=scrape_result.photo_bytes,
+                photo_content_type=scrape_result.photo_content_type,
             )
 
             item = {

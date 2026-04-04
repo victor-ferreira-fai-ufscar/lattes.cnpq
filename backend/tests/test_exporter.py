@@ -75,6 +75,9 @@ def test_ensure_curriculo_artifacts_uses_storage_cache(monkeypatch):
         "csv",
         "pdf",
     ]
+    assert bundle.generated_files[0].filename == (
+        "perfil-vitrine-Claudia-Maria-Simões-Martinez-2026-04-04.docx"
+    )
     assert bundle.zip_file is not None
     assert bundle.zip_file.relative_path.endswith(
         "pacote-claudia-maria-simoes-martinez-2026-04-04.zip"
@@ -108,7 +111,7 @@ def test_upload_batch_zip_saves_zip_to_storage(monkeypatch):
         batch_filename="lattes-lote-20260404-100000.zip",
         entries=[
             (
-                "Claudia Maria Simões Martinez - 2026-04-04/perfil-vitrine.docx",
+                "Claudia Maria Simões Martinez - 2026-04-04/perfil-vitrine-Claudia-Maria-Simões-Martinez-2026-04-04.docx",
                 b"docx-bytes",
             ),
             ("Claudia Maria Simões Martinez - 2026-04-04/dados-extraidos.json", b"{}"),
