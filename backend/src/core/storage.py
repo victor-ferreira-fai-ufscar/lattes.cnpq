@@ -24,6 +24,16 @@ class StorageCachedPdfResult:
     file_bytes: bytes | None = None
 
 
+@dataclass(frozen=True)
+class StorageFileResult:
+    object_path: str
+    filename: str
+    download_url: str
+    last_modified: datetime | None = None
+    content_type: str | None = None
+    file_bytes: bytes | None = None
+
+
 def _is_true(value: str) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
@@ -142,6 +152,106 @@ def _list_storage_objects(
     return [item for item in items if isinstance(item, dict)]
 
 
+def _storage_bucket_config(*, folder: str | None = None) -> tuple[str, str, bool, int]:
+    bucket = os.getenv("SUPABASE_STORAGE_BUCKET", "lattes-cvs").strip() or "lattes-cvs"
+    effective_folder = (
+        folder.strip().strip("/")
+        if folder is not None
+        else os.getenv("SUPABASE_STORAGE_FOLDER", "raw").strip().strip("/")
+    )
+    is_public = _is_true(os.getenv("SUPABASE_STORAGE_PUBLIC", "true"))
+    signed_url_ttl = int(os.getenv("SUPABASE_SIGNED_URL_EXPIRES_IN", "3600"))
+    return bucket, effective_folder, is_public, signed_url_ttl
+
+
+def _is_storage_not_found_error(exc: Exception) -> bool:
+    status_code = getattr(exc, "status_code", None)
+    if status_code == 404:
+        return True
+
+    response = getattr(exc, "response", None)
+    if getattr(response, "status_code", None) == 404:
+        return True
+
+    for arg in getattr(exc, "args", ()):  # pragma: no branch - tiny loop
+        if isinstance(arg, dict):
+            raw_status = arg.get("statusCode") or arg.get("status_code")
+            raw_error = str(arg.get("error") or "").strip().lower()
+            if raw_status == 404 or raw_error == "not_found":
+                return True
+
+    message = str(exc).lower()
+    return (
+        "statuscode': 404" in message
+        or "not_found" in message
+        or "object not found" in message
+    )
+
+
+def download_storage_file_bytes(object_path: str) -> bytes | None:
+    bucket, _, _, _ = _storage_bucket_config()
+    supabase = _create_supabase_client()
+    try:
+        downloaded = supabase.storage.from_(bucket).download(object_path)
+    except Exception as exc:
+        if _is_storage_not_found_error(exc):
+            return None
+        raise
+
+    if isinstance(downloaded, bytes):
+        return downloaded
+    if hasattr(downloaded, "content"):
+        return downloaded.content
+    if hasattr(downloaded, "data"):
+        return downloaded.data
+    return None
+
+
+def list_storage_files(
+    folder: str,
+    *,
+    include_bytes: bool = False,
+) -> list[StorageFileResult]:
+    bucket, effective_folder, is_public, signed_url_ttl = _storage_bucket_config(
+        folder=folder
+    )
+    supabase = _create_supabase_client()
+    items = _list_storage_objects(supabase, bucket=bucket, folder=effective_folder)
+
+    results: list[StorageFileResult] = []
+    for item in items:
+        filename = str(item.get("name") or "").strip()
+        if not filename:
+            continue
+
+        object_path = f"{effective_folder}/{filename}" if effective_folder else filename
+        file_bytes = download_storage_file_bytes(object_path) if include_bytes else None
+        results.append(
+            StorageFileResult(
+                object_path=object_path,
+                filename=filename,
+                download_url=_build_download_url(
+                    supabase,
+                    bucket=bucket,
+                    object_path=object_path,
+                    is_public=is_public,
+                    signed_url_ttl=signed_url_ttl,
+                ),
+                last_modified=_parse_iso_datetime(
+                    item.get("updated_at") or item.get("last_accessed_at")
+                ),
+                content_type=(
+                    str(item.get("metadata", {}).get("mimetype") or "").strip()
+                    if isinstance(item.get("metadata"), dict)
+                    else None
+                ),
+                file_bytes=file_bytes,
+            )
+        )
+
+    return results
+
+
 def _effective_cache_max_age_days(value: int | None) -> int:
     if value is not None:
         return max(0, value)
@@ -160,10 +270,7 @@ def find_fresh_curriculo_pdf(
     include_bytes: bool = False,
     now: datetime | None = None,
 ) -> StorageCachedPdfResult | None:
-    bucket = os.getenv("SUPABASE_STORAGE_BUCKET", "lattes-cvs").strip() or "lattes-cvs"
-    folder = os.getenv("SUPABASE_STORAGE_FOLDER", "raw").strip().strip("/")
-    is_public = _is_true(os.getenv("SUPABASE_STORAGE_PUBLIC", "true"))
-    signed_url_ttl = int(os.getenv("SUPABASE_SIGNED_URL_EXPIRES_IN", "3600"))
+    bucket, folder, is_public, signed_url_ttl = _storage_bucket_config()
     cache_max_age_days = _effective_cache_max_age_days(max_age_days)
 
     supabase = _create_supabase_client()
@@ -239,14 +346,9 @@ def upload_file_bytes(
     content_type: str,
     folder: str | None = None,
 ) -> StorageUploadResult:
-    bucket = os.getenv("SUPABASE_STORAGE_BUCKET", "lattes-cvs").strip() or "lattes-cvs"
-    effective_folder = (
-        folder.strip().strip("/")
-        if folder is not None
-        else os.getenv("SUPABASE_STORAGE_FOLDER", "raw").strip().strip("/")
+    bucket, effective_folder, is_public, signed_url_ttl = _storage_bucket_config(
+        folder=folder
     )
-    is_public = _is_true(os.getenv("SUPABASE_STORAGE_PUBLIC", "true"))
-    signed_url_ttl = int(os.getenv("SUPABASE_SIGNED_URL_EXPIRES_IN", "3600"))
 
     object_path = f"{effective_folder}/{filename}" if effective_folder else filename
     supabase = _create_supabase_client()

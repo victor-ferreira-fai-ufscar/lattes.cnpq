@@ -26,6 +26,7 @@ export type SearchResponse = {
 export type ScrapeResponse = {
   nome: string;
   cache_status?: "hit" | "miss";
+  artifacts_cache_status?: "hit" | "miss";
   cache_last_modified?: string;
   cache_lookup_error?: string | null;
   ultima_atualizacao_curriculo: string;
@@ -34,9 +35,13 @@ export type ScrapeResponse = {
   download_pdf_url: string;
   output_format: OutputFormat;
   output_directory: string;
+  output_label?: string;
   generated_files: GeneratedFile[];
   extracted_text_length?: number;
   template_name?: string | null;
+  zip_arquivo?: string | null;
+  zip_storage_path?: string | null;
+  zip_download_url?: string | null;
   logs?: string[];
   duracao_segundos?: number;
 };
@@ -60,6 +65,7 @@ export type BatchItemSuccess = {
   nome: string;
   status: "sucesso";
   cache_status?: "hit" | "miss";
+  artifacts_cache_status?: "hit" | "miss";
   cache_last_modified?: string;
   ultima_atualizacao_curriculo: string;
   arquivo_pdf: string;
@@ -67,6 +73,7 @@ export type BatchItemSuccess = {
   download_pdf_url: string;
   output_format: OutputFormat;
   output_directory: string;
+  output_label?: string;
   generated_files: GeneratedFile[];
   extracted_text_length?: number;
   template_name?: string | null;
@@ -88,6 +95,7 @@ export type BatchScrapeResponse = {
   arquivo: string;
   output_format: OutputFormat;
   output_directory: string;
+  output_label?: string;
   total_nomes_csv: number;
   total_processados: number;
   sucesso: number;

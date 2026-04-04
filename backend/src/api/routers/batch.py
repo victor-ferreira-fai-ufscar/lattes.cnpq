@@ -8,12 +8,12 @@ from fastapi.responses import StreamingResponse
 
 from ...core.exporter import (
     artifacts_to_payload,
-    create_batch_output_dir,
-    create_batch_person_output_dir,
-    create_batch_zip,
+    create_batch_storage_target,
+    download_artifact_bytes,
     DEFAULT_OUTPUT_FORMAT,
-    export_curriculo_artifacts,
+    ensure_curriculo_artifacts,
     normalize_output_format,
+    upload_batch_zip,
 )
 from ...core.scraper import scrape_lattes
 from ...core.storage import (
@@ -110,7 +110,8 @@ async def _process_batch(
 ) -> dict[str, Any]:
     t_total = perf_counter()
     logs: list[str] = []
-    batch_output_dir, relative_batch_output_dir, batch_id = create_batch_output_dir()
+    batch_output_dir, batch_id = create_batch_storage_target()
+    batch_zip_entries: list[tuple[str, bytes]] = []
 
     def add_log(message: str) -> None:
         line = f"[{stamp()}] {message}"
@@ -132,7 +133,7 @@ async def _process_batch(
     cache_lookup_errors = 0
 
     add_log(
-        f"Artefatos deste lote serão salvos em '{relative_batch_output_dir}' "
+        f"ZIP deste lote será salvo em '{batch_output_dir}' "
         f"com formato solicitado '{output_format}'."
     )
 
@@ -151,10 +152,7 @@ async def _process_batch(
                 )
 
             if cache_hit is not None:
-                person_output_dir, relative_person_output_dir = (
-                    create_batch_person_output_dir(relative_batch_output_dir, nome)
-                )
-                artifacts = export_curriculo_artifacts(
+                artifacts = ensure_curriculo_artifacts(
                     nome=nome,
                     ultima_atualizacao=(
                         cache_hit.curriculo_date or cache_hit.last_modified.date()
@@ -164,8 +162,6 @@ async def _process_batch(
                     pdf_download_url=cache_hit.download_url,
                     pdf_bytes=cache_hit.file_bytes or b"",
                     output_format=output_format,
-                    output_directory=person_output_dir,
-                    relative_output_directory=relative_person_output_dir,
                     cache_status="hit",
                 )
                 item = {
@@ -185,9 +181,19 @@ async def _process_batch(
                 resultados.append(item)
                 ok_count += 1
                 cache_hits += 1
+                for artifact in artifacts.generated_files:
+                    artifact_bytes = download_artifact_bytes(artifact)
+                    if artifact_bytes is None:
+                        continue
+                    batch_zip_entries.append(
+                        (
+                            f"{artifacts.output_label}/{artifact.filename}",
+                            artifact_bytes,
+                        )
+                    )
                 add_log(
                     f"[{idx}/{len(nomes)}] Cache HIT para '{nome}' "
-                    f"em {item['duracao_segundos']}s."
+                    f"em {item['duracao_segundos']}s. Artefatos={artifacts.artifacts_cache_status}."
                 )
                 continue
 
@@ -195,10 +201,7 @@ async def _process_batch(
             scrape_result = await scrape_lattes(nome)
             filename = build_curriculo_filename(nome, scrape_result.ultima_atualizacao)
             upload_result = upload_curriculo_pdf(filename, scrape_result.pdf_bytes)
-            person_output_dir, relative_person_output_dir = (
-                create_batch_person_output_dir(relative_batch_output_dir, nome)
-            )
-            artifacts = export_curriculo_artifacts(
+            artifacts = ensure_curriculo_artifacts(
                 nome=nome,
                 ultima_atualizacao=scrape_result.ultima_atualizacao,
                 pdf_filename=filename,
@@ -206,8 +209,6 @@ async def _process_batch(
                 pdf_download_url=upload_result.download_url,
                 pdf_bytes=scrape_result.pdf_bytes,
                 output_format=output_format,
-                output_directory=person_output_dir,
-                relative_output_directory=relative_person_output_dir,
                 cache_status="miss",
             )
 
@@ -224,8 +225,16 @@ async def _process_batch(
             }
             resultados.append(item)
             ok_count += 1
+            for artifact in artifacts.generated_files:
+                artifact_bytes = download_artifact_bytes(artifact)
+                if artifact_bytes is None:
+                    continue
+                batch_zip_entries.append(
+                    (f"{artifacts.output_label}/{artifact.filename}", artifact_bytes)
+                )
             add_log(
-                f"[{idx}/{len(nomes)}] Sucesso para '{nome}' em {item['duracao_segundos']}s."
+                f"[{idx}/{len(nomes)}] Sucesso para '{nome}' em {item['duracao_segundos']}s. "
+                f"Artefatos={artifacts.artifacts_cache_status}."
             )
         except Exception as exc:
             erro_count += 1
@@ -266,26 +275,28 @@ async def _process_batch(
     zip_download_url = None
     zip_error = None
 
-    if ok_count > 0:
+    if batch_zip_entries:
         add_log(f"Gerando ZIP consolidado do lote '{batch_id}'.")
         try:
-            zip_artifact = create_batch_zip(
-                batch_output_directory=batch_output_dir,
-                relative_batch_output_directory=relative_batch_output_dir,
-                batch_id=f"lattes-lote-{now_brasilia().strftime('%Y%m%d-%H%M%S')}",
+            zip_artifact = upload_batch_zip(
+                batch_folder=batch_output_dir,
+                batch_filename=f"lattes-lote-{now_brasilia().strftime('%Y%m%d-%H%M%S')}.zip",
+                entries=batch_zip_entries,
             )
             zip_filename = zip_artifact.filename
             zip_storage_path = zip_artifact.relative_path
             zip_download_url = zip_artifact.download_url
-            add_log("ZIP consolidado gerado com sucesso na pasta local de outputs.")
+            add_log("ZIP consolidado enviado para o Supabase Storage com sucesso.")
         except Exception as exc:
             zip_error = str(exc)
-            add_log(f"Falha ao gerar/enviar ZIP consolidado: {zip_error}")
+            add_log(
+                f"Falha ao gerar/enviar ZIP consolidado para o Storage: {zip_error}"
+            )
 
     return {
         "arquivo": arquivo_nome,
         "output_format": output_format,
-        "output_directory": relative_batch_output_dir,
+        "output_directory": batch_output_dir,
         "total_nomes_csv": len(nomes_all),
         "total_processados": len(nomes),
         "sucesso": ok_count,

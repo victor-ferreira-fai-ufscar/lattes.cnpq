@@ -4,8 +4,7 @@ from fastapi import APIRouter, HTTPException
 
 from ...core.exporter import (
     artifacts_to_payload,
-    create_individual_output_dir,
-    export_curriculo_artifacts,
+    ensure_curriculo_artifacts,
 )
 from ...core.scraper import scrape_lattes, scrape_lattes_by_href
 from ...core.storage import find_fresh_curriculo_pdf, upload_curriculo_pdf
@@ -48,8 +47,7 @@ async def scrape(request: ScrapeRequest):
         )
 
     if cache_hit is not None:
-        output_dir, relative_output_dir = create_individual_output_dir(nome)
-        artifacts = export_curriculo_artifacts(
+        artifacts = ensure_curriculo_artifacts(
             nome=nome,
             ultima_atualizacao=(
                 cache_hit.curriculo_date or cache_hit.last_modified.date()
@@ -59,8 +57,6 @@ async def scrape(request: ScrapeRequest):
             pdf_download_url=cache_hit.download_url,
             pdf_bytes=cache_hit.file_bytes or b"",
             output_format=output_format,
-            output_directory=output_dir,
-            relative_output_directory=relative_output_dir,
             cache_status="hit",
         )
         add_log(
@@ -69,8 +65,8 @@ async def scrape(request: ScrapeRequest):
             f"(modificado em {cache_hit.last_modified.isoformat()})."
         )
         add_log(
-            f"Artefatos gerados em '{relative_output_dir}' "
-            f"nos formatos solicitados ({output_format})."
+            f"Artefatos estruturados resolvidos em '{artifacts.output_directory}' "
+            f"(cache={artifacts.artifacts_cache_status}, formato={output_format})."
         )
         add_log("Request /scrape finalizada com sucesso usando cache.")
         return {
@@ -126,8 +122,7 @@ async def scrape(request: ScrapeRequest):
         "Upload concluído em "
         f"{(perf_counter() - t_upload):.1f}s para '{upload_result.object_path}'."
     )
-    output_dir, relative_output_dir = create_individual_output_dir(nome)
-    artifacts = export_curriculo_artifacts(
+    artifacts = ensure_curriculo_artifacts(
         nome=nome,
         ultima_atualizacao=scrape_result.ultima_atualizacao,
         pdf_filename=filename,
@@ -135,13 +130,11 @@ async def scrape(request: ScrapeRequest):
         pdf_download_url=upload_result.download_url,
         pdf_bytes=scrape_result.pdf_bytes,
         output_format=output_format,
-        output_directory=output_dir,
-        relative_output_directory=relative_output_dir,
         cache_status="miss",
     )
     add_log(
-        f"Artefatos gerados em '{relative_output_dir}' "
-        f"nos formatos solicitados ({output_format})."
+        f"Artefatos estruturados resolvidos em '{artifacts.output_directory}' "
+        f"(cache={artifacts.artifacts_cache_status}, formato={output_format})."
     )
     add_log("Request /scrape finalizada com sucesso.")
 

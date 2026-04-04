@@ -20,6 +20,10 @@ type ScrapeResultCardProps = {
 };
 
 export function ScrapeResultCard({ result }: ScrapeResultCardProps) {
+  const generatedFiles = Array.isArray(result.generated_files)
+    ? result.generated_files
+    : [];
+
   const cacheLabel =
     result.cache_status === "hit"
       ? "Cache reutilizado"
@@ -57,7 +61,7 @@ export function ScrapeResultCard({ result }: ScrapeResultCardProps) {
         </div>
         <CardDescription>
           O curriculo foi localizado e preparado. O PDF continua disponivel e os
-          arquivos solicitados foram salvos na pasta local de outputs.
+          arquivos solicitados foram salvos no Supabase Storage e empacotados para download.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
@@ -101,12 +105,26 @@ export function ScrapeResultCard({ result }: ScrapeResultCardProps) {
               <FolderOpen className="h-3.5 w-3.5" />
               Arquivos gerados
             </div>
-            <p className="text-xs text-slate-600">Pasta: {result.output_directory}</p>
+            <p className="text-xs text-slate-600">
+              Pasta: {result.output_label ?? result.output_directory}
+            </p>
+            <p className="text-xs text-slate-500">Storage: {result.output_directory}</p>
             {result.template_name ? (
               <p className="text-xs text-slate-600">Template DOCX: {result.template_name}</p>
             ) : null}
+            {result.zip_download_url ? (
+              <a
+                className="inline-flex items-center gap-2 text-xs font-semibold text-emerald-900 underline decoration-emerald-300 underline-offset-4"
+                href={result.zip_download_url}
+                rel="noreferrer"
+                target="_blank"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Baixar pacote ZIP
+              </a>
+            ) : null}
             <div className="flex flex-wrap gap-2">
-              {result.generated_files.map((file) => (
+              {generatedFiles.map((file) => (
                 <a
                   key={file.relative_path}
                   className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-medium text-emerald-900 hover:bg-emerald-100"

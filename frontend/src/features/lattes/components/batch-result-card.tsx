@@ -231,7 +231,7 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
 
         <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-900">
           <FolderTree className="h-4 w-4 shrink-0" />
-          Pasta do lote: {result.output_directory}
+          Pasta do lote: {result.output_label ?? result.output_directory}
         </div>
 
         <div className="space-y-3">
@@ -300,14 +300,20 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
                       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-800">
                         Arquivos gerados
                       </p>
-                      <p className="mt-1 text-xs text-slate-600">Pasta: {item.output_directory}</p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        Pasta: {item.output_label ?? item.output_directory}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">Storage: {item.output_directory}</p>
                       {item.template_name ? (
                         <p className="mt-1 text-xs text-slate-600">
                           Template DOCX: {item.template_name}
                         </p>
                       ) : null}
                       <div className="mt-3 flex flex-wrap gap-2">
-                        {item.generated_files.map((file) => (
+                        {(Array.isArray(item.generated_files)
+                          ? item.generated_files
+                          : []
+                        ).map((file) => (
                           <a
                             key={file.relative_path}
                             className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"

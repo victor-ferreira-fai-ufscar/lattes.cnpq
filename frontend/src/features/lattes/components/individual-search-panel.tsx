@@ -101,133 +101,136 @@ export function IndividualSearchPanel({
       </CardHeader>
       <CardContent className="space-y-6">
         <Form {...form}>
-          <form className="space-y-3" onSubmit={handleSearch}>
-            <FormField
-              control={form.control}
-              name="nome"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nome da pessoa</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Ex.: Neocles Alves Pereira"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+          <div className="space-y-6">
+            <form className="space-y-3" onSubmit={handleSearch}>
+              <FormField
+                control={form.control}
+                name="nome"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nome da pessoa</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Ex.: Neocles Alves Pereira"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="flex flex-wrap gap-2">
+                <Button className="w-full sm:w-auto" disabled={isSearching} type="submit">
+                  <Search className="h-4 w-4" />
+                  {isSearching ? "Buscando..." : "Buscar"}
+                </Button>
+                <Button
+                  className="w-full sm:w-auto"
+                  disabled={isSearching || isTryingVariants}
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    void onTrySearchVariants(form.getValues("nome"));
+                  }}
+                >
+                  {isTryingVariants ? "Testando variacoes..." : "Testar variacoes do nome"}
+                </Button>
+              </div>
+            </form>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Pessoas encontradas</p>
+                  <p className="text-sm text-slate-500">
+                    {lastSearchTerm
+                      ? `Ultima busca: ${lastSearchTerm}`
+                      : "Faça uma busca para ver as opções disponíveis."}
+                  </p>
+                </div>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                  {candidates.length} opção(ões)
+                </span>
+              </div>
+
+              {candidates.length > 0 ? (
+                <div className="grid gap-2">
+                  {candidates.map((candidate) => {
+                    const isActive = selectedCandidate?.href === candidate.href;
+                    return (
+                      <button
+                        key={candidate.href}
+                        className={cn(
+                          "rounded-xl border px-4 py-3 text-left transition",
+                          isActive
+                            ? "border-slate-900 bg-slate-900 text-white shadow-sm"
+                            : "border-slate-200 bg-slate-50/70 text-slate-900 hover:border-slate-300 hover:bg-white",
+                        )}
+                        onClick={() => onSelectCandidate(candidate)}
+                        type="button"
+                      >
+                        <p className="font-medium">{candidate.nome}</p>
+                        <p
+                          className={cn(
+                            "mt-1 text-xs",
+                            isActive ? "text-slate-300" : "text-slate-500",
+                          )}
+                        >
+                          {candidate.href}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-500">
+                  Depois da busca, as opções encontradas aparecerão aqui.
+                </div>
               )}
-            />
-            <div className="flex flex-wrap gap-2">
-              <Button className="w-full sm:w-auto" disabled={isSearching} type="submit">
-                <Search className="h-4 w-4" />
-                {isSearching ? "Buscando..." : "Buscar"}
-              </Button>
+
+              <FormField
+                control={form.control}
+                name="outputFormat"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Formato de saída</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Escolha o formato" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {OUTPUT_FORMAT_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-slate-500">
+                      {OUTPUT_FORMAT_OPTIONS.find((option) => option.value === field.value)
+                        ?.description ?? ""}
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <Button
-                className="w-full sm:w-auto"
-                disabled={isSearching || isTryingVariants}
+                className="w-full"
+                disabled={!selectedCandidate || isScraping}
+                size="lg"
                 type="button"
-                variant="outline"
                 onClick={() => {
-                  void onTrySearchVariants(form.getValues("nome"));
+                  void onScrape(form.getValues("outputFormat"));
                 }}
               >
-                {isTryingVariants ? "Testando variacoes..." : "Testar variacoes do nome"}
+                {isScraping ? "Gerando arquivos..." : "Gerar arquivos do currículo"}
               </Button>
             </div>
-          </form>
-        </Form>
-
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-slate-900">Pessoas encontradas</p>
-              <p className="text-sm text-slate-500">
-                {lastSearchTerm
-                  ? `Ultima busca: ${lastSearchTerm}`
-                  : "Faça uma busca para ver as opções disponíveis."}
-              </p>
-            </div>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-              {candidates.length} opção(ões)
-            </span>
           </div>
-
-          {candidates.length > 0 ? (
-            <div className="grid gap-2">
-              {candidates.map((candidate) => {
-                const isActive = selectedCandidate?.href === candidate.href;
-                return (
-                  <button
-                    key={candidate.href}
-                    className={cn(
-                      "rounded-xl border px-4 py-3 text-left transition",
-                      isActive
-                        ? "border-slate-900 bg-slate-900 text-white shadow-sm"
-                        : "border-slate-200 bg-slate-50/70 text-slate-900 hover:border-slate-300 hover:bg-white",
-                    )}
-                    onClick={() => onSelectCandidate(candidate)}
-                    type="button"
-                  >
-                    <p className="font-medium">{candidate.nome}</p>
-                    <p
-                      className={cn(
-                        "mt-1 text-xs",
-                        isActive ? "text-slate-300" : "text-slate-500",
-                      )}
-                    >
-                      {candidate.href}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-500">
-              Depois da busca, as opções encontradas aparecerão aqui.
-            </div>
-          )}
-
-          <Button
-            className="w-full"
-            disabled={!selectedCandidate || isScraping}
-            size="lg"
-            type="button"
-            onClick={() => {
-              void onScrape(form.getValues("outputFormat"));
-            }}
-          >
-            {isScraping ? "Gerando arquivos..." : "Gerar arquivos do currículo"}
-          </Button>
-          <FormField
-            control={form.control}
-            name="outputFormat"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Formato de saída</FormLabel>
-                <Select value={field.value} onValueChange={field.onChange}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Escolha o formato" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {OUTPUT_FORMAT_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-slate-500">
-                  {OUTPUT_FORMAT_OPTIONS.find((option) => option.value === field.value)
-                    ?.description ?? ""}
-                </p>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+        </Form>
       </CardContent>
     </Card>
   );

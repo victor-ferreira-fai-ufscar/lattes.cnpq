@@ -23,6 +23,21 @@ class _DummyBucketRef:
         return b"%PDF-cache%"
 
 
+class _NotFoundBucketRef(_DummyBucketRef):
+    def __init__(self):
+        super().__init__([])
+
+    def download(self, object_path: str) -> bytes:
+        self.download_calls.append(object_path)
+        raise Exception(
+            {
+                "statusCode": 404,
+                "error": "not_found",
+                "message": "Object not found",
+            }
+        )
+
+
 class _DummyStorage:
     def __init__(self, bucket_ref: _DummyBucketRef):
         self._bucket_ref = bucket_ref
@@ -100,3 +115,21 @@ def test_find_fresh_curriculo_pdf_returns_none_when_stale(monkeypatch):
     )
 
     assert result is None
+
+
+def test_download_storage_file_bytes_returns_none_when_object_is_missing(monkeypatch):
+    bucket_ref = _NotFoundBucketRef()
+
+    monkeypatch.setattr(
+        storage, "_create_supabase_client", lambda: _DummyClient(bucket_ref)
+    )
+    monkeypatch.setenv("SUPABASE_STORAGE_BUCKET", "lattes-cvs")
+
+    result = storage.download_storage_file_bytes(
+        "structured/outputs/v2/curriculos/neocles-alves-pereira/2020-09-11/manifest.json"
+    )
+
+    assert result is None
+    assert bucket_ref.download_calls == [
+        "structured/outputs/v2/curriculos/neocles-alves-pereira/2020-09-11/manifest.json"
+    ]

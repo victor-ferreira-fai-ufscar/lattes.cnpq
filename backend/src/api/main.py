@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from .routers import (
     ai_router,
     batch_router,
@@ -8,7 +7,6 @@ from .routers import (
     scrape_router,
     search_router,
 )
-from ..core.exporter import ensure_outputs_root, outputs_route_prefix
 
 
 app = FastAPI(
@@ -20,12 +18,6 @@ app.add_middleware(
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
-)
-
-app.mount(
-    outputs_route_prefix(),
-    StaticFiles(directory=ensure_outputs_root()),
-    name="outputs",
 )
 
 app.include_router(scrape_router)

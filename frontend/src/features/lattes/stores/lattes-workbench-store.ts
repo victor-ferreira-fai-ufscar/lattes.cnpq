@@ -4,11 +4,52 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import type {
+  BatchItemError,
+  BatchItemSuccess,
   BatchScrapeResponse,
   ScrapeResponse,
   SearchCandidate,
   SummarizeResponse,
 } from "@/features/lattes/services/lattes.service";
+
+function normalizeScrapeResult(result: ScrapeResponse | null): ScrapeResponse | null {
+  if (!result) {
+    return null;
+  }
+
+  return {
+    ...result,
+    generated_files: Array.isArray(result.generated_files) ? result.generated_files : [],
+  };
+}
+
+function normalizeBatchItem(
+  item: BatchItemSuccess | BatchItemError,
+): BatchItemSuccess | BatchItemError {
+  if (item.status !== "sucesso") {
+    return item;
+  }
+
+  return {
+    ...item,
+    generated_files: Array.isArray(item.generated_files) ? item.generated_files : [],
+  };
+}
+
+function normalizeBatchResult(
+  result: BatchScrapeResponse | null,
+): BatchScrapeResponse | null {
+  if (!result) {
+    return null;
+  }
+
+  return {
+    ...result,
+    resultados: Array.isArray(result.resultados)
+      ? result.resultados.map((item) => normalizeBatchItem(item))
+      : [],
+  };
+}
 
 type LattesWorkbenchStore = {
   lastSearchTerm: string | null;
@@ -74,10 +115,16 @@ export const useLattesWorkbenchStore = create<LattesWorkbenchStore>()(
         );
       },
       setScrapeResult: (result) => {
-        set((state) => (state.scrapeResult === result ? state : { scrapeResult: result }));
+        const normalized = normalizeScrapeResult(result);
+        set((state) =>
+          state.scrapeResult === normalized ? state : { scrapeResult: normalized },
+        );
       },
       setBatchResult: (result) => {
-        set((state) => (state.batchResult === result ? state : { batchResult: result }));
+        const normalized = normalizeBatchResult(result);
+        set((state) =>
+          state.batchResult === normalized ? state : { batchResult: normalized },
+        );
       },
       setLiveBatchLogs: (logs) => {
         set((state) => (state.liveBatchLogs === logs ? state : { liveBatchLogs: logs }));
@@ -98,7 +145,20 @@ export const useLattesWorkbenchStore = create<LattesWorkbenchStore>()(
     }),
     {
       name: "lattes-workbench-store",
+      version: 2,
       storage: createJSONStorage(() => localStorage),
+      migrate: (persistedState) => {
+        const state = persistedState as Partial<LattesWorkbenchStore> | undefined;
+
+        return {
+          ...initialState,
+          ...state,
+          scrapeResult: normalizeScrapeResult(state?.scrapeResult ?? null),
+          batchResult: normalizeBatchResult(state?.batchResult ?? null),
+          liveBatchLogs: Array.isArray(state?.liveBatchLogs) ? state.liveBatchLogs : [],
+          candidates: Array.isArray(state?.candidates) ? state.candidates : [],
+        };
+      },
     },
   ),
 );
