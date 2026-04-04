@@ -23,6 +23,17 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  OUTPUT_FORMAT_OPTIONS,
+  type OutputFormat,
+} from "@/features/lattes/lib/output-format";
+import {
   IndividualSearchSchema,
   type IndividualSearchFormData,
 } from "@/features/lattes/schemas/lattes.schemas";
@@ -39,7 +50,7 @@ type IndividualSearchPanelProps = {
   onSearch: (nome: string) => Promise<void>;
   onTrySearchVariants: (nome: string) => Promise<void>;
   onSelectCandidate: (candidate: SearchCandidate) => void;
-  onScrape: () => Promise<void>;
+  onScrape: (outputFormat: OutputFormat) => Promise<void>;
 };
 
 export function IndividualSearchPanel({
@@ -56,7 +67,7 @@ export function IndividualSearchPanel({
 }: IndividualSearchPanelProps) {
   const form = useForm<IndividualSearchFormData>({
     resolver: zodResolver(IndividualSearchSchema),
-    defaultValues: { nome: lastSearchTerm ?? "" },
+    defaultValues: { nome: lastSearchTerm ?? "", outputFormat: "docx" },
   });
 
   useEffect(() => {
@@ -183,11 +194,39 @@ export function IndividualSearchPanel({
             size="lg"
             type="button"
             onClick={() => {
-              void onScrape();
+              void onScrape(form.getValues("outputFormat"));
             }}
           >
-            {isScraping ? "Preparando currículo..." : "Preparar currículo em PDF"}
+            {isScraping ? "Gerando arquivos..." : "Gerar arquivos do currículo"}
           </Button>
+          <FormField
+            control={form.control}
+            name="outputFormat"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Formato de saída</FormLabel>
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Escolha o formato" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {OUTPUT_FORMAT_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-slate-500">
+                  {OUTPUT_FORMAT_OPTIONS.find((option) => option.value === field.value)
+                    ?.description ?? ""}
+                </p>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
       </CardContent>
     </Card>

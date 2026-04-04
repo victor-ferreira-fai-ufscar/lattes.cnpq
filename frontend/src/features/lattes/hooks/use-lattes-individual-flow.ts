@@ -1,14 +1,14 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import { buildNameVariants } from "@/features/lattes/lib/name-variants";
+import type { OutputFormat } from "@/features/lattes/lib/output-format";
 import {
   buscarCandidatos,
   scrapeCurriculoSelecionado,
   type SearchResponse,
-  type ScrapeResponse,
   type SearchCandidate,
 } from "@/features/lattes/services/lattes.service";
 import { useLattesWorkbenchStore } from "@/features/lattes/stores/lattes-workbench-store";
@@ -58,13 +58,7 @@ export function useLattesIndividualFlow({
     candidates[0] ??
     null;
 
-  const scrapeMutation = useMutation<ScrapeResponse, unknown, SearchCandidate>({
-    mutationFn: (candidate) =>
-      scrapeCurriculoSelecionado(candidate.nome, candidate.href),
-    onError: (error) => {
-      notifyError(error);
-    },
-  });
+  const [isScraping, setIsScraping] = useState(false);
 
   useEffect(() => {
     const response = candidatesQuery.data;
@@ -111,17 +105,27 @@ export function useLattesIndividualFlow({
     notifyError,
   ]);
 
-  const scrapeSelected = async () => {
+  const scrapeSelected = async (outputFormat: OutputFormat) => {
     if (!selectedCandidate) {
       notifyError(new Error("Escolha uma pessoa antes de continuar."));
       return;
     }
 
-    scrapeMutation.reset();
     setScrapeResult(null);
-    const result = await scrapeMutation.mutateAsync(selectedCandidate);
-    setScrapeResult(result);
-    notifySuccess("Curriculo preparado com sucesso.");
+    setIsScraping(true);
+    try {
+      const result = await scrapeCurriculoSelecionado(
+        selectedCandidate.nome,
+        selectedCandidate.href,
+        outputFormat,
+      );
+      setScrapeResult(result);
+      notifySuccess("Curriculo preparado com sucesso.");
+    } catch (error) {
+      notifyError(error);
+    } finally {
+      setIsScraping(false);
+    }
   };
 
   const refetchCandidates = async () => {
@@ -179,7 +183,6 @@ export function useLattesIndividualFlow({
 
   const reset = () => {
     setSelectedCandidateHref(null);
-    scrapeMutation.reset();
     setScrapeResult(null);
   };
 
@@ -189,7 +192,7 @@ export function useLattesIndividualFlow({
     selectedCandidate,
     scrapeResult,
     isSearching: candidatesQuery.isFetching,
-    isScraping: scrapeMutation.isPending,
+    isScraping,
     isTryingVariants,
     setSelectedCandidate,
     refetchCandidates,

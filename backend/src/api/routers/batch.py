@@ -1,22 +1,29 @@
 import asyncio
 import json
-import zipfile
-from io import BytesIO
 from time import perf_counter
 from typing import Any, Callable, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
+from ...core.exporter import (
+    artifacts_to_payload,
+    create_batch_output_dir,
+    create_batch_person_output_dir,
+    create_batch_zip,
+    DEFAULT_OUTPUT_FORMAT,
+    export_curriculo_artifacts,
+    normalize_output_format,
+)
 from ...core.scraper import scrape_lattes
 from ...core.storage import (
     find_fresh_curriculo_pdf,
     upload_curriculo_pdf,
-    upload_file_bytes,
 )
 from ...libs.csv_utils import parse_csv_names
 from ...libs.filename import build_curriculo_filename
 from ...libs.logging import now_brasilia, stamp, summarize_exception
+from ...models import OutputFormat
 
 router = APIRouter()
 
@@ -30,7 +37,8 @@ async def _prepare_batch_input(
     file: Optional[UploadFile],
     skip: str,
     limit: Optional[str],
-) -> tuple[str, list[str], list[str], int, Optional[int]]:
+    output_format: str,
+) -> tuple[str, list[str], list[str], int, Optional[int], OutputFormat]:
     arquivo_upload = arquivo or file
     if not arquivo_upload or not arquivo_upload.filename:
         raise HTTPException(
@@ -75,7 +83,19 @@ async def _prepare_batch_input(
             status_code=400, detail="Nenhum nome selecionado após skip/limit."
         )
 
-    return arquivo_upload.filename, nomes_all, nomes, skip_value, limit_value
+    try:
+        normalized_output_format = normalize_output_format(output_format)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return (
+        arquivo_upload.filename,
+        nomes_all,
+        nomes,
+        skip_value,
+        limit_value,
+        normalized_output_format,
+    )
 
 
 async def _process_batch(
@@ -85,10 +105,12 @@ async def _process_batch(
     nomes: list[str],
     skip_value: int,
     limit_value: Optional[int],
+    output_format: OutputFormat = DEFAULT_OUTPUT_FORMAT,
     on_log: Optional[Callable[[str], None]] = None,
 ) -> dict[str, Any]:
     t_total = perf_counter()
     logs: list[str] = []
+    batch_output_dir, relative_batch_output_dir, batch_id = create_batch_output_dir()
 
     def add_log(message: str) -> None:
         line = f"[{stamp()}] {message}"
@@ -103,12 +125,16 @@ async def _process_batch(
     )
 
     resultados: list[dict] = []
-    pdfs_sucesso: list[tuple[str, bytes]] = []
     ok_count = 0
     erro_count = 0
     cache_hits = 0
     cache_misses = 0
     cache_lookup_errors = 0
+
+    add_log(
+        f"Artefatos deste lote serão salvos em '{relative_batch_output_dir}' "
+        f"com formato solicitado '{output_format}'."
+    )
 
     for idx, nome in enumerate(nomes, 1):
         add_log(f"[{idx}/{len(nomes)}] Iniciando scraping de '{nome}'.")
@@ -125,6 +151,23 @@ async def _process_batch(
                 )
 
             if cache_hit is not None:
+                person_output_dir, relative_person_output_dir = (
+                    create_batch_person_output_dir(relative_batch_output_dir, nome)
+                )
+                artifacts = export_curriculo_artifacts(
+                    nome=nome,
+                    ultima_atualizacao=(
+                        cache_hit.curriculo_date or cache_hit.last_modified.date()
+                    ),
+                    pdf_filename=cache_hit.filename,
+                    pdf_storage_path=cache_hit.object_path,
+                    pdf_download_url=cache_hit.download_url,
+                    pdf_bytes=cache_hit.file_bytes or b"",
+                    output_format=output_format,
+                    output_directory=person_output_dir,
+                    relative_output_directory=relative_person_output_dir,
+                    cache_status="hit",
+                )
                 item = {
                     "nome": nome,
                     "status": "sucesso",
@@ -137,15 +180,9 @@ async def _process_batch(
                     "storage_path": cache_hit.object_path,
                     "download_pdf_url": cache_hit.download_url,
                     "duracao_segundos": round(perf_counter() - t_item, 2),
+                    **artifacts_to_payload(artifacts),
                 }
                 resultados.append(item)
-                if cache_hit.file_bytes is not None:
-                    pdfs_sucesso.append((cache_hit.filename, cache_hit.file_bytes))
-                else:
-                    add_log(
-                        f"[{idx}/{len(nomes)}] Cache de '{nome}' sem bytes do PDF; "
-                        "arquivo não entrará no ZIP consolidado."
-                    )
                 ok_count += 1
                 cache_hits += 1
                 add_log(
@@ -158,6 +195,21 @@ async def _process_batch(
             scrape_result = await scrape_lattes(nome)
             filename = build_curriculo_filename(nome, scrape_result.ultima_atualizacao)
             upload_result = upload_curriculo_pdf(filename, scrape_result.pdf_bytes)
+            person_output_dir, relative_person_output_dir = (
+                create_batch_person_output_dir(relative_batch_output_dir, nome)
+            )
+            artifacts = export_curriculo_artifacts(
+                nome=nome,
+                ultima_atualizacao=scrape_result.ultima_atualizacao,
+                pdf_filename=filename,
+                pdf_storage_path=upload_result.object_path,
+                pdf_download_url=upload_result.download_url,
+                pdf_bytes=scrape_result.pdf_bytes,
+                output_format=output_format,
+                output_directory=person_output_dir,
+                relative_output_directory=relative_person_output_dir,
+                cache_status="miss",
+            )
 
             item = {
                 "nome": nome,
@@ -168,9 +220,9 @@ async def _process_batch(
                 "storage_path": upload_result.object_path,
                 "download_pdf_url": upload_result.download_url,
                 "duracao_segundos": round(perf_counter() - t_item, 2),
+                **artifacts_to_payload(artifacts),
             }
             resultados.append(item)
-            pdfs_sucesso.append((filename, scrape_result.pdf_bytes))
             ok_count += 1
             add_log(
                 f"[{idx}/{len(nomes)}] Sucesso para '{nome}' em {item['duracao_segundos']}s."
@@ -214,34 +266,26 @@ async def _process_batch(
     zip_download_url = None
     zip_error = None
 
-    if pdfs_sucesso:
-        zip_filename = f"lattes-lote-{now_brasilia().strftime('%Y%m%d-%H%M%S')}.zip"
-        add_log(f"Gerando ZIP consolidado com {len(pdfs_sucesso)} PDFs.")
+    if ok_count > 0:
+        add_log(f"Gerando ZIP consolidado do lote '{batch_id}'.")
         try:
-            buffer = BytesIO()
-            with zipfile.ZipFile(
-                buffer,
-                mode="w",
-                compression=zipfile.ZIP_DEFLATED,
-            ) as zip_file:
-                for filename, pdf_bytes in pdfs_sucesso:
-                    zip_file.writestr(filename, pdf_bytes)
-
-            zip_upload = upload_file_bytes(
-                zip_filename,
-                buffer.getvalue(),
-                content_type="application/zip",
-                folder="zips",
+            zip_artifact = create_batch_zip(
+                batch_output_directory=batch_output_dir,
+                relative_batch_output_directory=relative_batch_output_dir,
+                batch_id=f"lattes-lote-{now_brasilia().strftime('%Y%m%d-%H%M%S')}",
             )
-            zip_storage_path = zip_upload.object_path
-            zip_download_url = zip_upload.download_url
-            add_log("ZIP consolidado enviado para o Storage com sucesso.")
+            zip_filename = zip_artifact.filename
+            zip_storage_path = zip_artifact.relative_path
+            zip_download_url = zip_artifact.download_url
+            add_log("ZIP consolidado gerado com sucesso na pasta local de outputs.")
         except Exception as exc:
             zip_error = str(exc)
             add_log(f"Falha ao gerar/enviar ZIP consolidado: {zip_error}")
 
     return {
         "arquivo": arquivo_nome,
+        "output_format": output_format,
+        "output_directory": relative_batch_output_dir,
         "total_nomes_csv": len(nomes_all),
         "total_processados": len(nomes),
         "sucesso": ok_count,
@@ -265,14 +309,21 @@ async def scrape_batch(
     file: Optional[UploadFile] = File(None),
     skip: str = Form("0"),
     limit: Optional[str] = Form(None),
+    output_format: str = Form("docx"),
 ):
-    arquivo_nome, nomes_all, nomes, skip_value, limit_value = (
-        await _prepare_batch_input(
-            arquivo,
-            file,
-            skip,
-            limit,
-        )
+    (
+        arquivo_nome,
+        nomes_all,
+        nomes,
+        skip_value,
+        limit_value,
+        normalized_output_format,
+    ) = await _prepare_batch_input(
+        arquivo,
+        file,
+        skip,
+        limit,
+        output_format,
     )
     return await _process_batch(
         arquivo_nome=arquivo_nome,
@@ -280,6 +331,7 @@ async def scrape_batch(
         nomes=nomes,
         skip_value=skip_value,
         limit_value=limit_value,
+        output_format=normalized_output_format,
     )
 
 
@@ -289,14 +341,21 @@ async def scrape_batch_stream(
     file: Optional[UploadFile] = File(None),
     skip: str = Form("0"),
     limit: Optional[str] = Form(None),
+    output_format: str = Form("docx"),
 ):
-    arquivo_nome, nomes_all, nomes, skip_value, limit_value = (
-        await _prepare_batch_input(
-            arquivo,
-            file,
-            skip,
-            limit,
-        )
+    (
+        arquivo_nome,
+        nomes_all,
+        nomes,
+        skip_value,
+        limit_value,
+        normalized_output_format,
+    ) = await _prepare_batch_input(
+        arquivo,
+        file,
+        skip,
+        limit,
+        output_format,
     )
 
     queue: asyncio.Queue[str] = asyncio.Queue()
@@ -307,6 +366,7 @@ async def scrape_batch_stream(
             nomes=nomes,
             skip_value=skip_value,
             limit_value=limit_value,
+            output_format=normalized_output_format,
             on_log=queue.put_nowait,
         )
     )

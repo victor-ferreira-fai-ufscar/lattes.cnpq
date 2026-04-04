@@ -6,6 +6,7 @@ dependencies = [
     "playwright>=1.55.0",
     "uvicorn[standard]>=0.24.0",
     "python-dotenv>=1.0.0",
+    "python-docx>=1.2.0",
     "scalar-fastapi>=1.8.1",
     "supabase>=2.15.3",
     "openai>=2.30.0",

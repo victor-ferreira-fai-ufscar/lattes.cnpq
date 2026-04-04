@@ -31,6 +31,9 @@ def test_process_batch_keeps_logs_clean_and_adds_debug_fields(monkeypatch) -> No
             "- element is not visible - retrying click action"
         )
 
+    monkeypatch.setattr(
+        batch_router, "find_fresh_curriculo_pdf", lambda *args, **kwargs: None
+    )
     monkeypatch.setattr(batch_router, "scrape_lattes", fake_scrape_lattes)
 
     result = asyncio.run(

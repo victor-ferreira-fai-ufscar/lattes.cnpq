@@ -1,6 +1,16 @@
 import { http } from "@/lib/http";
+import type { OutputFormat } from "@/features/lattes/lib/output-format";
 
 export type AIProvider = "openai" | "gemini" | "ollama";
+export type { OutputFormat } from "@/features/lattes/lib/output-format";
+
+export type GeneratedFile = {
+  format: string;
+  filename: string;
+  relative_path: string;
+  download_url: string;
+  content_type: string;
+};
 
 export type SearchCandidate = {
   nome: string;
@@ -22,6 +32,11 @@ export type ScrapeResponse = {
   arquivo_pdf: string;
   storage_path: string;
   download_pdf_url: string;
+  output_format: OutputFormat;
+  output_directory: string;
+  generated_files: GeneratedFile[];
+  extracted_text_length?: number;
+  template_name?: string | null;
   logs?: string[];
   duracao_segundos?: number;
 };
@@ -50,6 +65,11 @@ export type BatchItemSuccess = {
   arquivo_pdf: string;
   storage_path: string;
   download_pdf_url: string;
+  output_format: OutputFormat;
+  output_directory: string;
+  generated_files: GeneratedFile[];
+  extracted_text_length?: number;
+  template_name?: string | null;
   duracao_segundos: number;
 };
 
@@ -66,6 +86,8 @@ export type BatchItemError = {
 
 export type BatchScrapeResponse = {
   arquivo: string;
+  output_format: OutputFormat;
+  output_directory: string;
   total_nomes_csv: number;
   total_processados: number;
   sucesso: number;
@@ -85,6 +107,7 @@ export type BatchScrapeResponse = {
 type BatchOptions = {
   skip?: number;
   limit?: number;
+  outputFormat?: OutputFormat;
 };
 
 type BatchStreamCallbacks = {
@@ -102,8 +125,13 @@ export async function buscarCandidatos(
 export async function scrapeCurriculoSelecionado(
   nome: string,
   href: string,
+  outputFormat: OutputFormat,
 ): Promise<ScrapeResponse> {
-  const response = await http.post<ScrapeResponse>("/scrape", { nome, href });
+  const response = await http.post<ScrapeResponse>("/scrape", {
+    nome,
+    href,
+    output_format: outputFormat,
+  });
   return response.data;
 }
 
@@ -141,6 +169,7 @@ function buildBatchFormData(file: File, options?: BatchOptions): FormData {
   const formData = new FormData();
   formData.append("arquivo", file, file.name);
   formData.append("skip", String(options?.skip ?? 0));
+  formData.append("output_format", options?.outputFormat ?? "docx");
 
   if (options?.limit && options.limit > 0) {
     formData.append("limit", String(options.limit));

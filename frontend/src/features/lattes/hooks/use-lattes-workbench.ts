@@ -1,5 +1,6 @@
 "use client";
 
+import type { OutputFormat } from "@/features/lattes/lib/output-format";
 import { useLattesBatchFlow } from "@/features/lattes/hooks/use-lattes-batch-flow";
 import { useLattesWorkbenchFeedback } from "@/features/lattes/hooks/use-lattes-workbench-feedback";
 import { useLattesIndividualFlow } from "@/features/lattes/hooks/use-lattes-individual-flow";
@@ -54,10 +55,10 @@ export function useLattesWorkbench() {
     setSearchTerm(nome);
   };
 
-  const scrapeSelected = async () => {
+  const scrapeSelected = async (outputFormat: OutputFormat) => {
     resetFeedback();
     summaryFlow.reset();
-    await individualFlow.scrapeSelected();
+    await individualFlow.scrapeSelected(outputFormat);
   };
 
   const trySearchVariants = async (nome: string) => {
@@ -69,9 +70,14 @@ export function useLattesWorkbench() {
     }
   };
 
-  const submitBatch = async (file: File, skip: number, limit?: number) => {
+  const submitBatch = async (
+    file: File,
+    skip: number,
+    limit: number | undefined,
+    outputFormat: OutputFormat,
+  ) => {
     resetFeedback();
-    await batchFlow.submitBatch(file, skip, limit);
+    await batchFlow.submitBatch(file, skip, limit, outputFormat);
   };
 
   const loadModels = async (provisorio?: {

@@ -1,4 +1,4 @@
-import { Download, FileText, TimerReset } from "lucide-react";
+import { Download, FileText, FolderOpen, TimerReset } from "lucide-react";
 
 import {
   Card,
@@ -12,6 +12,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { OUTPUT_FORMAT_LABELS } from "@/features/lattes/lib/output-format";
 import type { ScrapeResponse } from "@/features/lattes/services/lattes.service";
 
 type ScrapeResultCardProps = {
@@ -55,7 +56,8 @@ export function ScrapeResultCard({ result }: ScrapeResultCardProps) {
           </Tooltip>
         </div>
         <CardDescription>
-          O curriculo foi localizado e preparado. Voce pode abrir o PDF abaixo.
+          O curriculo foi localizado e preparado. O PDF continua disponivel e os
+          arquivos solicitados foram salvos na pasta local de outputs.
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 md:grid-cols-2">
@@ -94,6 +96,30 @@ export function ScrapeResultCard({ result }: ScrapeResultCardProps) {
             <Download className="h-4 w-4" />
             Abrir PDF
           </a>
+          <div className="space-y-2 rounded-xl border border-emerald-100 bg-emerald-50/70 p-3">
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800">
+              <FolderOpen className="h-3.5 w-3.5" />
+              Arquivos gerados
+            </div>
+            <p className="text-xs text-slate-600">Pasta: {result.output_directory}</p>
+            {result.template_name ? (
+              <p className="text-xs text-slate-600">Template DOCX: {result.template_name}</p>
+            ) : null}
+            <div className="flex flex-wrap gap-2">
+              {result.generated_files.map((file) => (
+                <a
+                  key={file.relative_path}
+                  className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1.5 text-xs font-medium text-emerald-900 hover:bg-emerald-100"
+                  href={file.download_url}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  {OUTPUT_FORMAT_LABELS[file.format as keyof typeof OUTPUT_FORMAT_LABELS] ?? file.format.toUpperCase()}
+                </a>
+              ))}
+            </div>
+          </div>
         </div>
       </CardContent>
     </Card>

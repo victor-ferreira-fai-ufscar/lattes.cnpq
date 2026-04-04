@@ -24,6 +24,14 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { OUTPUT_FORMAT_OPTIONS } from "@/features/lattes/lib/output-format";
+import {
   BatchUploadSchema,
   type BatchUploadFormData,
   type BatchUploadFormInput,
@@ -31,7 +39,12 @@ import {
 
 type BatchUploadPanelProps = {
   isSubmitting: boolean;
-  onSubmitBatch: (file: File, skip: number, limit?: number) => Promise<void>;
+  onSubmitBatch: (
+    file: File,
+    skip: number,
+    limit: number | undefined,
+    outputFormat: import("@/features/lattes/lib/output-format").OutputFormat,
+  ) => Promise<void>;
 };
 
 export function BatchUploadPanel({
@@ -43,11 +56,17 @@ export function BatchUploadPanel({
     defaultValues: {
       skip: 0,
       limit: "",
+      outputFormat: "docx",
     },
   });
 
   const handleSubmit = form.handleSubmit(async (values) => {
-    await onSubmitBatch(values.csvFile, values.skip, values.limit);
+    await onSubmitBatch(
+      values.csvFile,
+      values.skip,
+      values.limit,
+      values.outputFormat,
+    );
   });
 
   return (
@@ -126,6 +145,38 @@ export function BatchUploadPanel({
                       onChange={(e) => field.onChange(e.target.value)}
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="outputFormat"
+              render={({ field }) => (
+                <FormItem className="sm:col-span-2">
+                  <FormLabel>Formato de saída</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Escolha o formato" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {OUTPUT_FORMAT_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    {
+                      OUTPUT_FORMAT_OPTIONS.find(
+                        (option) => option.value === field.value,
+                      )?.description
+                    }
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

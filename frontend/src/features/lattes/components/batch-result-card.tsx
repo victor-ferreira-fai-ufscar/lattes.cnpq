@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Download, FileArchive, TriangleAlert } from "lucide-react";
+import { Download, FileArchive, FolderTree, TriangleAlert } from "lucide-react";
 
 import {
   Card,
@@ -17,6 +17,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { buildNameVariants } from "@/features/lattes/lib/name-variants";
+import { OUTPUT_FORMAT_LABELS } from "@/features/lattes/lib/output-format";
 import type {
   BatchItemError,
   BatchScrapeResponse,
@@ -178,6 +179,10 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
       <CardContent className="space-y-5">
         <div className="grid gap-3 sm:grid-cols-4">
           <Metric label="Arquivo enviado" value={result.arquivo} />
+          <Metric
+            label="Formato"
+            value={OUTPUT_FORMAT_LABELS[result.output_format] ?? result.output_format}
+          />
           <Metric label="Pessoas processadas" value={String(result.total_processados)} />
           <Metric label="Concluidos" value={String(result.sucesso)} />
           <Metric label="Com problema" value={String(result.erro)} />
@@ -215,7 +220,7 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
             target="_blank"
           >
             <Download className="h-4 w-4" />
-            Baixar todos os PDFs
+            Baixar todos os arquivos gerados
           </a>
         ) : result.zip_erro ? (
           <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
@@ -223,6 +228,11 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
             {result.zip_erro}
           </div>
         ) : null}
+
+        <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-900">
+          <FolderTree className="h-4 w-4 shrink-0" />
+          Pasta do lote: {result.output_directory}
+        </div>
 
         <div className="space-y-3">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
@@ -277,14 +287,41 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
                   </span>
                 </div>
                 {item.status === "sucesso" ? (
-                  <a
-                    className="mt-3 inline-flex text-sm font-medium text-amber-900 underline decoration-amber-400 underline-offset-4"
-                    href={item.download_pdf_url}
-                    rel="noreferrer"
-                    target="_blank"
-                  >
-                    Abrir PDF
-                  </a>
+                  <div className="mt-3 space-y-3">
+                    <a
+                      className="inline-flex text-sm font-medium text-amber-900 underline decoration-amber-400 underline-offset-4"
+                      href={item.download_pdf_url}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      Abrir PDF original
+                    </a>
+                    <div className="rounded-lg border border-amber-100 bg-amber-50/60 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-800">
+                        Arquivos gerados
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">Pasta: {item.output_directory}</p>
+                      {item.template_name ? (
+                        <p className="mt-1 text-xs text-slate-600">
+                          Template DOCX: {item.template_name}
+                        </p>
+                      ) : null}
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {item.generated_files.map((file) => (
+                          <a
+                            key={file.relative_path}
+                            className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
+                            href={file.download_url}
+                            rel="noreferrer"
+                            target="_blank"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                            {OUTPUT_FORMAT_LABELS[file.format as keyof typeof OUTPUT_FORMAT_LABELS] ?? file.format.toUpperCase()}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 ) : (
                   <div className="mt-3 space-y-2 text-sm text-red-700">
                     <p>{item.erro}</p>

@@ -1,5 +1,7 @@
 import * as z from "zod";
 
+import { DEFAULT_OUTPUT_FORMAT } from "@/features/lattes/lib/output-format";
+
 const isFile = (value: unknown): value is File =>
   typeof File !== "undefined" && value instanceof File;
 
@@ -9,6 +11,7 @@ export const IndividualSearchSchema = z.object({
     .trim()
     .min(3, "O nome deve ter pelo menos 3 caracteres.")
     .max(255, "O nome não pode exceder 255 caracteres."),
+  outputFormat: z.enum(["pdf", "docx", "json", "html", "csv", "all"]).default(DEFAULT_OUTPUT_FORMAT),
 });
 
 export type IndividualSearchFormData = z.infer<typeof IndividualSearchSchema>;
@@ -34,6 +37,7 @@ export const BatchUploadSchema = z.object({
     ])
     .transform((value) => (value === "" ? undefined : value))
     .optional(),
+  outputFormat: z.enum(["pdf", "docx", "json", "html", "csv", "all"]).default(DEFAULT_OUTPUT_FORMAT),
 });
 
 export type BatchUploadFormData = z.infer<typeof BatchUploadSchema>;

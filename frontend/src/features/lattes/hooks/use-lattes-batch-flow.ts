@@ -2,6 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query";
 
+import type { OutputFormat } from "@/features/lattes/lib/output-format";
 import {
   scrapeCurriculosLote,
   type BatchScrapeResponse,
@@ -13,6 +14,7 @@ type BatchPayload = {
   skip: number;
   limit?: number;
   totalNamesInCsv: number;
+  outputFormat: OutputFormat;
 };
 
 type BatchFlowFeedback = {
@@ -35,10 +37,10 @@ export function useLattesBatchFlow({
   const setBatchResult = useLattesWorkbenchStore((state) => state.setBatchResult);
 
   const batchMutation = useMutation<BatchScrapeResponse, unknown, BatchPayload>({
-    mutationFn: ({ file, skip, limit, totalNamesInCsv }) =>
+    mutationFn: ({ file, skip, limit, totalNamesInCsv, outputFormat }) =>
       scrapeCurriculosLote(
         file,
-        { skip, limit },
+        { skip, limit, outputFormat },
         totalNamesInCsv,
         {
           onLog: (line) => {
@@ -60,7 +62,12 @@ export function useLattesBatchFlow({
     },
   });
 
-  const submitBatch = async (file: File, skip: number, limit?: number) => {
+  const submitBatch = async (
+    file: File,
+    skip: number,
+    limit: number | undefined,
+    outputFormat: OutputFormat,
+  ) => {
     batchMutation.reset();
     setBatchResult(null);
     setLiveBatchLogs([]);
@@ -76,6 +83,7 @@ export function useLattesBatchFlow({
       skip,
       limit,
       totalNamesInCsv,
+      outputFormat,
     });
   };
 
