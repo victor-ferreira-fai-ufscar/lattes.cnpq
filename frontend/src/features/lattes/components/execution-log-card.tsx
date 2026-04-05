@@ -7,12 +7,17 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
 
 type ExecutionLogCardProps = {
+  isProcessing?: boolean;
   logs: string[];
 };
 
-export function ExecutionLogCard({ logs }: ExecutionLogCardProps) {
+export function ExecutionLogCard({
+  isProcessing = false,
+  logs,
+}: ExecutionLogCardProps) {
   return (
     <Card variant="inverse">
       <CardHeader>
@@ -39,6 +44,18 @@ export function ExecutionLogCard({ logs }: ExecutionLogCardProps) {
               ))}
             </div>
           </details>
+        ) : isProcessing ? (
+          <div className="rounded-2xl border border-teal-400/20 bg-slate-900/60 p-4 text-sm text-slate-300">
+            <div className="flex items-start gap-3">
+              <Spinner className="mt-0.5 h-4 w-4 shrink-0 text-teal-300" />
+              <div>
+                <p className="font-medium text-slate-100">Execucao em andamento</p>
+                <p className="mt-1 text-slate-400">
+                  Os registros tecnicos aparecerao aqui assim que o backend enviar novas linhas.
+                </p>
+              </div>
+            </div>
+          </div>
         ) : (
           <div className="rounded-2xl border border-dashed border-white/15 bg-slate-900/50 p-4 text-sm text-slate-400">
             Nenhum registro disponivel ainda.

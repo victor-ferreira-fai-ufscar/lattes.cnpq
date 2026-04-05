@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Card,
   CardContent,
@@ -273,13 +274,25 @@ export function SummaryPanel({
                   void handleLoadModels();
                 }}
               >
-                <RefreshCcw className="h-4 w-4" />
+                {isLoadingModels ? (
+                  <Spinner className="h-4 w-4" />
+                ) : (
+                  <RefreshCcw className="h-4 w-4" />
+                )}
                 {isLoadingModels ? "Atualizando opcoes..." : "Atualizar opcoes"}
               </Button>
               <Button disabled={isSubmitting} type="submit">
+                {isSubmitting ? <Spinner className="h-4 w-4" /> : null}
                 {isSubmitting ? "Gerando resumo..." : "Gerar resumo"}
               </Button>
             </div>
+            {isLoadingModels || isSubmitting ? (
+              <div className="rounded-2xl border border-cyan-200 bg-cyan-50/70 px-4 py-3 text-sm text-cyan-900 md:col-span-2">
+                {isLoadingModels
+                  ? "Consultando os modelos disponiveis para o provedor selecionado."
+                  : "A IA esta analisando o curriculo e preparando o resumo final."}
+              </div>
+            ) : null}
           </form>
         </Form>
       </CardContent>

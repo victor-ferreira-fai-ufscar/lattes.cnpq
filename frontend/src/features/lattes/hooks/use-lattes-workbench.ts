@@ -111,6 +111,15 @@ export function useLattesWorkbench() {
         individualFlow.scrapeResult?.logs ??
         batchFlow.batchResult?.logs) ?? [];
 
+  const activeRequest = loadingState(
+    individualFlow.isSearching,
+    individualFlow.isTryingVariants,
+    individualFlow.isScraping,
+    batchFlow.isSubmitting,
+    summaryFlow.isLoadingModels,
+    summaryFlow.isSummarizing,
+  );
+
   return {
     mode,
     loading: {
@@ -121,6 +130,7 @@ export function useLattesWorkbench() {
       summarize: summaryFlow.isSummarizing,
       models: summaryFlow.isLoadingModels,
     },
+    activeRequest,
     errorMessage,
     statusMessage,
     lastSearchTerm: individualFlow.lastSearchTerm,
@@ -144,4 +154,69 @@ export function useLattesWorkbench() {
     clearHistory,
     activeLogs,
   };
+}
+
+function loadingState(
+  isSearching: boolean,
+  isTryingVariants: boolean,
+  isScraping: boolean,
+  isSubmittingBatch: boolean,
+  isLoadingModels: boolean,
+  isSummarizing: boolean,
+) {
+  if (isSearching) {
+    return {
+      title: "Buscando pessoas no Lattes",
+      description:
+        "A aplicacao esta consultando os candidatos para o nome informado e preparando a lista de opcoes.",
+      hint: "Isso pode levar alguns segundos, dependendo da resposta do backend.",
+    };
+  }
+
+  if (isTryingVariants) {
+    return {
+      title: "Testando variacoes do nome",
+      description:
+        "A busca esta tentando grafias alternativas para encontrar correspondencias com mais precisao.",
+      hint: "O resultado mais promissor sera carregado automaticamente se houver correspondencias.",
+    };
+  }
+
+  if (isScraping) {
+    return {
+      title: "Gerando arquivos do curriculo",
+      description:
+        "O PDF esta sendo localizado e os arquivos de saida estao sendo preparados para download.",
+      hint: "Se houver cache valido, o processamento tende a terminar mais rapido.",
+    };
+  }
+
+  if (isSubmittingBatch) {
+    return {
+      title: "Processando lista em lote",
+      description:
+        "Os nomes do CSV estao sendo enviados para processamento e os registros serao atualizados conforme a execucao avanca.",
+      hint: "Voce pode acompanhar os detalhes tecnicos no painel de execucao abaixo.",
+    };
+  }
+
+  if (isLoadingModels) {
+    return {
+      title: "Atualizando opcoes de modelos",
+      description:
+        "A aplicacao esta consultando os modelos disponiveis para o provedor de IA selecionado.",
+      hint: "Se a chave de acesso mudou recentemente, a lista pode demorar um pouco mais.",
+    };
+  }
+
+  if (isSummarizing) {
+    return {
+      title: "Gerando resumo com IA",
+      description:
+        "O curriculo esta sendo analisado para montar um resumo mais direto e estruturado.",
+      hint: "O resultado aparecera automaticamente assim que a resposta for concluida.",
+    };
+  }
+
+  return null;
 }

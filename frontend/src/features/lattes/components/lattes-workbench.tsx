@@ -11,10 +11,12 @@ import {
 
 import { SectionHeading } from "@/components/shared/section-heading";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { BatchUploadPanel } from "@/features/lattes/components/batch-upload-panel";
 import { BatchResultCard } from "@/features/lattes/components/batch-result-card";
 import { ExecutionLogCard } from "@/features/lattes/components/execution-log-card";
 import { IndividualSearchPanel } from "@/features/lattes/components/individual-search-panel";
+import { RequestLoadingCard } from "@/features/lattes/components/request-loading-card";
 import { ScrapeResultCard } from "@/features/lattes/components/scrape-result-card";
 import { SummaryPanel } from "@/features/lattes/components/summary-panel";
 import { SummaryResultCard } from "@/features/lattes/components/summary-result-card";
@@ -25,6 +27,7 @@ export function LattesWorkbench() {
   const {
     mode,
     loading,
+    activeRequest,
     errorMessage,
     statusMessage,
     lastSearchTerm,
@@ -109,6 +112,7 @@ export function LattesWorkbench() {
           </Button>
           <Button
             className="rounded-full border-red-300 bg-white text-red-700 hover:bg-red-50"
+            disabled={activeRequest !== null}
             type="button"
             variant="outline"
             onClick={() => {
@@ -140,6 +144,14 @@ export function LattesWorkbench() {
           </div>
         ) : null}
 
+        {activeRequest ? (
+          <RequestLoadingCard
+            description={activeRequest.description}
+            hint={activeRequest.hint}
+            title={activeRequest.title}
+          />
+        ) : null}
+
         {mode === "individual" ? (
           <IndividualSearchPanel
             candidates={candidates}
@@ -164,6 +176,19 @@ export function LattesWorkbench() {
           <div className="space-y-6">
             {scrapeResult ? <ScrapeResultCard result={scrapeResult} /> : null}
             {batchResult ? <BatchResultCard result={batchResult} /> : null}
+            {!scrapeResult && !batchResult && (loading.scrape || loading.batch) ? (
+              <div className="rounded-3xl border border-slate-200/80 bg-white/80 p-6 shadow-[0_24px_80px_-48px_rgba(15,23,42,0.45)] backdrop-blur">
+                <div className="space-y-3">
+                  <Skeleton className="h-5 w-48" />
+                  <Skeleton className="h-4 w-64" />
+                  <Skeleton className="h-28 w-full rounded-2xl" />
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Skeleton className="h-20 w-full rounded-2xl" />
+                    <Skeleton className="h-20 w-full rounded-2xl" />
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="space-y-6">
@@ -182,7 +207,19 @@ export function LattesWorkbench() {
               />
             ) : null}
             {summaryResult ? <SummaryResultCard result={summaryResult} /> : null}
-            <ExecutionLogCard logs={activeLogs} />
+            {!summaryResult && loading.summarize ? (
+              <div className="rounded-3xl border border-cyan-200/70 bg-cyan-50/60 p-6">
+                <div className="space-y-3">
+                  <Skeleton className="h-5 w-44" />
+                  <Skeleton className="h-4 w-72" />
+                  <Skeleton className="h-40 w-full rounded-2xl" />
+                </div>
+              </div>
+            ) : null}
+            <ExecutionLogCard
+              isProcessing={activeRequest !== null}
+              logs={activeLogs}
+            />
           </div>
         </div>
       </section>

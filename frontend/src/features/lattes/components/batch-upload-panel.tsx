@@ -5,6 +5,7 @@ import { FileSpreadsheet } from "lucide-react";
 import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Card,
   CardContent,
@@ -184,8 +185,14 @@ export function BatchUploadPanel({
 
             <div className="sm:col-span-2">
               <Button className="w-full sm:w-auto" disabled={isSubmitting} type="submit">
+                {isSubmitting ? <Spinner className="h-4 w-4" /> : null}
                 {isSubmitting ? "Enviando lista..." : "Processar lista"}
               </Button>
+              {isSubmitting ? (
+                <p className="mt-3 text-sm text-amber-800">
+                  A lista foi enviada. O processamento pode levar mais tempo para lotes maiores.
+                </p>
+              ) : null}
             </div>
           </form>
         </Form>

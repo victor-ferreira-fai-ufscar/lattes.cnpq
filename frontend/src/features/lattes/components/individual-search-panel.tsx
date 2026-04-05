@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Card,
   CardContent,
@@ -121,7 +122,7 @@ export function IndividualSearchPanel({
               />
               <div className="flex flex-wrap gap-2">
                 <Button className="w-full sm:w-auto" disabled={isSearching} type="submit">
-                  <Search className="h-4 w-4" />
+                  {isSearching ? <Spinner className="h-4 w-4" /> : <Search className="h-4 w-4" />}
                   {isSearching ? "Buscando..." : "Buscar"}
                 </Button>
                 <Button
@@ -133,6 +134,7 @@ export function IndividualSearchPanel({
                     void onTrySearchVariants(form.getValues("nome"));
                   }}
                 >
+                  {isTryingVariants ? <Spinner className="h-4 w-4" /> : null}
                   {isTryingVariants ? "Testando variacoes..." : "Testar variacoes do nome"}
                 </Button>
               </div>
@@ -153,7 +155,23 @@ export function IndividualSearchPanel({
                 </span>
               </div>
 
-              {candidates.length > 0 ? (
+              {isSearching || isTryingVariants ? (
+                <div className="rounded-xl border border-dashed border-teal-200 bg-teal-50/70 p-4 text-sm text-teal-900">
+                  <div className="flex items-start gap-3">
+                    <Spinner className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div>
+                      <p className="font-medium">
+                        {isTryingVariants
+                          ? "Testando variacoes automaticas do nome informado."
+                          : "Buscando pessoas e montando a lista de opcoes."}
+                      </p>
+                      <p className="mt-1 text-xs text-teal-700">
+                        O resultado aparece aqui assim que a consulta terminar.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : candidates.length > 0 ? (
                 <div className="grid gap-2">
                   {candidates.map((candidate) => {
                     const isActive = selectedCandidate?.href === candidate.href;
@@ -226,6 +244,7 @@ export function IndividualSearchPanel({
                   void onScrape(form.getValues("outputFormat"));
                 }}
               >
+                {isScraping ? <Spinner className="h-4 w-4" /> : null}
                 {isScraping ? "Gerando arquivos..." : "Gerar arquivos do currículo"}
               </Button>
             </div>
