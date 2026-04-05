@@ -17,13 +17,13 @@ export function RequestLoadingModal({
   onCancel,
 }: RequestLoadingModalProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 px-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/55 px-3 pb-3 backdrop-blur-sm sm:items-center sm:px-4 sm:pb-0">
       <div
         aria-busy="true"
         aria-live="assertive"
         aria-modal="true"
         role="dialog"
-        className="w-full max-w-lg rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.96),rgba(12,74,110,0.92))] p-6 text-white shadow-[0_36px_120px_-48px_rgba(2,6,23,0.95)]"
+        className="w-full max-w-lg rounded-[28px] rounded-b-[28px] rounded-t-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.96),rgba(12,74,110,0.92))] p-5 text-white shadow-[0_36px_120px_-48px_rgba(2,6,23,0.95)] sm:rounded-[28px] sm:p-6"
       >
         <div className="flex items-start gap-4">
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-teal-500/20 text-teal-200 ring-1 ring-inset ring-teal-300/30">
