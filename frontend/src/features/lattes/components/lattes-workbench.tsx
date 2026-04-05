@@ -8,6 +8,7 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
+import { useEffect, useRef } from "react";
 
 import { SectionHeading } from "@/components/shared/section-heading";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,42 @@ export function LattesWorkbench() {
     cancelActiveRequest,
     activeLogs,
   } = useLattesWorkbench();
+  const resultsRef = useRef<HTMLDivElement | null>(null);
+  const summaryResultRef = useRef<HTMLDivElement | null>(null);
+  const previousLoadingRef = useRef({
+    scrape: loading.scrape,
+    batch: loading.batch,
+    summarize: loading.summarize,
+  });
+
+  useEffect(() => {
+    const previousLoading = previousLoadingRef.current;
+
+    if (previousLoading.scrape && !loading.scrape && scrapeResult) {
+      scrollToSection(resultsRef.current);
+    }
+
+    if (previousLoading.batch && !loading.batch && batchResult) {
+      scrollToSection(resultsRef.current);
+    }
+
+    if (previousLoading.summarize && !loading.summarize && summaryResult) {
+      scrollToSection(summaryResultRef.current);
+    }
+
+    previousLoadingRef.current = {
+      scrape: loading.scrape,
+      batch: loading.batch,
+      summarize: loading.summarize,
+    };
+  }, [
+    batchResult,
+    loading.batch,
+    loading.scrape,
+    loading.summarize,
+    scrapeResult,
+    summaryResult,
+  ]);
 
   return (
     <main className="relative overflow-hidden px-4 py-12 sm:px-6 lg:px-8">
@@ -170,7 +207,10 @@ export function LattesWorkbench() {
           />
         )}
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.9fr)]">
+        <div
+          ref={resultsRef}
+          className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.9fr)]"
+        >
           <div className="space-y-6">
             {scrapeResult ? <ScrapeResultCard result={scrapeResult} /> : null}
             {batchResult ? <BatchResultCard result={batchResult} /> : null}
@@ -205,7 +245,11 @@ export function LattesWorkbench() {
                 }}
               />
             ) : null}
-            {summaryResult ? <SummaryResultCard result={summaryResult} /> : null}
+            {summaryResult ? (
+              <div ref={summaryResultRef}>
+                <SummaryResultCard result={summaryResult} />
+              </div>
+            ) : null}
             {!summaryResult && loading.summarize ? (
               <div className="rounded-3xl border border-cyan-200/70 bg-cyan-50/60 p-6">
                 <div className="space-y-3">
@@ -234,4 +278,18 @@ export function LattesWorkbench() {
       ) : null}
     </main>
   );
+}
+
+function scrollToSection(element: HTMLDivElement | null) {
+  if (!element) {
+    return;
+  }
+
+  requestAnimationFrame(() => {
+    element.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+      inline: "nearest",
+    });
+  });
 }

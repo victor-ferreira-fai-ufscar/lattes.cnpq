@@ -6,6 +6,7 @@
 - [x] Deixar a parte do "resumo gerado" em baixo do "gerar resumo com IA"
 - [x] Implementar um state persistente para as pesquisas e execuções, para que o usuário possa voltar e ver os resultados anteriores mesmo após fechar a aplicação. (Para quando ele dar F5 ou fechar e abrir novamente, os dados continuarem lá)
 - [x] Adicionar um loading durante as requests para melhorar a experiência do usuário, indicando que a aplicação está processando a solicitação.
+- [x] Adicionar um Smooth Scroll após as execuções para levar o usuário diretamente para a seção de resultados, melhorando a navegação e a experiência geral do usuário. (Adicionar um efeito de rolagem suave para levar o usuário diretamente para a seção de resultados após a execução, facilitando a visualização dos resultados gerados e melhorando a usabilidade da aplicação.)
 
 ## Detalhes da execução (`componente.tsx`)
 
