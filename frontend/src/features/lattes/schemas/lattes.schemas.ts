@@ -15,6 +15,7 @@ export const IndividualSearchSchema = z.object({
 });
 
 export type IndividualSearchFormData = z.infer<typeof IndividualSearchSchema>;
+export type IndividualSearchFormInput = z.input<typeof IndividualSearchSchema>;
 
 export const BatchUploadSchema = z.object({
   csvFile: z.custom<File>(isFile, {

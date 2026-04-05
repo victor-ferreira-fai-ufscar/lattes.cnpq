@@ -10,7 +10,42 @@ export const http = axios.create({
   timeout: 120000,
 });
 
+export class RequestCancelledError extends Error {
+  constructor(message = "Solicitacao cancelada.") {
+    super(message);
+    this.name = "RequestCancelledError";
+  }
+}
+
+export function isRequestCancelledError(error: unknown): boolean {
+  if (axios.isCancel(error)) {
+    return true;
+  }
+
+  if (error instanceof RequestCancelledError) {
+    return true;
+  }
+
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return true;
+  }
+
+  if (error instanceof Error) {
+    return (
+      error.name === "AbortError" ||
+      error.name === "CanceledError" ||
+      ("code" in error && error.code === "ERR_CANCELED")
+    );
+  }
+
+  return false;
+}
+
 export function getApiErrorMessage(error: unknown): string {
+  if (isRequestCancelledError(error)) {
+    return "Solicitacao cancelada pelo usuario.";
+  }
+
   if (axios.isAxiosError(error)) {
     const data = error.response?.data as ApiErrorPayload | undefined;
     const detail = data?.detail;

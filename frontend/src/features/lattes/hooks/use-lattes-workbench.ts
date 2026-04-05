@@ -120,6 +120,32 @@ export function useLattesWorkbench() {
     summaryFlow.isSummarizing,
   );
 
+  const cancelActiveRequest = async () => {
+    if (!activeRequest) {
+      return;
+    }
+
+    resetFeedback();
+
+    if (
+      activeRequest.kind === "search" ||
+      activeRequest.kind === "variants" ||
+      activeRequest.kind === "scrape"
+    ) {
+      await individualFlow.cancelActiveRequest();
+    }
+
+    if (activeRequest.kind === "batch") {
+      batchFlow.cancelActiveRequest();
+    }
+
+    if (activeRequest.kind === "models" || activeRequest.kind === "summarize") {
+      await summaryFlow.cancelActiveRequest();
+    }
+
+    notifySuccess("Solicitacao cancelada.");
+  };
+
   return {
     mode,
     loading: {
@@ -131,6 +157,7 @@ export function useLattesWorkbench() {
       models: summaryFlow.isLoadingModels,
     },
     activeRequest,
+    isInteractionLocked: activeRequest !== null,
     errorMessage,
     statusMessage,
     lastSearchTerm: individualFlow.lastSearchTerm,
@@ -152,6 +179,7 @@ export function useLattesWorkbench() {
     loadModels,
     summarize,
     clearHistory,
+    cancelActiveRequest,
     activeLogs,
   };
 }
@@ -166,6 +194,7 @@ function loadingState(
 ) {
   if (isSearching) {
     return {
+      kind: "search" as const,
       title: "Buscando pessoas no Lattes",
       description:
         "A aplicacao esta consultando os candidatos para o nome informado e preparando a lista de opcoes.",
@@ -175,6 +204,7 @@ function loadingState(
 
   if (isTryingVariants) {
     return {
+      kind: "variants" as const,
       title: "Testando variacoes do nome",
       description:
         "A busca esta tentando grafias alternativas para encontrar correspondencias com mais precisao.",
@@ -184,6 +214,7 @@ function loadingState(
 
   if (isScraping) {
     return {
+      kind: "scrape" as const,
       title: "Gerando arquivos do curriculo",
       description:
         "O PDF esta sendo localizado e os arquivos de saida estao sendo preparados para download.",
@@ -193,6 +224,7 @@ function loadingState(
 
   if (isSubmittingBatch) {
     return {
+      kind: "batch" as const,
       title: "Processando lista em lote",
       description:
         "Os nomes do CSV estao sendo enviados para processamento e os registros serao atualizados conforme a execucao avanca.",
@@ -202,6 +234,7 @@ function loadingState(
 
   if (isLoadingModels) {
     return {
+      kind: "models" as const,
       title: "Atualizando opcoes de modelos",
       description:
         "A aplicacao esta consultando os modelos disponiveis para o provedor de IA selecionado.",
@@ -211,6 +244,7 @@ function loadingState(
 
   if (isSummarizing) {
     return {
+      kind: "summarize" as const,
       title: "Gerando resumo com IA",
       description:
         "O curriculo esta sendo analisado para montar um resumo mais direto e estruturado.",

@@ -16,7 +16,7 @@ import { BatchUploadPanel } from "@/features/lattes/components/batch-upload-pane
 import { BatchResultCard } from "@/features/lattes/components/batch-result-card";
 import { ExecutionLogCard } from "@/features/lattes/components/execution-log-card";
 import { IndividualSearchPanel } from "@/features/lattes/components/individual-search-panel";
-import { RequestLoadingCard } from "@/features/lattes/components/request-loading-card";
+import { RequestLoadingModal } from "@/features/lattes/components/request-loading-modal";
 import { ScrapeResultCard } from "@/features/lattes/components/scrape-result-card";
 import { SummaryPanel } from "@/features/lattes/components/summary-panel";
 import { SummaryResultCard } from "@/features/lattes/components/summary-result-card";
@@ -28,6 +28,7 @@ export function LattesWorkbench() {
     mode,
     loading,
     activeRequest,
+    isInteractionLocked,
     errorMessage,
     statusMessage,
     lastSearchTerm,
@@ -49,6 +50,7 @@ export function LattesWorkbench() {
     loadModels,
     summarize,
     clearHistory,
+    cancelActiveRequest,
     activeLogs,
   } = useLattesWorkbench();
 
@@ -91,6 +93,7 @@ export function LattesWorkbench() {
               "min-w-44 rounded-full",
               mode === "individual" ? "shadow-md" : "bg-white text-slate-900",
             )}
+            disabled={isInteractionLocked}
             onClick={() => handleModeChange("individual")}
             type="button"
             variant={mode === "individual" ? "default" : "outline"}
@@ -103,6 +106,7 @@ export function LattesWorkbench() {
               "min-w-44 rounded-full",
               mode === "lote" ? "shadow-md" : "bg-white text-slate-900",
             )}
+            disabled={isInteractionLocked}
             onClick={() => handleModeChange("lote")}
             type="button"
             variant={mode === "lote" ? "default" : "outline"}
@@ -112,7 +116,7 @@ export function LattesWorkbench() {
           </Button>
           <Button
             className="rounded-full border-red-300 bg-white text-red-700 hover:bg-red-50"
-            disabled={activeRequest !== null}
+            disabled={isInteractionLocked}
             type="button"
             variant="outline"
             onClick={() => {
@@ -144,17 +148,10 @@ export function LattesWorkbench() {
           </div>
         ) : null}
 
-        {activeRequest ? (
-          <RequestLoadingCard
-            description={activeRequest.description}
-            hint={activeRequest.hint}
-            title={activeRequest.title}
-          />
-        ) : null}
-
         {mode === "individual" ? (
           <IndividualSearchPanel
             candidates={candidates}
+            disabled={isInteractionLocked}
             isScraping={loading.scrape}
             isSearching={loading.search}
             isTryingVariants={loading.variants}
@@ -167,6 +164,7 @@ export function LattesWorkbench() {
           />
         ) : (
           <BatchUploadPanel
+            disabled={isInteractionLocked}
             isSubmitting={loading.batch}
             onSubmitBatch={submitBatch}
           />
@@ -195,6 +193,7 @@ export function LattesWorkbench() {
             {scrapeResult ? (
               <SummaryPanel
                 defaultValues={summaryConfig}
+                disabled={isInteractionLocked}
                 storedApiKeys={storedApiKeys}
                 isLoadingModels={loading.models}
                 isSubmitting={loading.summarize}
@@ -217,12 +216,22 @@ export function LattesWorkbench() {
               </div>
             ) : null}
             <ExecutionLogCard
-              isProcessing={activeRequest !== null}
+              isProcessing={isInteractionLocked}
               logs={activeLogs}
             />
           </div>
         </div>
       </section>
+      {activeRequest ? (
+        <RequestLoadingModal
+          description={activeRequest.description}
+          hint={activeRequest.hint}
+          title={activeRequest.title}
+          onCancel={() => {
+            void cancelActiveRequest();
+          }}
+        />
+      ) : null}
     </main>
   );
 }

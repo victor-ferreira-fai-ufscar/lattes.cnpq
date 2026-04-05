@@ -1,12 +1,14 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
+import { useRef } from "react";
 
 import type { OutputFormat } from "@/features/lattes/lib/output-format";
 import {
   scrapeCurriculosLote,
   type BatchScrapeResponse,
 } from "@/features/lattes/services/lattes.service";
+import { isRequestCancelledError } from "@/lib/http";
 import { useLattesWorkbenchStore } from "@/features/lattes/stores/lattes-workbench-store";
 
 type BatchPayload = {
@@ -26,6 +28,7 @@ export function useLattesBatchFlow({
   notifyError,
   notifySuccess,
 }: BatchFlowFeedback) {
+  const batchAbortRef = useRef<AbortController | null>(null);
   const liveBatchLogs = useLattesWorkbenchStore((state) => state.liveBatchLogs);
   const batchResult = useLattesWorkbenchStore((state) => state.batchResult);
   const setLiveBatchLogs = useLattesWorkbenchStore(
@@ -37,17 +40,28 @@ export function useLattesBatchFlow({
   const setBatchResult = useLattesWorkbenchStore((state) => state.setBatchResult);
 
   const batchMutation = useMutation<BatchScrapeResponse, unknown, BatchPayload>({
-    mutationFn: ({ file, skip, limit, totalNamesInCsv, outputFormat }) =>
-      scrapeCurriculosLote(
-        file,
-        { skip, limit, outputFormat },
-        totalNamesInCsv,
-        {
-          onLog: (line) => {
-            appendLiveBatchLog(line);
+    mutationFn: async ({ file, skip, limit, totalNamesInCsv, outputFormat }) => {
+      const controller = new AbortController();
+      batchAbortRef.current = controller;
+
+      try {
+        return await scrapeCurriculosLote(
+          file,
+          { skip, limit, outputFormat },
+          totalNamesInCsv,
+          {
+            onLog: (line) => {
+              appendLiveBatchLog(line);
+            },
           },
-        },
-      ),
+          { signal: controller.signal },
+        );
+      } finally {
+        if (batchAbortRef.current === controller) {
+          batchAbortRef.current = null;
+        }
+      }
+    },
     onSuccess: (response) => {
       setBatchResult(response);
       if (liveBatchLogs.length === 0) {
@@ -58,7 +72,9 @@ export function useLattesBatchFlow({
       );
     },
     onError: (error) => {
-      notifyError(error);
+      if (!isRequestCancelledError(error)) {
+        notifyError(error);
+      }
     },
   });
 
@@ -93,11 +109,16 @@ export function useLattesBatchFlow({
     setLiveBatchLogs([]);
   };
 
+  const cancelActiveRequest = () => {
+    batchAbortRef.current?.abort();
+  };
+
   return {
     batchResult,
     liveBatchLogs,
     isSubmitting: batchMutation.isPending,
     submitBatch,
+    cancelActiveRequest,
     reset,
   };
 }

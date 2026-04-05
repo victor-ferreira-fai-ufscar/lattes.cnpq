@@ -37,12 +37,14 @@ import {
 import {
   IndividualSearchSchema,
   type IndividualSearchFormData,
+  type IndividualSearchFormInput,
 } from "@/features/lattes/schemas/lattes.schemas";
 import { cn } from "@/lib/utils";
 import type { SearchCandidate } from "@/features/lattes/services/lattes.service";
 
 type IndividualSearchPanelProps = {
   candidates: SearchCandidate[];
+  disabled: boolean;
   selectedCandidate: SearchCandidate | null;
   lastSearchTerm: string | null;
   isSearching: boolean;
@@ -56,6 +58,7 @@ type IndividualSearchPanelProps = {
 
 export function IndividualSearchPanel({
   candidates,
+  disabled,
   selectedCandidate,
   lastSearchTerm,
   isSearching,
@@ -66,7 +69,7 @@ export function IndividualSearchPanel({
   onSelectCandidate,
   onScrape,
 }: IndividualSearchPanelProps) {
-  const form = useForm<IndividualSearchFormData>({
+  const form = useForm<IndividualSearchFormInput, unknown, IndividualSearchFormData>({
     resolver: zodResolver(IndividualSearchSchema),
     defaultValues: { nome: lastSearchTerm ?? "", outputFormat: "docx" },
   });
@@ -112,6 +115,7 @@ export function IndividualSearchPanel({
                     <FormLabel>Nome da pessoa</FormLabel>
                     <FormControl>
                       <Input
+                        disabled={disabled}
                         placeholder="Ex.: Neocles Alves Pereira"
                         {...field}
                       />
@@ -121,13 +125,13 @@ export function IndividualSearchPanel({
                 )}
               />
               <div className="flex flex-wrap gap-2">
-                <Button className="w-full sm:w-auto" disabled={isSearching} type="submit">
+                <Button className="w-full sm:w-auto" disabled={disabled || isSearching} type="submit">
                   {isSearching ? <Spinner className="h-4 w-4" /> : <Search className="h-4 w-4" />}
                   {isSearching ? "Buscando..." : "Buscar"}
                 </Button>
                 <Button
                   className="w-full sm:w-auto"
-                  disabled={isSearching || isTryingVariants}
+                  disabled={disabled || isSearching || isTryingVariants}
                   type="button"
                   variant="outline"
                   onClick={() => {
@@ -179,11 +183,12 @@ export function IndividualSearchPanel({
                       <button
                         key={candidate.href}
                         className={cn(
-                          "rounded-xl border px-4 py-3 text-left transition",
+                          "rounded-xl border px-4 py-3 text-left transition disabled:cursor-not-allowed disabled:opacity-60",
                           isActive
                             ? "border-slate-900 bg-slate-900 text-white shadow-sm"
                             : "border-slate-200 bg-slate-50/70 text-slate-900 hover:border-slate-300 hover:bg-white",
                         )}
+                        disabled={disabled}
                         onClick={() => onSelectCandidate(candidate)}
                         type="button"
                       >
@@ -212,7 +217,7 @@ export function IndividualSearchPanel({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Formato de saída</FormLabel>
-                    <Select value={field.value} onValueChange={field.onChange}>
+                      <Select disabled={disabled} value={field.value} onValueChange={field.onChange}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Escolha o formato" />
@@ -237,7 +242,7 @@ export function IndividualSearchPanel({
 
               <Button
                 className="w-full"
-                disabled={!selectedCandidate || isScraping}
+                disabled={disabled || !selectedCandidate || isScraping}
                 size="lg"
                 type="button"
                 onClick={() => {

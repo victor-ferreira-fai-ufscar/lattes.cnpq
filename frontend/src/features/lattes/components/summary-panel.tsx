@@ -45,6 +45,7 @@ const API_KEY_PLACEHOLDER: Record<AIProvider, string> = {
 
 type SummaryPanelProps = {
   defaultValues: SummaryFormData;
+  disabled: boolean;
   storedApiKeys: StoredApiKeys;
   models: string[];
   isLoadingModels: boolean;
@@ -59,6 +60,7 @@ type SummaryPanelProps = {
 
 export function SummaryPanel({
   defaultValues,
+  disabled,
   storedApiKeys,
   models,
   isLoadingModels,
@@ -143,6 +145,7 @@ export function SummaryPanel({
                 <FormItem>
                   <FormLabel>Servico de IA</FormLabel>
                   <Select
+                    disabled={disabled}
                     value={field.value}
                     onValueChange={(value) => {
                       const nextProvider = value as AIProvider;
@@ -174,6 +177,7 @@ export function SummaryPanel({
                   <FormLabel>Modelo</FormLabel>
                   {models.length > 0 ? (
                     <Select
+                      disabled={disabled}
                       value={field.value}
                       onValueChange={(value) => {
                         field.onChange(value);
@@ -196,6 +200,7 @@ export function SummaryPanel({
                   ) : (
                     <FormControl>
                       <Input
+                        disabled={disabled}
                         {...field}
                         onChange={(event) => {
                           field.onChange(event);
@@ -241,6 +246,7 @@ export function SummaryPanel({
                       {hasStoredKeyForProvider && (
                         <button
                           type="button"
+                          disabled={disabled}
                           className="text-xs text-slate-400 transition-colors hover:text-slate-600"
                           onClick={handleClearApiKey}
                         >
@@ -250,6 +256,7 @@ export function SummaryPanel({
                     </FormLabel>
                     <FormControl>
                       <Input
+                        disabled={disabled}
                         placeholder={API_KEY_PLACEHOLDER[provedor]}
                         type="password"
                         {...field}
@@ -267,7 +274,7 @@ export function SummaryPanel({
 
             <div className="flex flex-col gap-3 md:col-span-2 md:flex-row">
               <Button
-                disabled={isLoadingModels}
+                disabled={disabled || isLoadingModels}
                 type="button"
                 variant="outline"
                 onClick={() => {
@@ -281,7 +288,7 @@ export function SummaryPanel({
                 )}
                 {isLoadingModels ? "Atualizando opcoes..." : "Atualizar opcoes"}
               </Button>
-              <Button disabled={isSubmitting} type="submit">
+              <Button disabled={disabled || isSubmitting} type="submit">
                 {isSubmitting ? <Spinner className="h-4 w-4" /> : null}
                 {isSubmitting ? "Gerando resumo..." : "Gerar resumo"}
               </Button>

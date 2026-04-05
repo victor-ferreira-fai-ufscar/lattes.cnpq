@@ -39,6 +39,7 @@ import {
 } from "@/features/lattes/schemas/lattes.schemas";
 
 type BatchUploadPanelProps = {
+  disabled: boolean;
   isSubmitting: boolean;
   onSubmitBatch: (
     file: File,
@@ -49,6 +50,7 @@ type BatchUploadPanelProps = {
 };
 
 export function BatchUploadPanel({
+  disabled,
   isSubmitting,
   onSubmitBatch,
 }: BatchUploadPanelProps) {
@@ -99,6 +101,7 @@ export function BatchUploadPanel({
                   <FormControl>
                     <FileDropzone
                       accept=".csv,text/csv"
+                      disabled={disabled}
                       error={!!fieldState.error}
                       value={field.value as File | undefined}
                       onChange={(file) => field.onChange(file)}
@@ -117,6 +120,7 @@ export function BatchUploadPanel({
                   <FormLabel>Pular primeiras linhas</FormLabel>
                   <FormControl>
                     <Input
+                      disabled={disabled}
                       type="number"
                       min={0}
                       {...field}
@@ -138,6 +142,7 @@ export function BatchUploadPanel({
                   <FormLabel>Quantidade maxima</FormLabel>
                   <FormControl>
                     <Input
+                      disabled={disabled}
                       placeholder="Deixe em branco para processar tudo"
                       type="number"
                       min={1}
@@ -157,7 +162,7 @@ export function BatchUploadPanel({
               render={({ field }) => (
                 <FormItem className="sm:col-span-2">
                   <FormLabel>Formato de saída</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
+                  <Select disabled={disabled} value={field.value} onValueChange={field.onChange}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Escolha o formato" />
@@ -184,7 +189,7 @@ export function BatchUploadPanel({
             />
 
             <div className="sm:col-span-2">
-              <Button className="w-full sm:w-auto" disabled={isSubmitting} type="submit">
+              <Button className="w-full sm:w-auto" disabled={disabled || isSubmitting} type="submit">
                 {isSubmitting ? <Spinner className="h-4 w-4" /> : null}
                 {isSubmitting ? "Enviando lista..." : "Processar lista"}
               </Button>

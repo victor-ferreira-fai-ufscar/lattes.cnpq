@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import type { SummaryFormData } from "@/features/lattes/schemas/lattes.schemas";
@@ -10,6 +10,7 @@ import {
   type ScrapeResponse,
   type SummarizeResponse,
 } from "@/features/lattes/services/lattes.service";
+import { isRequestCancelledError } from "@/lib/http";
 import { useLattesSummaryStore } from "@/features/lattes/stores/lattes-summary-store";
 import { useLattesWorkbenchStore } from "@/features/lattes/stores/lattes-workbench-store";
 
@@ -35,8 +36,10 @@ export function useLattesSummary({
 }: SummaryFlowFeedback) {
   const [modelsRequest, setModelsRequest] = useState<ModelsPayload | null>(null);
   const [modelsRequestVersion, setModelsRequestVersion] = useState(0);
+  const summaryAbortRef = useRef<AbortController | null>(null);
   const lastModelsFeedbackAt = useRef<number>(0);
   const lastModelsErrorAt = useRef<number>(0);
+  const queryClient = useQueryClient();
   const summaryConfig = useLattesSummaryStore((state) => state.summaryConfig);
   const storedApiKeys = useLattesSummaryStore((state) => state.storedApiKeys);
   const updateSummaryConfig = useLattesSummaryStore(
@@ -55,18 +58,35 @@ export function useLattesSummary({
       modelsRequest?.apiKey ?? "",
       modelsRequestVersion,
     ],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       listarModelosPorProvedor(
         modelsRequest?.provedor ?? "openai",
         modelsRequest?.apiKey || undefined,
+        { signal },
       ),
     enabled: modelsRequest !== null,
     staleTime: 5 * 60_000,
   });
 
   const summaryMutation = useMutation<SummarizeResponse, unknown, SummaryPayload>({
-    mutationFn: ({ nome, provedor, modelo, apiKey }) =>
-      summarizeCurriculo(nome, provedor, modelo, apiKey || undefined),
+    mutationFn: async ({ nome, provedor, modelo, apiKey }) => {
+      const controller = new AbortController();
+      summaryAbortRef.current = controller;
+
+      try {
+        return await summarizeCurriculo(
+          nome,
+          provedor,
+          modelo,
+          apiKey || undefined,
+          { signal: controller.signal },
+        );
+      } finally {
+        if (summaryAbortRef.current === controller) {
+          summaryAbortRef.current = null;
+        }
+      }
+    },
     onSuccess: (response, variables) => {
       setSummaryResult(response);
       updateSummaryConfig({
@@ -77,7 +97,9 @@ export function useLattesSummary({
       notifySuccess("Resumo gerado com sucesso.");
     },
     onError: (error) => {
-      notifyError(error);
+      if (!isRequestCancelledError(error)) {
+        notifyError(error);
+      }
     },
   });
 
@@ -116,6 +138,10 @@ export function useLattesSummary({
 
   useEffect(() => {
     if (!modelsQuery.isError || !modelsQuery.error) {
+      return;
+    }
+
+    if (isRequestCancelledError(modelsQuery.error)) {
       return;
     }
 
@@ -166,6 +192,11 @@ export function useLattesSummary({
     setSummaryResult(null);
   };
 
+  const cancelActiveRequest = async () => {
+    summaryAbortRef.current?.abort();
+    await queryClient.cancelQueries({ queryKey: ["lattes", "models"] });
+  };
+
   return {
     summaryConfig,
     storedApiKeys,
@@ -176,6 +207,7 @@ export function useLattesSummary({
     updateSummaryConfig,
     loadModels,
     summarize,
+    cancelActiveRequest,
     reset,
   };
 }

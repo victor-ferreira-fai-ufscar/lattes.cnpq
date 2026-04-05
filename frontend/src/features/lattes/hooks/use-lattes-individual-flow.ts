@@ -11,6 +11,7 @@ import {
   type SearchResponse,
   type SearchCandidate,
 } from "@/features/lattes/services/lattes.service";
+import { isRequestCancelledError } from "@/lib/http";
 import { useLattesWorkbenchStore } from "@/features/lattes/stores/lattes-workbench-store";
 
 type IndividualFlowFeedback = {
@@ -43,12 +44,14 @@ export function useLattesIndividualFlow({
   const setScrapeResult = useLattesWorkbenchStore((state) => state.setScrapeResult);
   const queryClient = useQueryClient();
   const [isTryingVariants, setIsTryingVariants] = useState(false);
+  const variantsAbortRef = useRef<AbortController | null>(null);
+  const scrapeAbortRef = useRef<AbortController | null>(null);
   const lastSearchFeedbackAt = useRef<number>(0);
   const lastSearchErrorAt = useRef<number>(0);
 
   const candidatesQuery = useQuery<SearchResponse>({
     queryKey: ["lattes", "search-candidates", searchTerm],
-    queryFn: () => buscarCandidatos(searchTerm ?? ""),
+    queryFn: ({ signal }) => buscarCandidatos(searchTerm ?? "", 20, { signal }),
     enabled: Boolean(searchTerm),
     staleTime: 60_000,
   });
@@ -92,6 +95,10 @@ export function useLattesIndividualFlow({
       return;
     }
 
+    if (isRequestCancelledError(candidatesQuery.error)) {
+      return;
+    }
+
     if (lastSearchErrorAt.current === candidatesQuery.errorUpdatedAt) {
       return;
     }
@@ -113,17 +120,26 @@ export function useLattesIndividualFlow({
 
     setScrapeResult(null);
     setIsScraping(true);
+    const controller = new AbortController();
+    scrapeAbortRef.current = controller;
+
     try {
       const result = await scrapeCurriculoSelecionado(
         selectedCandidate.nome,
         selectedCandidate.href,
         outputFormat,
+        { signal: controller.signal },
       );
       setScrapeResult(result);
       notifySuccess("Curriculo preparado com sucesso.");
     } catch (error) {
-      notifyError(error);
+      if (!isRequestCancelledError(error)) {
+        notifyError(error);
+      }
     } finally {
+      if (scrapeAbortRef.current === controller) {
+        scrapeAbortRef.current = null;
+      }
       setIsScraping(false);
     }
   };
@@ -145,10 +161,18 @@ export function useLattesIndividualFlow({
 
     const variants = buildNameVariants(baseName);
     setIsTryingVariants(true);
+    const controller = new AbortController();
+    variantsAbortRef.current = controller;
 
     try {
       for (const variant of variants) {
-        const response = await buscarCandidatos(variant);
+        if (controller.signal.aborted) {
+          throw new DOMException("Aborted", "AbortError");
+        }
+
+        const response = await buscarCandidatos(variant, 20, {
+          signal: controller.signal,
+        });
         queryClient.setQueryData(["lattes", "search-candidates", variant], response);
 
         if (response.total > 0) {
@@ -170,11 +194,22 @@ export function useLattesIndividualFlow({
       );
       return null;
     } catch (error) {
-      notifyError(error);
+      if (!isRequestCancelledError(error)) {
+        notifyError(error);
+      }
       return null;
     } finally {
+      if (variantsAbortRef.current === controller) {
+        variantsAbortRef.current = null;
+      }
       setIsTryingVariants(false);
     }
+  };
+
+  const cancelActiveRequest = async () => {
+    variantsAbortRef.current?.abort();
+    scrapeAbortRef.current?.abort();
+    await queryClient.cancelQueries({ queryKey: ["lattes", "search-candidates"] });
   };
 
   const setSelectedCandidate = (candidate: SearchCandidate) => {
@@ -198,6 +233,7 @@ export function useLattesIndividualFlow({
     refetchCandidates,
     searchWithVariants,
     scrapeSelected,
+    cancelActiveRequest,
     reset,
   };
 }
