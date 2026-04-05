@@ -25,6 +25,7 @@ class LattesScrapeResult:
     pdf_bytes: bytes
     ultima_atualizacao: date
     html_text: str = ""
+    html_source: str = ""
     photo_bytes: bytes | None = None
     photo_content_type: str | None = None
 
@@ -33,6 +34,7 @@ class LattesScrapeResult:
 class LattesProfileAssetsResult:
     ultima_atualizacao: date
     html_text: str
+    html_source: str = ""
     photo_bytes: bytes | None = None
     photo_content_type: str | None = None
 
@@ -316,11 +318,13 @@ async def _capturar_foto_perfil(cv_page) -> tuple[bytes | None, str | None]:
 
 async def _coletar_assets_curriculo(cv_page) -> LattesProfileAssetsResult:
     texto_cv = await cv_page.locator("body").inner_text(timeout=12000)
+    html_source = await cv_page.content()
     ultima_atualizacao = _extrair_ultima_atualizacao(texto_cv)
     photo_bytes, photo_content_type = await _capturar_foto_perfil(cv_page)
     return LattesProfileAssetsResult(
         ultima_atualizacao=ultima_atualizacao,
         html_text=texto_cv,
+        html_source=html_source,
         photo_bytes=photo_bytes,
         photo_content_type=photo_content_type,
     )
@@ -528,6 +532,7 @@ async def scrape_lattes(nome: str) -> LattesScrapeResult:
                 pdf_bytes=pdf_bytes,
                 ultima_atualizacao=assets.ultima_atualizacao,
                 html_text=assets.html_text,
+                html_source=assets.html_source,
                 photo_bytes=assets.photo_bytes,
                 photo_content_type=assets.photo_content_type,
             )
@@ -558,6 +563,7 @@ async def scrape_lattes_by_href(nome: str, href: str) -> LattesScrapeResult:
                 pdf_bytes=pdf_bytes,
                 ultima_atualizacao=assets.ultima_atualizacao,
                 html_text=assets.html_text,
+                html_source=assets.html_source,
                 photo_bytes=assets.photo_bytes,
                 photo_content_type=assets.photo_content_type,
             )

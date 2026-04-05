@@ -77,6 +77,7 @@ async def scrape(request: ScrapeRequest):
             output_format=output_format,
             cache_status="hit",
             html_text=profile_assets.html_text if profile_assets else None,
+            html_source=profile_assets.html_source if profile_assets else None,
             photo_bytes=profile_assets.photo_bytes if profile_assets else None,
             photo_content_type=(
                 profile_assets.photo_content_type if profile_assets else None
@@ -155,6 +156,7 @@ async def scrape(request: ScrapeRequest):
         output_format=output_format,
         cache_status="miss",
         html_text=scrape_result.html_text,
+        html_source=scrape_result.html_source,
         photo_bytes=scrape_result.photo_bytes,
         photo_content_type=scrape_result.photo_content_type,
     )

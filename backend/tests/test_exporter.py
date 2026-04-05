@@ -128,3 +128,31 @@ def test_upload_batch_zip_saves_zip_to_storage(monkeypatch):
         == "https://storage.example/structured/outputs/v2-test/lotes/lote-20260404-100000/lattes-lote-20260404-100000.zip"
     )
     assert artifact.relative_path in fake.files
+
+
+def test_ensure_curriculo_artifacts_prefers_source_html_for_html_output(monkeypatch):
+    fake = _FakeStorageState()
+
+    monkeypatch.setenv("SUPABASE_STORAGE_STRUCTURED_FOLDER", "structured/outputs")
+    monkeypatch.setenv("LATTES_EXPORT_TEMPLATE_VERSION", "v3-test")
+    monkeypatch.setattr(exporter, "upload_file_bytes", fake.upload)
+    monkeypatch.setattr(exporter, "list_storage_files", fake.list_files)
+    monkeypatch.setattr(exporter, "download_storage_file_bytes", fake.download)
+
+    source_html = "<html><body><main><h1>Neocles Alves Pereira</h1><img src='foto.png' /></main></body></html>"
+
+    bundle = exporter.ensure_curriculo_artifacts(
+        nome="Neocles Alves Pereira",
+        ultima_atualizacao=date(2020, 9, 11),
+        pdf_filename="neocles-alves-pereira-2020-09-11.pdf",
+        pdf_storage_path="raw/neocles-alves-pereira-2020-09-11.pdf",
+        pdf_download_url="https://storage.example/raw/neocles-alves-pereira-2020-09-11.pdf",
+        pdf_bytes=b"%PDF-1.4 fake%",
+        output_format="html",
+        cache_status="miss",
+        html_source=source_html,
+    )
+
+    html_artifact = bundle.generated_files[0]
+    assert html_artifact.filename == "curriculo-lattes.html"
+    assert fake.files[html_artifact.relative_path][0].decode("utf-8") == source_html

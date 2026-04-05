@@ -6,7 +6,7 @@ import zipfile
 from base64 import b64encode
 from dataclasses import asdict, dataclass
 from datetime import date, datetime
-from html import escape
+from html import escape, unescape
 from io import BytesIO, StringIO
 from typing import Literal
 
@@ -155,6 +155,29 @@ def _clean_text_lines(texto: str) -> list[str]:
     return [
         line.strip() for line in texto.replace("\r", "").splitlines() if line.strip()
     ]
+
+
+def _extract_text_from_html(html_source: str) -> str:
+    if not html_source.strip():
+        return ""
+
+    text = re.sub(
+        r"<script\b[^>]*>.*?</script>",
+        " ",
+        html_source,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    text = re.sub(
+        r"<style\b[^>]*>.*?</style>", " ", text, flags=re.IGNORECASE | re.DOTALL
+    )
+    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"</(p|div|li|tr|h[1-6]|section)>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = unescape(text)
+    text = re.sub(r"\u00a0", " ", text)
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
 
 
 def _extract_urls(lines: list[str]) -> list[str]:
@@ -440,7 +463,11 @@ def _write_html_bytes(
     context: ExportSummaryContext,
     photo_bytes: bytes | None,
     photo_content_type: str | None,
+    source_html: str | None = None,
 ) -> bytes:
+    if source_html and source_html.strip():
+        return source_html.encode("utf-8")
+
     social_html = "".join(f"<li>{link}</li>" for link in context.social_links)
     if not social_html:
         social_html = "<li>Não identificado automaticamente.</li>"
@@ -729,11 +756,13 @@ def _build_artifact_contents(
     requested_formats: list[OutputFormat],
     cache_status: str | None,
     html_text: str | None = None,
+    html_source: str | None = None,
     photo_bytes: bytes | None = None,
     photo_content_type: str | None = None,
 ) -> tuple[dict[str, tuple[str, bytes, str]], ExportSummaryContext, int]:
     texto_pdf = _extrair_texto_pdf_bytes(pdf_bytes).strip()
-    texto_extraido = _merge_source_texts(texto_pdf, html_text).strip()
+    texto_html = (html_text or _extract_text_from_html(html_source or "")).strip()
+    texto_extraido = _merge_source_texts(texto_pdf, texto_html).strip()
     context = build_export_summary_context(
         texto_extraido,
         nome,
@@ -771,6 +800,7 @@ def _build_artifact_contents(
                     context=context,
                     photo_bytes=photo_bytes,
                     photo_content_type=photo_content_type,
+                    source_html=html_source,
                 ),
                 content_type,
             )
@@ -991,6 +1021,7 @@ def ensure_curriculo_artifacts(
     output_format: OutputFormat,
     cache_status: str | None = None,
     html_text: str | None = None,
+    html_source: str | None = None,
     photo_bytes: bytes | None = None,
     photo_content_type: str | None = None,
 ) -> GeneratedArtifactBundle:
@@ -1020,6 +1051,7 @@ def ensure_curriculo_artifacts(
             requested_formats=missing_formats,
             cache_status=cache_status,
             html_text=html_text,
+            html_source=html_source,
             photo_bytes=photo_bytes,
             photo_content_type=photo_content_type,
         )

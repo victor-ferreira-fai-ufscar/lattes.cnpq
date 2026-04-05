@@ -211,6 +211,7 @@ async def _process_batch(
                 output_format=output_format,
                 cache_status="miss",
                 html_text=scrape_result.html_text,
+                html_source=scrape_result.html_source,
                 photo_bytes=scrape_result.photo_bytes,
                 photo_content_type=scrape_result.photo_content_type,
             )
