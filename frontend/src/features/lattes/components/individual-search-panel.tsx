@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DEFAULT_OUTPUT_FORMAT,
   OUTPUT_FORMAT_OPTIONS,
   type OutputFormat,
 } from "@/features/lattes/lib/output-format";
@@ -246,7 +247,7 @@ export function IndividualSearchPanel({
                 size="lg"
                 type="button"
                 onClick={() => {
-                  void onScrape(form.getValues("outputFormat"));
+                  void onScrape(form.getValues("outputFormat") ?? DEFAULT_OUTPUT_FORMAT);
                 }}
               >
                 {isScraping ? <Spinner className="h-4 w-4" /> : null}

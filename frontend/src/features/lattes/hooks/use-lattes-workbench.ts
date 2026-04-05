@@ -1,5 +1,7 @@
 "use client";
 
+import { useCallback, useMemo, useRef, useState } from "react";
+
 import type { OutputFormat } from "@/features/lattes/lib/output-format";
 import { useLattesBatchFlow } from "@/features/lattes/hooks/use-lattes-batch-flow";
 import { useLattesWorkbenchFeedback } from "@/features/lattes/hooks/use-lattes-workbench-feedback";
@@ -18,6 +20,8 @@ export function useLattesWorkbench() {
   );
   const { errorMessage, statusMessage, resetFeedback, notifyError, notifySuccess } =
     useLattesWorkbenchFeedback();
+  const [retryActionLabel, setRetryActionLabel] = useState<string | null>(null);
+  const lastRetryActionRef = useRef<(() => Promise<void>) | null>(null);
 
   const individualFlow = useLattesIndividualFlow({
     searchTerm,
@@ -44,27 +48,44 @@ export function useLattesWorkbench() {
   };
 
   const searchCandidates = async (nome: string) => {
+    const trimmedName = nome.trim();
+    setRetryActionLabel("Refazer busca");
+    lastRetryActionRef.current = async () => {
+      await searchCandidates(trimmedName);
+    };
+
     resetFeedback();
     summaryFlow.reset();
 
-    if (nome.trim() === (searchTerm ?? "").trim()) {
+    if (trimmedName === (searchTerm ?? "").trim()) {
       await individualFlow.refetchCandidates();
       return;
     }
 
-    setSearchTerm(nome);
+    setSearchTerm(trimmedName);
   };
 
   const scrapeSelected = async (outputFormat: OutputFormat) => {
+    setRetryActionLabel("Tentar gerar arquivos novamente");
+    lastRetryActionRef.current = async () => {
+      await scrapeSelected(outputFormat);
+    };
+
     resetFeedback();
     summaryFlow.reset();
     await individualFlow.scrapeSelected(outputFormat);
   };
 
   const trySearchVariants = async (nome: string) => {
+    const trimmedName = nome.trim();
+    setRetryActionLabel("Testar variacoes novamente");
+    lastRetryActionRef.current = async () => {
+      await trySearchVariants(trimmedName);
+    };
+
     resetFeedback();
     summaryFlow.reset();
-    const matchedTerm = await individualFlow.searchWithVariants(nome);
+    const matchedTerm = await individualFlow.searchWithVariants(trimmedName);
     if (matchedTerm) {
       setSearchTerm(matchedTerm);
     }
@@ -76,6 +97,11 @@ export function useLattesWorkbench() {
     limit: number | undefined,
     outputFormat: OutputFormat,
   ) => {
+    setRetryActionLabel("Tentar lote novamente");
+    lastRetryActionRef.current = async () => {
+      await submitBatch(file, skip, limit, outputFormat);
+    };
+
     resetFeedback();
     await batchFlow.submitBatch(file, skip, limit, outputFormat);
   };
@@ -84,6 +110,11 @@ export function useLattesWorkbench() {
     provedor?: typeof summaryFlow.summaryConfig.provedor;
     apiKey?: string;
   }) => {
+    setRetryActionLabel("Atualizar modelos novamente");
+    lastRetryActionRef.current = async () => {
+      await loadModels(provisorio);
+    };
+
     resetFeedback();
     await summaryFlow.loadModels(provisorio);
   };
@@ -93,6 +124,11 @@ export function useLattesWorkbench() {
     modelo?: string;
     apiKey?: string;
   }) => {
+    setRetryActionLabel("Gerar resumo novamente");
+    lastRetryActionRef.current = async () => {
+      await summarize(config);
+    };
+
     resetFeedback();
     await summaryFlow.summarize(config);
   };
@@ -101,26 +137,48 @@ export function useLattesWorkbench() {
     resetFeedback();
     resetWorkbenchState();
     setSearchTerm(null);
+    lastRetryActionRef.current = null;
+    setRetryActionLabel(null);
     notifySuccess("Historico limpo com sucesso.");
   };
 
-  const activeLogs =
-    (mode === "lote" && batchFlow.liveBatchLogs.length > 0
-      ? batchFlow.liveBatchLogs
-      : summaryFlow.summaryResult?.logs ??
-        individualFlow.scrapeResult?.logs ??
-        batchFlow.batchResult?.logs) ?? [];
-
-  const activeRequest = loadingState(
-    individualFlow.isSearching,
-    individualFlow.isTryingVariants,
-    individualFlow.isScraping,
-    batchFlow.isSubmitting,
-    summaryFlow.isLoadingModels,
-    summaryFlow.isSummarizing,
+  const activeLogs = useMemo(
+    () =>
+      (mode === "lote" && batchFlow.liveBatchLogs.length > 0
+        ? batchFlow.liveBatchLogs
+        : summaryFlow.summaryResult?.logs ??
+          individualFlow.scrapeResult?.logs ??
+          batchFlow.batchResult?.logs) ?? [],
+    [
+      batchFlow.batchResult?.logs,
+      batchFlow.liveBatchLogs,
+      individualFlow.scrapeResult?.logs,
+      mode,
+      summaryFlow.summaryResult?.logs,
+    ],
   );
 
-  const cancelActiveRequest = async () => {
+  const activeRequest = useMemo(
+    () =>
+      loadingState(
+        individualFlow.isSearching,
+        individualFlow.isTryingVariants,
+        individualFlow.isScraping,
+        batchFlow.isSubmitting,
+        summaryFlow.isLoadingModels,
+        summaryFlow.isSummarizing,
+      ),
+    [
+      batchFlow.isSubmitting,
+      individualFlow.isScraping,
+      individualFlow.isSearching,
+      individualFlow.isTryingVariants,
+      summaryFlow.isLoadingModels,
+      summaryFlow.isSummarizing,
+    ],
+  );
+
+  const cancelActiveRequest = useCallback(async () => {
     if (!activeRequest) {
       return;
     }
@@ -144,7 +202,24 @@ export function useLattesWorkbench() {
     }
 
     notifySuccess("Solicitacao cancelada.");
-  };
+  }, [
+    activeRequest,
+    batchFlow,
+    individualFlow,
+    notifySuccess,
+    resetFeedback,
+    summaryFlow,
+  ]);
+
+  const retryLastAction = useCallback(async () => {
+    const retry = lastRetryActionRef.current;
+    if (!retry) {
+      return;
+    }
+
+    resetFeedback();
+    await retry();
+  }, [resetFeedback]);
 
   return {
     mode,
@@ -180,6 +255,9 @@ export function useLattesWorkbench() {
     summarize,
     clearHistory,
     cancelActiveRequest,
+    canRetryLastAction: retryActionLabel !== null,
+    retryActionLabel,
+    retryLastAction,
     activeLogs,
   };
 }

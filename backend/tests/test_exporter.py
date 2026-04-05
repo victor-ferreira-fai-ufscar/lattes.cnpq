@@ -76,7 +76,7 @@ def test_ensure_curriculo_artifacts_uses_storage_cache(monkeypatch):
         "pdf",
     ]
     assert bundle.generated_files[0].filename == (
-        "perfil-vitrine-Claudia-Maria-Simões-Martinez-2026-04-04.docx"
+        "perfil-vitrine-claudia-maria-simoes-martinez-2026-04-04.docx"
     )
     assert bundle.zip_file is not None
     assert bundle.zip_file.relative_path.endswith(
@@ -111,7 +111,7 @@ def test_upload_batch_zip_saves_zip_to_storage(monkeypatch):
         batch_filename="lattes-lote-20260404-100000.zip",
         entries=[
             (
-                "Claudia Maria Simões Martinez - 2026-04-04/perfil-vitrine-Claudia-Maria-Simões-Martinez-2026-04-04.docx",
+                "Claudia Maria Simões Martinez - 2026-04-04/perfil-vitrine-claudia-maria-simoes-martinez-2026-04-04.docx",
                 b"docx-bytes",
             ),
             ("Claudia Maria Simões Martinez - 2026-04-04/dados-extraidos.json", b"{}"),
@@ -128,6 +128,16 @@ def test_upload_batch_zip_saves_zip_to_storage(monkeypatch):
         == "https://storage.example/structured/outputs/v2-test/lotes/lote-20260404-100000/lattes-lote-20260404-100000.zip"
     )
     assert artifact.relative_path in fake.files
+
+
+def test_build_curriculo_docx_filename_uses_storage_safe_slug():
+    assert (
+        exporter.build_curriculo_docx_filename(
+            "Víctor / Ferreira",
+            date(2020, 6, 24),
+        )
+        == "perfil-vitrine-victor-ferreira-2020-06-24.docx"
+    )
 
 
 def test_ensure_curriculo_artifacts_prefers_source_html_for_html_output(monkeypatch):

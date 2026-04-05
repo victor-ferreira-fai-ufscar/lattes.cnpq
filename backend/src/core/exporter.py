@@ -103,10 +103,7 @@ def build_curriculo_output_label(nome: str, ultima_atualizacao: date) -> str:
 
 
 def build_curriculo_docx_filename(nome: str, ultima_atualizacao: date) -> str:
-    normalized = re.sub(
-        r"-+", "-", _normalize_display_name(nome).replace(" ", "-")
-    ).strip("-")
-    return f"perfil-vitrine-{normalized}-{ultima_atualizacao.isoformat()}.docx"
+    return f"perfil-vitrine-{slugify_nome(nome)}-{ultima_atualizacao.isoformat()}.docx"
 
 
 def build_curriculo_storage_folder(nome: str, ultima_atualizacao: date) -> str:

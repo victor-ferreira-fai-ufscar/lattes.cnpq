@@ -13,6 +13,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useEffect, useRef } from "react";
+import { toast } from "sonner";
 
 import { SectionHeading } from "@/components/shared/section-heading";
 import { Button } from "@/components/ui/button";
@@ -20,13 +21,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BatchUploadPanel } from "@/features/lattes/components/batch-upload-panel";
 import { BatchResultCard } from "@/features/lattes/components/batch-result-card";
 import { ExecutionLogCard } from "@/features/lattes/components/execution-log-card";
+import { RequestErrorToast } from "@/features/lattes/components/request-error-toast";
 import { IndividualSearchPanel } from "@/features/lattes/components/individual-search-panel";
-import { RequestLoadingModal } from "@/features/lattes/components/request-loading-modal";
+import { RequestLoadingToast } from "@/features/lattes/components/request-loading-toast";
 import { ScrapeResultCard } from "@/features/lattes/components/scrape-result-card";
 import { SummaryPanel } from "@/features/lattes/components/summary-panel";
 import { SummaryResultCard } from "@/features/lattes/components/summary-result-card";
 import { useLattesWorkbench } from "@/features/lattes/hooks/use-lattes-workbench";
 import { cn } from "@/lib/utils";
+
+const ACTIVE_REQUEST_TOAST_ID = "lattes-active-request";
+const ERROR_REQUEST_TOAST_ID = "lattes-error-request";
 
 export function LattesWorkbench() {
   const {
@@ -56,12 +61,17 @@ export function LattesWorkbench() {
     summarize,
     clearHistory,
     cancelActiveRequest,
+    canRetryLastAction,
+    retryActionLabel,
+    retryLastAction,
     activeLogs,
   } = useLattesWorkbench();
   const resultsRef = useRef<HTMLDivElement | null>(null);
   const summaryResultRef = useRef<HTMLDivElement | null>(null);
   const formSectionRef = useRef<HTMLDivElement | null>(null);
   const logsRef = useRef<HTMLDivElement | null>(null);
+  const activeToastIdRef = useRef<string | number | null>(null);
+  const lastErrorMessageRef = useRef<string | null>(null);
   const previousLoadingRef = useRef({
     scrape: loading.scrape,
     batch: loading.batch,
@@ -128,6 +138,76 @@ export function LattesWorkbench() {
     summaryResult,
   ]);
 
+  useEffect(() => {
+    if (!activeRequest) {
+      toast.dismiss(ACTIVE_REQUEST_TOAST_ID);
+      activeToastIdRef.current = null;
+      return;
+    }
+
+    activeToastIdRef.current = toast.custom(
+      () => (
+        <RequestLoadingToast
+          description={activeRequest.description}
+          hint={activeRequest.hint}
+          title={activeRequest.title}
+          onCancel={() => {
+            toast.dismiss(ACTIVE_REQUEST_TOAST_ID);
+            activeToastIdRef.current = null;
+            void cancelActiveRequest();
+          }}
+        />
+      ),
+      {
+        id: ACTIVE_REQUEST_TOAST_ID,
+        duration: Number.POSITIVE_INFINITY,
+      },
+    );
+
+    return () => {
+      if (!activeRequest) {
+        toast.dismiss(ACTIVE_REQUEST_TOAST_ID);
+        activeToastIdRef.current = null;
+      }
+    };
+  }, [activeRequest, cancelActiveRequest]);
+
+  useEffect(() => {
+    if (!errorMessage) {
+      lastErrorMessageRef.current = null;
+      toast.dismiss(ERROR_REQUEST_TOAST_ID);
+      return;
+    }
+
+    if (lastErrorMessageRef.current === errorMessage) {
+      return;
+    }
+
+    lastErrorMessageRef.current = errorMessage;
+
+    toast.custom(
+      () => (
+        <RequestErrorToast
+          message={errorMessage}
+          retryLabel={retryActionLabel ?? undefined}
+          title="Nao foi possivel concluir a solicitacao"
+          onRetry={
+            canRetryLastAction
+              ? () => {
+                  toast.dismiss(ERROR_REQUEST_TOAST_ID);
+                  void retryLastAction();
+                }
+              : undefined
+          }
+        />
+      ),
+      {
+        id: ERROR_REQUEST_TOAST_ID,
+        duration: 12_000,
+      },
+    );
+  }, [canRetryLastAction, errorMessage, retryActionLabel, retryLastAction]);
+
   return (
     <main className="relative overflow-x-clip px-3 py-5 pb-[calc(7.5rem+env(safe-area-inset-bottom))] sm:px-5 sm:py-8 sm:pb-8 lg:px-8 lg:py-10">
       <div className="absolute inset-x-0 top-0 -z-10 h-[420px] bg-[radial-gradient(circle_at_top_left,_rgba(13,148,136,0.24),_transparent_38%),radial-gradient(circle_at_top_right,_rgba(249,115,22,0.18),_transparent_34%),linear-gradient(180deg,_rgba(255,251,235,0.95),_rgba(248,250,252,0.96)_40%,_rgba(240,253,250,0.92)_100%)]" />
@@ -178,7 +258,7 @@ export function LattesWorkbench() {
               <GuideStep
                 index="02"
                 title="Execute com feedback"
-                description="A aplicação bloqueia interações conflitantes e mostra um modal enquanto processa a solicitação."
+                description="A aplicação bloqueia interações conflitantes e mostra um toast persistente enquanto processa a solicitacao."
               />
               <GuideStep
                 index="03"
@@ -449,16 +529,6 @@ export function LattesWorkbench() {
         onGoToResults={() => scrollToSection(resultsRef.current)}
         onGoToSummary={() => scrollToSection(summaryResultRef.current)}
       />
-      {activeRequest ? (
-        <RequestLoadingModal
-          description={activeRequest.description}
-          hint={activeRequest.hint}
-          title={activeRequest.title}
-          onCancel={() => {
-            void cancelActiveRequest();
-          }}
-        />
-      ) : null}
     </main>
   );
 }
