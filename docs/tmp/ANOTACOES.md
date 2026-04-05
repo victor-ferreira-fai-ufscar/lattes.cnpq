@@ -7,6 +7,10 @@
 - [x] Implementar um state persistente para as pesquisas e execuções, para que o usuário possa voltar e ver os resultados anteriores mesmo após fechar a aplicação. (Para quando ele dar F5 ou fechar e abrir novamente, os dados continuarem lá)
 - [x] Adicionar um loading durante as requests para melhorar a experiência do usuário, indicando que a aplicação está processando a solicitação.
 - [x] Adicionar um Smooth Scroll após as execuções para levar o usuário diretamente para a seção de resultados, melhorando a navegação e a experiência geral do usuário. (Adicionar um efeito de rolagem suave para levar o usuário diretamente para a seção de resultados após a execução, facilitando a visualização dos resultados gerados e melhorando a usabilidade da aplicação.)
+- [ ] Invés de mostrar um modal de loading (que fica com o bg escurecido), seria melhor um toast/sonner. Que fica fazendo o request do lado direito inferior, e quando terminar ele some, e aí o usuário pode ir lá ver os resultados. Assim não bloqueia a tela inteira, e o usuário pode continuar navegando ou lendo outras coisas enquanto espera o resultado chegar. (Adicionar um sistema de notificações tipo toast/sonner para indicar que a solicitação está sendo processada, permitindo que o usuário continue navegando ou lendo outras informações enquanto aguarda os resultados, melhorando a experiência geral da aplicação. Porém sem deixar a pessoa para interagir com outros elementos enquanto a requisição estiver em andamento, mas ela também pode cancelar quando quiser, e aí o toast some e a requisição é cancelada, para evitar que ela fique presa esperando caso queira cancelar ou fazer outra coisa.)
+    - https://ui.shadcn.com/docs/components/radix/toast
+    - https://ui.shadcn.com/docs/components/radix/sonner
+
 
 ## Detalhes da execução (`componente.tsx`)
 

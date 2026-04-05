@@ -129,7 +129,7 @@ export function LattesWorkbench() {
   ]);
 
   return (
-    <main className="relative overflow-x-clip px-3 py-5 sm:px-5 sm:py-8 lg:px-8 lg:py-10">
+    <main className="relative overflow-x-clip px-3 py-5 pb-[calc(7.5rem+env(safe-area-inset-bottom))] sm:px-5 sm:py-8 sm:pb-8 lg:px-8 lg:py-10">
       <div className="absolute inset-x-0 top-0 -z-10 h-[420px] bg-[radial-gradient(circle_at_top_left,_rgba(13,148,136,0.24),_transparent_38%),radial-gradient(circle_at_top_right,_rgba(249,115,22,0.18),_transparent_34%),linear-gradient(180deg,_rgba(255,251,235,0.95),_rgba(248,250,252,0.96)_40%,_rgba(240,253,250,0.92)_100%)]" />
       <div className="absolute inset-x-0 top-24 -z-10 h-[720px] bg-[linear-gradient(180deg,rgba(255,255,255,0)_0%,rgba(255,255,255,0.32)_24%,rgba(255,255,255,0)_100%)]" />
       <section className="mx-auto flex w-full max-w-7xl flex-col gap-5 sm:gap-6 lg:gap-8">
@@ -439,6 +439,16 @@ export function LattesWorkbench() {
           </div>
         </div>
       </section>
+      <MobileBottomBar
+        hasLogs={hasLogs}
+        hasMainResult={hasMainResult}
+        hasSummaryResult={hasSummaryResult}
+        isInteractionLocked={isInteractionLocked}
+        onGoToForm={() => scrollToSection(formSectionRef.current)}
+        onGoToLogs={() => scrollToSection(logsRef.current)}
+        onGoToResults={() => scrollToSection(resultsRef.current)}
+        onGoToSummary={() => scrollToSection(summaryResultRef.current)}
+      />
       {activeRequest ? (
         <RequestLoadingModal
           description={activeRequest.description}
@@ -601,5 +611,84 @@ function EmptyStateCard({
         </div>
       </div>
     </div>
+  );
+}
+
+function MobileBottomBar({
+  hasLogs,
+  hasMainResult,
+  hasSummaryResult,
+  isInteractionLocked,
+  onGoToForm,
+  onGoToLogs,
+  onGoToResults,
+  onGoToSummary,
+}: {
+  hasLogs: boolean;
+  hasMainResult: boolean;
+  hasSummaryResult: boolean;
+  isInteractionLocked: boolean;
+  onGoToForm: () => void;
+  onGoToLogs: () => void;
+  onGoToResults: () => void;
+  onGoToSummary: () => void;
+}) {
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-30 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:hidden">
+      <div className="mx-auto max-w-7xl rounded-[28px] border border-white/70 bg-white/88 p-2 shadow-[0_24px_60px_-28px_rgba(15,23,42,0.5)] backdrop-blur-xl">
+        <div className="grid grid-cols-4 gap-2">
+          <MobileBottomBarButton
+            disabled={isInteractionLocked}
+            icon={<Search className="h-4 w-4" />}
+            label="Fluxo"
+            onClick={onGoToForm}
+          />
+          <MobileBottomBarButton
+            disabled={isInteractionLocked || !hasMainResult}
+            icon={<FileCheck2 className="h-4 w-4" />}
+            label="Resultados"
+            onClick={onGoToResults}
+          />
+          <MobileBottomBarButton
+            disabled={isInteractionLocked || !hasSummaryResult}
+            icon={<BrainCircuit className="h-4 w-4" />}
+            label="Resumo"
+            onClick={onGoToSummary}
+          />
+          <MobileBottomBarButton
+            disabled={isInteractionLocked || !hasLogs}
+            icon={<TerminalSquare className="h-4 w-4" />}
+            label="Logs"
+            onClick={onGoToLogs}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MobileBottomBarButton({
+  disabled,
+  icon,
+  label,
+  onClick,
+}: {
+  disabled: boolean;
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-[20px] px-2 py-2 text-center text-[11px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
+      disabled={disabled}
+      type="button"
+      onClick={onClick}
+    >
+      <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-slate-100 text-slate-900">
+        {icon}
+      </span>
+      <span>{label}</span>
+    </button>
   );
 }

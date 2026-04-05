@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Download, FileArchive, FolderTree, TriangleAlert } from "lucide-react";
+import {
+  ChevronDown,
+  Download,
+  FileArchive,
+  FolderTree,
+  TriangleAlert,
+} from "lucide-react";
 
 import {
   Card,
@@ -177,7 +183,7 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="grid gap-3 sm:grid-cols-4">
+        <div className="grid gap-3 grid-cols-2 xl:grid-cols-4">
           <Metric label="Arquivo enviado" value={result.arquivo} />
           <Metric
             label="Formato"
@@ -212,26 +218,30 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
           ) : null}
         </div>
 
-        {result.zip_download_url ? (
-          <a
-            className="inline-flex items-center gap-2 text-sm font-medium text-amber-900 underline decoration-amber-400 underline-offset-4"
-            href={result.zip_download_url}
-            rel="noreferrer"
-            target="_blank"
-          >
-            <Download className="h-4 w-4" />
-            Baixar todos os arquivos gerados
-          </a>
-        ) : result.zip_erro ? (
-          <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">
-            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-            {result.zip_erro}
-          </div>
-        ) : null}
+        <div className="grid gap-3 sm:grid-cols-2">
+          {result.zip_download_url ? (
+            <a
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-amber-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-700"
+              href={result.zip_download_url}
+              rel="noreferrer"
+              target="_blank"
+            >
+              <Download className="h-4 w-4" />
+              Baixar todos os arquivos
+            </a>
+          ) : result.zip_erro ? (
+            <div className="flex items-start gap-2 rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-800 sm:col-span-2">
+              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+              {result.zip_erro}
+            </div>
+          ) : null}
 
-        <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-900">
-          <FolderTree className="h-4 w-4 shrink-0" />
-          Pasta do lote: {result.output_label ?? result.output_directory}
+          <div className="flex min-h-11 items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-900 sm:justify-center">
+            <FolderTree className="h-4 w-4 shrink-0" />
+            <span className="line-clamp-2 break-words">
+              Pasta do lote: {result.output_label ?? result.output_directory}
+            </span>
+          </div>
         </div>
 
         <div className="space-y-3">
@@ -241,30 +251,28 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
           </div>
           <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
             {result.resultados.map((item, index) => (
-              <div
+              <details
                 key={`${item.nome}-${item.status}-${index}`}
-                className="rounded-xl border border-white/70 bg-white/70 p-4"
+                className="group rounded-2xl border border-white/70 bg-white/75 p-4"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
+                <summary className="flex cursor-pointer list-none items-start justify-between gap-3">
+                  <div className="min-w-0">
                     <p className="font-medium text-slate-950">{item.nome}</p>
-                    <p className="mt-1 text-sm text-slate-600">
-                      {item.duracao_segundos} s
-                    </p>
-                    {item.status === "sucesso" && item.cache_status ? (
-                      <p className="mt-2">
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-700">
+                        {item.duracao_segundos} s
+                      </span>
+                      {item.status === "sucesso" && item.cache_status ? (
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <span
                               className={
                                 item.cache_status === "hit"
-                                  ? "rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-emerald-800"
-                                  : "rounded-full bg-amber-100 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-amber-800"
+                                  ? "rounded-full bg-emerald-100 px-2.5 py-1 font-semibold uppercase tracking-[0.08em] text-emerald-800"
+                                  : "rounded-full bg-amber-100 px-2.5 py-1 font-semibold uppercase tracking-[0.08em] text-amber-800"
                               }
                             >
-                              {item.cache_status === "hit"
-                                ? "Origem: Cache"
-                                : "Origem: Scraping"}
+                              {item.cache_status === "hit" ? "Cache" : "Scraping"}
                             </span>
                           </TooltipTrigger>
                           <TooltipContent>
@@ -273,29 +281,34 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
                               : "Sem cache valido: PDF gerado novamente via scraping."}
                           </TooltipContent>
                         </Tooltip>
-                      </p>
-                    ) : null}
+                      ) : null}
+                    </div>
                   </div>
-                  <span
-                    className={
-                      item.status === "sucesso"
-                        ? "rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800"
-                        : "rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-800"
-                    }
-                  >
-                    {item.status === "sucesso" ? "Concluido" : "Erro"}
-                  </span>
-                </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={
+                        item.status === "sucesso"
+                          ? "rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-800"
+                          : "rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-800"
+                      }
+                    >
+                      {item.status === "sucesso" ? "Concluido" : "Erro"}
+                    </span>
+                    <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 transition group-open:rotate-180" />
+                  </div>
+                </summary>
                 {item.status === "sucesso" ? (
                   <div className="mt-3 space-y-3">
-                    <a
-                      className="inline-flex text-sm font-medium text-amber-900 underline decoration-amber-400 underline-offset-4"
-                      href={item.download_pdf_url}
-                      rel="noreferrer"
-                      target="_blank"
-                    >
-                      Abrir PDF original
-                    </a>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <a
+                        className="inline-flex min-h-10 items-center justify-center rounded-2xl bg-amber-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-700"
+                        href={item.download_pdf_url}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        Abrir PDF original
+                      </a>
+                    </div>
                     <div className="rounded-lg border border-amber-100 bg-amber-50/60 p-3">
                       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-800">
                         Arquivos gerados
@@ -316,7 +329,7 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
                         ).map((file) => (
                           <a
                             key={file.relative_path}
-                            className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
+                            className="inline-flex min-h-9 items-center gap-2 rounded-full border border-amber-200 bg-white px-3 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
                             href={file.download_url}
                             rel="noreferrer"
                             target="_blank"
@@ -412,7 +425,7 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
                     )}
                   </div>
                 )}
-              </div>
+              </details>
             ))}
           </div>
         </div>
@@ -432,7 +445,7 @@ function Metric({ label, value }: MetricProps) {
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-700">
         {label}
       </p>
-      <p className="mt-2 text-lg font-semibold text-slate-950">{value}</p>
+      <p className="mt-2 line-clamp-3 break-words text-base font-semibold text-slate-950 sm:text-lg">{value}</p>
     </div>
   );
 }
