@@ -18,10 +18,25 @@ IMPORTANTE: considere que a fonte principal é o texto extraído de um PDF do cu
 - Quando uma informação não aparecer nem no PDF nem no HTML, escreva de forma explícita que ela não foi encontrada em nenhuma das duas fontes. Exemplo: "Não encontrado no PDF nem no HTML" ou "Não foram encontradas informações sobre pós-doutorado no PDF nem no HTML".
 - Evite frases que indiquem ausência apenas no PDF quando o HTML também foi fornecido.
 
+Ao interpretar formação, titulação e distinções acadêmicas, aplique a seguinte hierarquia:
+- Educação básica/técnica: ensino médio, ensino médio-técnico e cursos profissionalizantes.
+- Graduação: tecnólogo, bacharelado e licenciatura.
+- Pós-graduação lato sensu: especialização e MBA.
+- Pós-graduação stricto sensu: mestrado e doutorado.
+- Distinções e etapas posteriores: pós-doutorado, livre-docência e professor emérito.
+
+Regras obrigatórias de classificação acadêmica:
+- Trate doutorado como o maior grau acadêmico formal.
+- Não trate pós-doutorado como um novo título acima de doutorado; classifique-o como estágio ou experiência de pesquisa posterior ao doutorado.
+- Não trate livre-docência nem professor emérito como graus formais equivalentes a mestrado ou doutorado; classifique-os como distinções de carreira.
+- Quando houver múltiplas formações, identifique explicitamente a maior titulação formal concluída.
+- Quando houver especialização, MBA, cursos técnicos ou cursos profissionalizantes, registre-os como formação complementar.
+- Na seção de formação, diferencie sempre que possível: grau formal, formação complementar e distinção de carreira.
+
 Estruture a resposta nesta ordem:
 1. **Resumo Executivo**: 3-5 linhas com visão geral do perfil (esta seção deve vir primeiro)
 2. **Identificação**: nome completo, maior titulação, instituição atual
-3. **Formação Acadêmica**: graduação, mestrado, doutorado e pós-doutorado (ano e instituição)
+3. **Formação Acadêmica**: graduação, mestrado, doutorado, pós-doutorado, especializações relevantes e distinções acadêmicas/carreira (ano e instituição, quando disponível)
 4. **Atuação Profissional**: cargos e vínculos institucionais atuais
 5. **Produção Científica**: principais publicações, patentes ou produções relevantes (inclua quantidade aproximada e área)
 6. **Projetos e Orientações**: projetos em andamento e orientações acadêmicas
@@ -31,6 +46,8 @@ Estilo de Markdown (obrigatório):
 - Em "Resumo Executivo", coloque o parágrafo em bloco de citação usando ">".
 - Use listas com marcadores para itens principais.
 - Use uma tabela curta (quando possível) em "Formação Acadêmica" com colunas: Nível | Instituição | Ano.
+- Em "Identificação", informe explicitamente a maior titulação formal.
+- Em "Formação Acadêmica", deixe claro quando um item for formação complementar ou distinção de carreira.
 - Destaque dados-chave com negrito, sem exagero.
 
 Regras obrigatórias de saída:

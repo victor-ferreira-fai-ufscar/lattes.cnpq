@@ -2,6 +2,8 @@
 
 Objetivo: manter uma referencia curta e consistente para interpretar niveis de formacao, titulacao e distincao academica ao trabalhar com curriculos Lattes, exportacoes estruturadas, resumos e interfaces do projeto.
 
+Uso principal: aplicar estas regras no resumo gerado por IA a partir do PDF do curriculo e, quando necessario, do HTML da pagina Lattes como fonte auxiliar.
+
 ## 1. Educacao Basica e Tecnica
 
 - Ensino Medio: educacao geral basica.
@@ -47,3 +49,25 @@ Objetivo: manter uma referencia curta e consistente para interpretar niveis de f
 - Tratar livre-docencia e professor emerito como distincoes de carreira, nao como graus equivalentes a mestrado ou doutorado.
 - Quando houver multiplas formacoes, priorizar para exibicao resumida o maior grau formal concluido.
 - Em saidas estruturadas, separar quando possivel: `grau_formal`, `formacao_complementar` e `distincao_carreira`.
+
+## Aplicacao no Resumo por IA
+
+- Extrair do PDF a formacao academica principal e usar o HTML apenas para complementar lacunas.
+- Identificar explicitamente o maior grau formal concluido do profissional.
+- Nao classificar pos-doutorado como grau academico superior ao doutorado.
+- Quando houver especializacao, MBA ou cursos complementares, registrar como formacao complementar e nao como maior titulacao.
+- Quando houver livre-docencia ou professor emerito, registrar como distincao de carreira separada da titulacao formal.
+- Quando uma informacao nao estiver presente no PDF nem no HTML, informar a ausencia de forma explicita.
+
+## Estrutura Sugerida para Normalizacao
+
+- `maior_titulacao`: maior grau formal concluido.
+- `grau_formal`: lista resumida de graduacao, mestrado e doutorado identificados.
+- `formacao_complementar`: especializacao, MBA, cursos tecnicos e cursos profissionalizantes.
+- `distincao_carreira`: pos-doutorado, livre-docencia, professor emerito e outras distinçoes equivalentes.
+
+## Exemplo de Interpretacao
+
+- Se o curriculo mencionar bacharelado, mestrado, doutorado e pos-doutorado: `maior_titulacao = Doutorado`.
+- Se o curriculo mencionar MBA apos o doutorado: `maior_titulacao = Doutorado` e `MBA` entra em `formacao_complementar`.
+- Se o curriculo mencionar livre-docencia apos o doutorado: `maior_titulacao = Doutorado` e `Livre-Docencia` entra em `distincao_carreira`.

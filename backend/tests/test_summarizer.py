@@ -1,4 +1,14 @@
-from src.core.summarizer import _build_user_prompt
+from src.core.summarizer import _PROMPT_SISTEMA, _build_user_prompt
+
+
+def test_system_prompt_includes_academic_hierarchy_rules_for_ai_summary():
+    assert "Trate doutorado como o maior grau acadêmico formal." in _PROMPT_SISTEMA
+    assert (
+        "Não trate pós-doutorado como um novo título acima de doutorado"
+        in _PROMPT_SISTEMA
+    )
+    assert "livre-docência" in _PROMPT_SISTEMA
+    assert "maior titulação formal" in _PROMPT_SISTEMA
 
 
 def test_build_user_prompt_includes_pdf_and_html_sources_with_priority_guidance():
