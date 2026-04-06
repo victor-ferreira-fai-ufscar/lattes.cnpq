@@ -20,7 +20,7 @@ services:
       - WATCHPACK_POLLING=true
       - CI=true
     # Next em modo dev ouvindo em todas as interfaces
-    command: pnpm run dev --hostname 0.0.0.0 --port ${FRONTEND_PORT:-3000}
+    command: sh /app/scripts/dev-entrypoint.sh
 
 volumes:
   frontend_node_modules:

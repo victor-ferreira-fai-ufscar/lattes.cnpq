@@ -495,7 +495,7 @@ export function LattesWorkbench() {
                   />
                 )}
                 {summaryResult ? (
-                  <div ref={summaryResultRef}>
+                  <div ref={summaryResultRef} className="scroll-mt-32 sm:scroll-mt-36 lg:scroll-mt-40">
                     <SummaryResultCard result={summaryResult} />
                   </div>
                 ) : null}
@@ -539,10 +539,14 @@ function scrollToSection(element: HTMLElement | null) {
   }
 
   requestAnimationFrame(() => {
-    element.scrollIntoView({
+    const isMobile = window.innerWidth < 640;
+    const isTablet = window.innerWidth < 1024;
+    const topOffset = isMobile ? 144 : isTablet ? 132 : 116;
+    const targetTop = window.scrollY + element.getBoundingClientRect().top - topOffset;
+
+    window.scrollTo({
+      top: Math.max(0, targetTop),
       behavior: "smooth",
-      block: "start",
-      inline: "nearest",
     });
   });
 }

@@ -10,9 +10,11 @@
 - [x] Invés de mostrar um modal de loading (que fica com o bg escurecido), seria melhor um toast/sonner. Que fica fazendo o request do lado direito inferior, e quando terminar ele some, e aí o usuário pode ir lá ver os resultados. Assim não bloqueia a tela inteira, e o usuário pode continuar navegando ou lendo outras coisas enquanto espera o resultado chegar. (Adicionar um sistema de notificações tipo toast/sonner para indicar que a solicitação está sendo processada, permitindo que o usuário continue navegando ou lendo outras informações enquanto aguarda os resultados, melhorando a experiência geral da aplicação. Porém sem deixar a pessoa para interagir com outros elementos enquanto a requisição estiver em andamento, mas ela também pode cancelar quando quiser, e aí o toast some e a requisição é cancelada, para evitar que ela fique presa esperando caso queira cancelar ou fazer outra coisa.)
     - https://ui.shadcn.com/docs/components/radix/toast
     - https://ui.shadcn.com/docs/components/radix/sonner
-- [ ] Melhorar o markdown do "Resumo executivo e detalhes" para renderizar tabelas e etc (de forma mais bonita)
-    - [ ] https://tx.shadcn.com/docs/documentation
+- [x] Melhorar o markdown do "Resumo executivo e detalhes" para renderizar tabelas e etc (de forma mais bonita)
+    - https://tx.shadcn.com/docs/documentation
 - [x] Adicionar os erros no loading toast/sonner para mostrar quando der erro, e também adicionar um botão de retry para tentar novamente caso dê erro. (Adicionar um sistema de notificações tipo toast/sonner para indicar quando ocorrer um erro durante a solicitação, permitindo que o usuário saiba que algo deu errado e oferecendo a opção de tentar novamente com um botão de retry, melhorando a experiência geral da aplicação e facilitando a resolução de problemas.)
+- [ ] Melhorar os metadados e favicon da aplicação para deixar mais personalizada e profissional. (Adicionar metadados personalizados, como título, descrição e favicon, para melhorar a identidade visual da aplicação e torná-la mais reconhecível e profissional para os usuários.)
+
 
 
 ## Detalhes da execução (`componente.tsx`)
