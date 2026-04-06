@@ -53,6 +53,8 @@ async def summarize(request: SummarizeRequest):
     try:
         resumo = await resumir_curriculo(
             texto,
+            texto_pdf=source_result.texto_pdf,
+            texto_html=source_result.texto_html,
             api_key=request.api_key,
             modelo=request.modelo,
             provedor=request.provedor,

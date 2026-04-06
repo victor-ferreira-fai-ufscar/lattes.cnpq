@@ -51,6 +51,8 @@ class LattesSummarySourceResult:
     fonte: str
     caracteres_pdf: int
     caracteres_html: int
+    texto_pdf: str = ""
+    texto_html: str = ""
 
 
 def _is_true(value: str) -> bool:
@@ -650,6 +652,8 @@ async def scrape_lattes_summary_source(nome: str) -> LattesSummarySourceResult:
                     fonte="pdf",
                     caracteres_pdf=len(texto_pdf.strip()),
                     caracteres_html=len(texto_html.strip()),
+                    texto_pdf=texto_pdf,
+                    texto_html=texto_html,
                 )
 
             return LattesSummarySourceResult(
@@ -657,6 +661,8 @@ async def scrape_lattes_summary_source(nome: str) -> LattesSummarySourceResult:
                 fonte="html",
                 caracteres_pdf=len(texto_pdf.strip()),
                 caracteres_html=len(texto_html.strip()),
+                texto_pdf=texto_pdf,
+                texto_html=texto_html,
             )
         finally:
             await browser.close()

@@ -10,10 +10,13 @@ _PROMPT_SISTEMA = """\
 Você é um assistente especializado em análise de currículos acadêmicos brasileiros (Lattes/CNPq).
 Ao receber o texto bruto de um currículo, produza um resumo estruturado em português.
 
-IMPORTANTE: considere que a fonte principal é o texto extraído de um PDF do currículo.
-- Priorize sempre informações explícitas no texto extraído do PDF.
-- Se houver ambiguidade, prefira a interpretação mais conservadora.
-- Não invente dados. Quando faltar informação, escreva "Não informado no PDF".
+IMPORTANTE: considere que a fonte principal é o texto extraído de um PDF do currículo, mas pode haver um texto auxiliar extraído do HTML da página.
+- Para cada informação, procure primeiro no PDF.
+- Se a informação não aparecer no PDF, tente encontrá-la no HTML.
+- Se houver conflito entre PDF e HTML, prefira o PDF e adote a interpretação mais conservadora.
+- Não invente dados.
+- Quando uma informação não aparecer nem no PDF nem no HTML, escreva de forma explícita que ela não foi encontrada em nenhuma das duas fontes. Exemplo: "Não encontrado no PDF nem no HTML" ou "Não foram encontradas informações sobre pós-doutorado no PDF nem no HTML".
+- Evite frases que indiquem ausência apenas no PDF quando o HTML também foi fornecido.
 
 Estruture a resposta nesta ordem:
 1. **Resumo Executivo**: 3-5 linhas com visão geral do perfil (esta seção deve vir primeiro)
@@ -40,16 +43,57 @@ Regras obrigatórias de saída:
 _MAX_TEXTO_CHARS = 80_000
 
 
-def _build_user_prompt(texto: str) -> str:
-    return (
-        "Analise e resuma o currículo Lattes abaixo (texto extraído do PDF):\n\n"
-        + texto[:_MAX_TEXTO_CHARS]
-    )
+def _truncate_text(texto: str, *, max_chars: int) -> str:
+    return texto[:max_chars].strip()
+
+
+def _build_user_prompt(
+    texto: str,
+    *,
+    texto_pdf: str | None = None,
+    texto_html: str | None = None,
+) -> str:
+    pdf_limpo = (texto_pdf or "").strip()
+    html_limpo = (texto_html or "").strip()
+
+    if not pdf_limpo and not html_limpo:
+        return "Analise e resuma o currículo Lattes abaixo.\n\n" + _truncate_text(
+            texto, max_chars=_MAX_TEXTO_CHARS
+        )
+
+    prompt_parts = [
+        "Analise e resuma o currículo Lattes abaixo.",
+        "Use o PDF como fonte principal para cada campo e consulte o HTML apenas quando a informação não estiver presente no PDF.",
+    ]
+
+    if pdf_limpo:
+        prompt_parts.append(
+            "\n[FONTE PRINCIPAL: PDF]\n"
+            + _truncate_text(pdf_limpo, max_chars=int(_MAX_TEXTO_CHARS * 0.7))
+        )
+    else:
+        prompt_parts.append(
+            "\n[FONTE PRINCIPAL: PDF]\nPDF não disponível ou sem texto utilizável."
+        )
+
+    if html_limpo:
+        prompt_parts.append(
+            "\n[FONTE AUXILIAR: HTML]\n"
+            + _truncate_text(html_limpo, max_chars=int(_MAX_TEXTO_CHARS * 0.3))
+        )
+    else:
+        prompt_parts.append(
+            "\n[FONTE AUXILIAR: HTML]\nHTML não disponível ou sem texto utilizável."
+        )
+
+    return "\n\n".join(prompt_parts)
 
 
 async def _resumir_openai(
     texto: str,
     *,
+    texto_pdf: str | None,
+    texto_html: str | None,
     api_key: str | None,
     modelo: str,
 ) -> str:
@@ -67,7 +111,11 @@ async def _resumir_openai(
             {"role": "system", "content": _PROMPT_SISTEMA},
             {
                 "role": "user",
-                "content": _build_user_prompt(texto),
+                "content": _build_user_prompt(
+                    texto,
+                    texto_pdf=texto_pdf,
+                    texto_html=texto_html,
+                ),
             },
         ],
         temperature=0.3,
@@ -78,6 +126,8 @@ async def _resumir_openai(
 async def _resumir_gemini(
     texto: str,
     *,
+    texto_pdf: str | None,
+    texto_html: str | None,
     api_key: str | None,
     modelo: str,
 ) -> str:
@@ -94,7 +144,14 @@ async def _resumir_gemini(
         genai.configure(api_key=chave)
         model = genai.GenerativeModel(model_name=modelo)
         response = model.generate_content(
-            [_PROMPT_SISTEMA, _build_user_prompt(texto)],
+            [
+                _PROMPT_SISTEMA,
+                _build_user_prompt(
+                    texto,
+                    texto_pdf=texto_pdf,
+                    texto_html=texto_html,
+                ),
+            ],
             generation_config={"temperature": 0.3},
         )
         return getattr(response, "text", "") or ""
@@ -111,6 +168,8 @@ async def _resumir_gemini(
 async def _resumir_ollama(
     texto: str,
     *,
+    texto_pdf: str | None,
+    texto_html: str | None,
     api_key: str | None,
     modelo: str,
 ) -> str:
@@ -127,7 +186,11 @@ async def _resumir_ollama(
             {"role": "system", "content": _PROMPT_SISTEMA},
             {
                 "role": "user",
-                "content": _build_user_prompt(texto),
+                "content": _build_user_prompt(
+                    texto,
+                    texto_pdf=texto_pdf,
+                    texto_html=texto_html,
+                ),
             },
         ],
         temperature=0.3,
@@ -137,6 +200,9 @@ async def _resumir_ollama(
 
 async def resumir_curriculo(
     texto: str,
+    *,
+    texto_pdf: str | None = None,
+    texto_html: str | None = None,
     api_key: str | None = None,
     modelo: str = "gpt-4o-mini",
     provedor: str = "openai",
@@ -144,13 +210,31 @@ async def resumir_curriculo(
     provedor_normalizado = (provedor or "openai").strip().lower()
 
     if provedor_normalizado == "openai":
-        return await _resumir_openai(texto, api_key=api_key, modelo=modelo)
+        return await _resumir_openai(
+            texto,
+            texto_pdf=texto_pdf,
+            texto_html=texto_html,
+            api_key=api_key,
+            modelo=modelo,
+        )
 
     if provedor_normalizado == "gemini":
-        return await _resumir_gemini(texto, api_key=api_key, modelo=modelo)
+        return await _resumir_gemini(
+            texto,
+            texto_pdf=texto_pdf,
+            texto_html=texto_html,
+            api_key=api_key,
+            modelo=modelo,
+        )
 
     if provedor_normalizado == "ollama":
-        return await _resumir_ollama(texto, api_key=api_key, modelo=modelo)
+        return await _resumir_ollama(
+            texto,
+            texto_pdf=texto_pdf,
+            texto_html=texto_html,
+            api_key=api_key,
+            modelo=modelo,
+        )
 
     raise ValueError("Provedor de IA inválido. Use: openai, gemini ou ollama.")
 
