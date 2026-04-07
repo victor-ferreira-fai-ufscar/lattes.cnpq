@@ -8,7 +8,7 @@ export function AppToaster() {
       closeButton={false}
       expand={false}
       gap={12}
-      position="bottom-right"
+      position="top-right"
       richColors={false}
       toastOptions={{
         className:
@@ -22,8 +22,8 @@ export function AppToaster() {
         },
       }}
       visibleToasts={5}
-      offset={{ bottom: "1.25rem", right: "1.25rem", left: "1rem" }}
-      mobileOffset={{ bottom: "6.5rem", right: "0.875rem", left: "0.875rem" }}
+      offset={{ top: "1.25rem", right: "1.25rem", left: "1rem" }}
+      mobileOffset={{ top: "0.875rem", right: "0.875rem", left: "0.875rem" }}
     />
   );
 }

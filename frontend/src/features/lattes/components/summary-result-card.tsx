@@ -31,6 +31,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { SummarizeResponse } from "@/features/lattes/services/lattes.service";
 import { cn } from "@/lib/utils";
@@ -197,26 +198,28 @@ export function SummaryResultCard({ result }: SummaryResultCardProps) {
             </Tooltip>
           </div>
         </DialogHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5 pt-5 sm:px-7 sm:pb-7">
-          <div className="grid gap-3 sm:grid-cols-3">
-            <SummaryMetaCard icon={<FileText className="h-4 w-4" />} label="Pessoa" value={result.nome} />
-            {result.fonte_resumo ? (
-              <SummaryMetaCard
-                icon={<Check className="h-4 w-4" />}
-                label="Base do resumo"
-                value={result.fonte_resumo === "pdf" ? "PDF" : "HTML (fallback)"}
-              />
-            ) : null}
-            {typeof result.duracao_segundos === "number" ? (
-              <SummaryMetaCard
-                icon={<Clock3 className="h-4 w-4" />}
-                label="Duracao"
-                value={`${result.duracao_segundos} s`}
-              />
-            ) : null}
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="px-5 pb-5 pt-5 sm:px-7 sm:pb-7">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <SummaryMetaCard icon={<FileText className="h-4 w-4" />} label="Pessoa" value={result.nome} />
+              {result.fonte_resumo ? (
+                <SummaryMetaCard
+                  icon={<Check className="h-4 w-4" />}
+                  label="Base do resumo"
+                  value={result.fonte_resumo === "pdf" ? "PDF" : "HTML (fallback)"}
+                />
+              ) : null}
+              {typeof result.duracao_segundos === "number" ? (
+                <SummaryMetaCard
+                  icon={<Clock3 className="h-4 w-4" />}
+                  label="Duracao"
+                  value={`${result.duracao_segundos} s`}
+                />
+              ) : null}
+            </div>
+            <SummaryMarkdownContent className="mt-5" interactive markdown={cleanedMarkdown} />
           </div>
-          <SummaryMarkdownContent className="mt-5" interactive markdown={cleanedMarkdown} />
-        </div>
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );

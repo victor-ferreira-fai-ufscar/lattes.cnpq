@@ -179,6 +179,10 @@ export function LattesWorkbench() {
             activeToastIdRef.current = null;
             void cancelActiveRequest();
           }}
+          onViewDetails={() => {
+            setIsLogPanelOpen(true);
+            setIsLogPanelPinned(true);
+          }}
         />
       ),
       {

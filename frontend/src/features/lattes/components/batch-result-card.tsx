@@ -17,6 +17,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Tooltip,
   TooltipContent,
@@ -249,8 +250,9 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
             <FileArchive className="h-4 w-4 text-amber-700" />
             Resultado por pessoa
           </div>
-          <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
-            {result.resultados.map((item, index) => (
+          <ScrollArea className="max-h-80 rounded-2xl">
+            <div className="space-y-2 pr-3">
+              {result.resultados.map((item, index) => (
               <details
                 key={`${item.nome}-${item.status}-${index}`}
                 className="group rounded-2xl border border-white/70 bg-white/75 p-4"
@@ -426,8 +428,9 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
                   </div>
                 )}
               </details>
-            ))}
-          </div>
+              ))}
+            </div>
+          </ScrollArea>
         </div>
       </CardContent>
     </Card>
