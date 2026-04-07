@@ -7,12 +7,14 @@ import {
   CheckCircle2,
   FileCheck2,
   FileSpreadsheet,
+  Pin,
+  PinOff,
   Search,
   Sparkles,
   TerminalSquare,
   Trash2,
 } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { SectionHeading } from "@/components/shared/section-heading";
@@ -28,10 +30,12 @@ import { ScrapeResultCard } from "@/features/lattes/components/scrape-result-car
 import { SummaryPanel } from "@/features/lattes/components/summary-panel";
 import { SummaryResultCard } from "@/features/lattes/components/summary-result-card";
 import { useLattesWorkbench } from "@/features/lattes/hooks/use-lattes-workbench";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 const ACTIVE_REQUEST_TOAST_ID = "lattes-active-request";
 const ERROR_REQUEST_TOAST_ID = "lattes-error-request";
+const FLOW_PANEL_PINNED_STORAGE_KEY = "lattes-flow-panel-pinned";
 
 export function LattesWorkbench() {
   const {
@@ -72,11 +76,13 @@ export function LattesWorkbench() {
   const logsRef = useRef<HTMLDivElement | null>(null);
   const activeToastIdRef = useRef<string | number | null>(null);
   const lastErrorMessageRef = useRef<string | null>(null);
+  const hasLoadedPinPreferenceRef = useRef(false);
   const previousLoadingRef = useRef({
     scrape: loading.scrape,
     batch: loading.batch,
     summarize: loading.summarize,
   });
+  const [isFlowPanelPinned, setIsFlowPanelPinned] = useState(true);
   const hasMainResult = Boolean(scrapeResult || batchResult);
   const hasSummaryResult = Boolean(summaryResult);
   const hasLogs = activeLogs.length > 0;
@@ -208,6 +214,27 @@ export function LattesWorkbench() {
     );
   }, [canRetryLastAction, errorMessage, retryActionLabel, retryLastAction]);
 
+  useEffect(() => {
+    const storedPreference = window.localStorage.getItem(FLOW_PANEL_PINNED_STORAGE_KEY);
+
+    if (storedPreference !== null) {
+      setIsFlowPanelPinned(storedPreference === "true");
+    }
+
+    hasLoadedPinPreferenceRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    if (!hasLoadedPinPreferenceRef.current) {
+      return;
+    }
+
+    window.localStorage.setItem(
+      FLOW_PANEL_PINNED_STORAGE_KEY,
+      String(isFlowPanelPinned),
+    );
+  }, [isFlowPanelPinned]);
+
   return (
     <main className="relative overflow-x-clip px-3 py-5 pb-[calc(7.5rem+env(safe-area-inset-bottom))] sm:px-5 sm:py-8 sm:pb-8 lg:px-8 lg:py-10">
       <div className="absolute inset-x-0 top-0 -z-10 h-[420px] bg-[radial-gradient(circle_at_top_left,_rgba(13,148,136,0.24),_transparent_38%),radial-gradient(circle_at_top_right,_rgba(249,115,22,0.18),_transparent_34%),linear-gradient(180deg,_rgba(255,251,235,0.95),_rgba(248,250,252,0.96)_40%,_rgba(240,253,250,0.92)_100%)]" />
@@ -269,17 +296,52 @@ export function LattesWorkbench() {
           </div>
         </div>
 
-        <div className="sticky top-3 z-20 rounded-[28px] border border-white/70 bg-white/80 p-3 shadow-[0_20px_60px_-42px_rgba(15,23,42,0.45)] backdrop-blur sm:top-4 sm:p-4">
+        <div
+          className={cn(
+            "z-20 rounded-[28px] border border-white/70 bg-white/80 p-3 shadow-[0_20px_60px_-42px_rgba(15,23,42,0.45)] backdrop-blur sm:p-4",
+            isFlowPanelPinned ? "sticky top-3 sm:top-4" : "relative",
+          )}
+        >
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                Escolha o fluxo
-              </p>
-              <p className="mt-1 text-sm text-slate-700">
-                {mode === "individual"
-                  ? "Fluxo mais guiado para validar uma pessoa por vez."
-                  : "Fluxo otimizado para listas maiores e acompanhamento por lote."}
-              </p>
+            <div className="flex items-start justify-between gap-3 lg:flex-1">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                  Escolha o fluxo
+                </p>
+                <p className="mt-1 text-sm text-slate-700">
+                  {mode === "individual"
+                    ? "Fluxo mais guiado para validar uma pessoa por vez."
+                    : "Fluxo otimizado para listas maiores e acompanhamento por lote."}
+                </p>
+              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    aria-label={isFlowPanelPinned ? "Desafixar seletor de fluxo" : "Fixar seletor de fluxo"}
+                    aria-pressed={isFlowPanelPinned}
+                    className={cn(
+                      "h-11 w-11 shrink-0 rounded-2xl border px-0 shadow-sm",
+                      isFlowPanelPinned
+                        ? "border-teal-200 bg-teal-50 text-teal-800 hover:bg-teal-100"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+                    )}
+                    onClick={() => setIsFlowPanelPinned((currentValue) => !currentValue)}
+                    type="button"
+                    variant="outline"
+                  >
+                    {isFlowPanelPinned ? (
+                      <Pin className="h-4.5 w-4.5" />
+                    ) : (
+                      <PinOff className="h-4.5 w-4.5" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">
+                  {isFlowPanelPinned
+                    ? "Painel fixado durante a rolagem. Clique para soltar."
+                    : "Painel solto no fluxo da página. Clique para fixar."}
+                </TooltipContent>
+              </Tooltip>
             </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[560px]">
               <Button
