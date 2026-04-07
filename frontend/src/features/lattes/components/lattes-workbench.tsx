@@ -44,6 +44,7 @@ import { cn } from "@/lib/utils";
 
 const ACTIVE_REQUEST_TOAST_ID = "lattes-active-request";
 const ERROR_REQUEST_TOAST_ID = "lattes-error-request";
+const CLEAR_HISTORY_TOAST_ID = "lattes-clear-history";
 const FLOW_PANEL_PINNED_STORAGE_KEY = "lattes-flow-panel-pinned";
 const LOG_PANEL_OPEN_STORAGE_KEY = "lattes-log-panel-open";
 const LOG_PANEL_PINNED_STORAGE_KEY = "lattes-log-panel-pinned";
@@ -468,13 +469,28 @@ export function LattesWorkbench() {
               type="button"
               variant="outline"
               onClick={() => {
-                const confirmed = window.confirm(
-                  "Deseja limpar o historico salvo de buscas, execucoes e logs?",
+                toast.custom(
+                  () => (
+                    <ConfirmActionToast
+                      cancelLabel="Cancelar"
+                      confirmLabel="Limpar"
+                      description="Isso remove buscas, execucoes e logs salvos da sessao atual."
+                      title="Limpar historico?"
+                      tone="danger"
+                      onCancel={() => {
+                        toast.dismiss(CLEAR_HISTORY_TOAST_ID);
+                      }}
+                      onConfirm={() => {
+                        toast.dismiss(CLEAR_HISTORY_TOAST_ID);
+                        clearHistory();
+                      }}
+                    />
+                  ),
+                  {
+                    id: CLEAR_HISTORY_TOAST_ID,
+                    duration: 14_000,
+                  },
                 );
-                if (!confirmed) {
-                  return;
-                }
-                clearHistory();
               }}
             >
               <Trash2 className="h-4 w-4" />
@@ -761,6 +777,57 @@ function InfoCard({
     <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
       <p className="text-sm font-semibold text-slate-950">{title}</p>
       <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>
+    </div>
+  );
+}
+
+function ConfirmActionToast({
+  cancelLabel,
+  confirmLabel,
+  description,
+  onCancel,
+  onConfirm,
+  title,
+  tone = "default",
+}: {
+  cancelLabel: string;
+  confirmLabel: string;
+  description: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+  title: string;
+  tone?: "default" | "danger";
+}) {
+  return (
+    <div className="w-full min-w-[300px] max-w-[380px] rounded-[24px] border border-white/70 bg-white/98 p-4 text-slate-950 shadow-[0_20px_56px_-28px_rgba(15,23,42,0.45)] backdrop-blur">
+      <div className="space-y-3">
+        <div>
+          <p className="text-sm font-semibold text-slate-950">{title}</p>
+          <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>
+        </div>
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            className="rounded-full border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+          >
+            {cancelLabel}
+          </Button>
+          <Button
+            className={cn(
+              "rounded-full",
+              tone === "danger"
+                ? "bg-red-600 text-white hover:bg-red-700"
+                : "bg-slate-900 text-white hover:bg-slate-800",
+            )}
+            type="button"
+            onClick={onConfirm}
+          >
+            {confirmLabel}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
