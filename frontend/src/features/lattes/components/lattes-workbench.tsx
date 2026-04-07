@@ -15,7 +15,7 @@ import {
   TerminalSquare,
   Trash2,
 } from "lucide-react";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -104,28 +104,31 @@ export function LattesWorkbench() {
   const hasLogs = activeLogs.length > 0;
   const activeFlowLabel =
     mode === "individual" ? "Busca individual" : "Processamento em lote";
+  const hasStartedStepTwo =
+    mode === "individual"
+      ? Boolean(lastSearchTerm || selectedCandidate || loading.search || loading.variants || loading.scrape || hasMainResult)
+      : Boolean(loading.batch || hasMainResult || hasLogs);
+  const hasStartedStepThree =
+    mode === "individual"
+      ? Boolean(selectedCandidate || loading.scrape || scrapeResult || loading.models || loading.summarize || hasSummaryResult)
+      : Boolean(loading.batch || hasMainResult || hasLogs);
+  const visibleStepCount = hasStartedStepThree ? 3 : hasStartedStepTwo ? 2 : 1;
   const currentStepIndex = hasSummaryResult || loading.summarize || loading.models
     ? 2
     : hasMainResult || loading.scrape || loading.batch
       ? 1
       : 0;
-  const flowSteps = [
-    {
-      title: mode === "individual" ? "Buscar e selecionar" : "Enviar e configurar CSV",
-      description:
-        mode === "individual"
-          ? "Escolha a pessoa certa antes de gerar os arquivos."
-          : "Defina a lista e os parametros do lote.",
-    },
-    {
-      title: "Processar e revisar",
-      description: "Acompanhe a execucao e confira os arquivos gerados.",
-    },
-    {
-      title: "Resumir e auditar",
-      description: "Use IA quando fizer sentido e revise os logs no mesmo fluxo.",
-    },
-  ];
+  const flowSteps = mode === "individual"
+    ? [
+        { title: "Buscar nome" },
+        { title: "Preparar curriculo" },
+        { title: "Resumo e revisao" },
+      ]
+    : [
+        { title: "Enviar CSV" },
+        { title: "Processar lote" },
+        { title: "Resultados e logs" },
+      ];
 
   useEffect(() => {
     const previousLoading = previousLoadingRef.current;
@@ -248,34 +251,33 @@ export function LattesWorkbench() {
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-teal-800">
                   Consulta de curriculos Lattes
                 </div>
-                <div className="space-y-2">
-                  <h2 className="text-balance text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl lg:text-[3.1rem] lg:leading-[1.02]">
-                    Fluxo mais limpo para pesquisar, processar e revisar resultados.
-                  </h2>
-                  <p className="max-w-2xl text-sm leading-6 text-slate-600 sm:text-base sm:leading-7">
-                    A tela agora concentra o que importa: escolha do fluxo, progresso por etapa e acesso discreto ao contexto de uso quando necessario.
-                  </p>
-                </div>
+                <h2 className="text-balance text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl lg:text-[3.1rem] lg:leading-[1.02]">
+                  Pesquisar, processar e revisar.
+                </h2>
               </div>
 
               <div className="flex items-center gap-2 self-start">
                 <div className="rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
                   {activeFlowLabel}
                 </div>
-                <WorkspaceInfoDialog />
+                <InfoDialogButton
+                  description="Esta tela foi reduzida ao minimo necessario. Os detalhes de operacao ficam aqui para consulta sob demanda."
+                  items={[
+                    "Escolha busca individual para validar uma pessoa por vez.",
+                    "Use CSV quando quiser processar listas maiores com menos interacao manual.",
+                    "As etapas aparecem aos poucos conforme voce avanca no fluxo.",
+                    "Resultados, resumo e logs continuam disponiveis nas seções abaixo.",
+                  ]}
+                  title="Workspace Lattes"
+                />
               </div>
             </div>
 
             <div className="space-y-4 rounded-[28px] border border-white/80 bg-white/72 p-4 shadow-[0_18px_50px_-36px_rgba(15,23,42,0.35)] backdrop-blur sm:p-5">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-                    Passo a passo
-                  </p>
-                  <p className="mt-1 text-sm text-slate-600">
-                    O indicador avanca conforme o usuario conclui cada etapa do fluxo.
-                  </p>
-                </div>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+                  Passo a passo
+                </p>
                 <div className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">
                   Etapa {currentStepIndex + 1} de {flowSteps.length}
                 </div>
@@ -292,16 +294,17 @@ export function LattesWorkbench() {
                 </div>
 
                 <div className="grid gap-3 lg:grid-cols-3">
-                  {flowSteps.map((step, index) => (
-                    <StepProgressCard
-                      key={step.title}
-                      description={step.description}
-                      index={index}
-                      isActive={index === currentStepIndex}
-                      isComplete={index < currentStepIndex}
-                      title={step.title}
-                    />
-                  ))}
+                  <AnimatePresence initial={false} mode="popLayout">
+                    {flowSteps.slice(0, visibleStepCount).map((step, index) => (
+                      <StepProgressCard
+                        key={step.title}
+                        index={index}
+                        isActive={index === currentStepIndex}
+                        isComplete={index < currentStepIndex}
+                        title={step.title}
+                      />
+                    ))}
+                  </AnimatePresence>
                 </div>
               </div>
             </div>
@@ -316,15 +319,27 @@ export function LattesWorkbench() {
         >
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-start justify-between gap-3 lg:flex-1">
-              <div>
+              <div className="flex items-center gap-2">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
                   Escolha o fluxo
                 </p>
-                <p className="mt-1 text-sm text-slate-700">
-                  {mode === "individual"
-                    ? "Fluxo mais guiado para validar uma pessoa por vez."
-                    : "Fluxo otimizado para listas maiores e acompanhamento por lote."}
-                </p>
+                <InfoDialogButton
+                  description={mode === "individual"
+                    ? "Use este fluxo quando precisar validar uma pessoa especifica antes de gerar os arquivos."
+                    : "Use este fluxo quando a lista ja estiver pronta em CSV e a prioridade for produtividade."}
+                  items={mode === "individual"
+                    ? [
+                        "Busque o nome.",
+                        "Selecione a pessoa correta.",
+                        "Gere os arquivos e, se quiser, o resumo com IA.",
+                      ]
+                    : [
+                        "Envie o CSV com os nomes.",
+                        "Acompanhe o processamento em lote.",
+                        "Revise resultados e logs ao final.",
+                      ]}
+                  title="Sobre este fluxo"
+                />
               </div>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -351,7 +366,7 @@ export function LattesWorkbench() {
                 <TooltipContent side="bottom">
                   {isFlowPanelPinned
                     ? "Painel fixado durante a rolagem. Clique para soltar."
-                    : "Painel solto no fluxo da página. Clique para fixar."}
+                    : "Painel solto no fluxo da pagina. Clique para fixar."}
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -368,14 +383,9 @@ export function LattesWorkbench() {
                 type="button"
                 variant={mode === "individual" ? "default" : "outline"}
               >
-                <span className="flex items-start gap-3">
-                  <Search className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>
-                    <span className="block text-sm font-semibold">Buscar uma pessoa</span>
-                    <span className={cn("mt-1 block text-xs", mode === "individual" ? "text-slate-300" : "text-slate-500")}>
-                      Ideal para conferência manual e seleção entre homônimos.
-                    </span>
-                  </span>
+                <span className="flex items-center gap-3">
+                  <Search className="h-4 w-4 shrink-0" />
+                  <span className="block text-sm font-semibold">Buscar uma pessoa</span>
                 </span>
               </Button>
               <Button
@@ -390,14 +400,9 @@ export function LattesWorkbench() {
                 type="button"
                 variant={mode === "lote" ? "default" : "outline"}
               >
-                <span className="flex items-start gap-3">
-                  <FileSpreadsheet className="mt-0.5 h-4 w-4 shrink-0" />
-                  <span>
-                    <span className="block text-sm font-semibold">Enviar lista em CSV</span>
-                    <span className={cn("mt-1 block text-xs", mode === "lote" ? "text-slate-300" : "text-slate-500")}>
-                      Melhor para processar vários nomes e consolidar os artefatos gerados.
-                    </span>
-                  </span>
+                <span className="flex items-center gap-3">
+                  <FileSpreadsheet className="h-4 w-4 shrink-0" />
+                  <span className="block text-sm font-semibold">Enviar lista em CSV</span>
                 </span>
               </Button>
             </div>
@@ -463,11 +468,10 @@ export function LattesWorkbench() {
               <SectionBlockHeader
                 eyebrow="Etapa 1"
                 title={mode === "individual" ? "Pesquise e selecione a pessoa" : "Envie e configure o arquivo CSV"}
-                description={
-                  mode === "individual"
-                    ? "O fluxo individual privilegia menos ambiguidade e mais controle sobre a pessoa escolhida."
-                    : "O fluxo em lote privilegia produtividade, com menos passos e acompanhamento por execução."
-                }
+                infoDescription={mode === "individual"
+                  ? "Nesta etapa voce busca um nome, revisa as correspondencias e escolhe a pessoa correta antes de gerar os arquivos."
+                  : "Nesta etapa voce envia o CSV, ajusta limites opcionais e define o formato de saida do processamento em lote."}
+                infoTitle="Detalhes da etapa 1"
               />
               <div className="mt-4">
                 {mode === "individual" ? (
@@ -501,7 +505,8 @@ export function LattesWorkbench() {
               <SectionBlockHeader
                 eyebrow="Etapa 2"
                 title="Resultados principais"
-                description="Os arquivos gerados e o status do processamento aparecem aqui assim que a execução termina."
+                infoDescription="Esta area concentra os arquivos gerados e o retorno principal do processamento assim que a execucao termina."
+                infoTitle="Detalhes da etapa 2"
               />
               <div className="mt-4 space-y-6">
                 {scrapeResult ? <ScrapeResultCard result={scrapeResult} /> : null}
@@ -534,7 +539,8 @@ export function LattesWorkbench() {
               <SectionBlockHeader
                 eyebrow="Etapa 3"
                 title="Resumo e acompanhamento"
-                description="Quando o curriculo estiver pronto, voce pode gerar um resumo com IA e revisar os logs da execucao no mesmo bloco lateral."
+                infoDescription="Use esta etapa para gerar um resumo com IA quando o curriculo estiver pronto e revisar os logs da execucao no mesmo bloco."
+                infoTitle="Detalhes da etapa 3"
               />
               <div className="mt-4 space-y-6">
                 {scrapeResult ? (
@@ -615,13 +621,11 @@ function scrollToSection(element: HTMLElement | null) {
 }
 
 function StepProgressCard({
-  description,
   index,
   isActive,
   isComplete,
   title,
 }: {
-  description: string;
   index: number;
   isActive: boolean;
   isComplete: boolean;
@@ -629,7 +633,12 @@ function StepProgressCard({
 }) {
   return (
     <motion.div
-      animate={{ opacity: isActive || isComplete ? 1 : 0.72, y: isActive ? -2 : 0 }}
+      animate={{
+        opacity: isActive || isComplete ? 1 : 0.72,
+        scale: isActive ? 1 : 0.985,
+        y: isActive ? -2 : 0,
+      }}
+      exit={{ opacity: 0, scale: 0.96, y: 8 }}
       className={cn(
         "rounded-[24px] border p-4 transition-colors",
         isActive
@@ -638,10 +647,11 @@ function StepProgressCard({
             ? "border-emerald-200 bg-emerald-50/85"
             : "border-slate-200/80 bg-white/82",
       )}
-      initial={false}
+      initial={{ opacity: 0, scale: 0.96, y: 8 }}
+      layout
       transition={{ duration: 0.25, ease: "easeOut" }}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-center gap-3">
         <div
           className={cn(
             "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-semibold",
@@ -654,16 +664,21 @@ function StepProgressCard({
         >
           {String(index + 1).padStart(2, "0")}
         </div>
-        <div>
-          <p className="font-semibold text-slate-950">{title}</p>
-          <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>
-        </div>
+        <p className="font-semibold text-slate-950">{title}</p>
       </div>
     </motion.div>
   );
 }
 
-function WorkspaceInfoDialog() {
+function InfoDialogButton({
+  description,
+  items,
+  title,
+}: {
+  description: string;
+  items: string[];
+  title: string;
+}) {
   return (
     <Dialog>
       <Tooltip>
@@ -686,29 +701,18 @@ function WorkspaceInfoDialog() {
           <DialogHeader className="space-y-3">
             <div className="inline-flex w-fit items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-teal-800">
               <CircleHelp className="h-3.5 w-3.5" />
-              Workspace Lattes
+              Mais informacoes
             </div>
             <div className="space-y-2">
-              <DialogTitle>Como usar este fluxo</DialogTitle>
-              <DialogDescription>
-                A interface foi condensada em tres etapas para reduzir ruido visual sem perder contexto operacional.
-              </DialogDescription>
+              <DialogTitle>{title}</DialogTitle>
+              <DialogDescription>{description}</DialogDescription>
             </div>
           </DialogHeader>
 
           <div className="grid gap-3">
-            <InfoCard
-              title="1. Escolha o fluxo"
-              description="Use busca individual para validar uma pessoa por vez ou CSV para processar listas maiores com menos interacao manual."
-            />
-            <InfoCard
-              title="2. Acompanhe o processamento"
-              description="Enquanto a solicitacao estiver ativa, a tela mostra apenas o estado de processamento e oferece cancelamento imediato."
-            />
-            <InfoCard
-              title="3. Revise o que foi gerado"
-              description="Resultados, resumo com IA e logs continuam organizados por etapa para facilitar triagem e auditoria."
-            />
+            {items.map((item, index) => (
+              <InfoCard key={item} description={item} title={`${index + 1}.`} />
+            ))}
           </div>
         </div>
       </DialogContent>
@@ -733,19 +737,28 @@ function InfoCard({
 
 function SectionBlockHeader({
   eyebrow,
+  infoDescription,
+  infoTitle,
   title,
-  description,
 }: {
   eyebrow: string;
+  infoDescription: string;
+  infoTitle: string;
   title: string;
-  description: string;
 }) {
   return (
     <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
-        {eyebrow}
-      </p>
-      <div className="flex items-start gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+          {eyebrow}
+        </p>
+        <InfoDialogButton
+          description={infoDescription}
+          items={[infoDescription]}
+          title={infoTitle}
+        />
+      </div>
+      <div className="flex items-center gap-3">
         <div className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-sm">
           {eyebrow === "Etapa 1" ? (
             <Search className="h-4 w-4" />
@@ -755,10 +768,7 @@ function SectionBlockHeader({
             <BrainCircuit className="h-4 w-4" />
           )}
         </div>
-        <div>
-          <h3 className="text-xl font-semibold text-slate-950">{title}</h3>
-          <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>
-        </div>
+        <h3 className="text-xl font-semibold text-slate-950">{title}</h3>
       </div>
     </div>
   );
