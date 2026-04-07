@@ -42,7 +42,7 @@ export function ExecutionLogCard({
         {logs.length > 0 ? (
           isFloating ? (
             <ScrollArea className="max-h-80 rounded-2xl border border-white/10 bg-slate-950/80">
-              <div className="space-y-2 p-4 font-mono text-xs leading-6 text-slate-200">
+              <div className="space-y-2 p-4 font-mono text-xs leading-6 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-slate-200">
                 {logs.map((line, index) => (
                   <p key={`${line}-${index}`}>{line}</p>
                 ))}
@@ -55,7 +55,7 @@ export function ExecutionLogCard({
                 <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
               </summary>
               <ScrollArea className="mt-4 max-h-72 rounded-2xl border border-white/10 bg-slate-950/70">
-                <div className="space-y-2 p-4 font-mono text-xs leading-6 text-slate-200">
+                <div className="space-y-2 p-4 font-mono text-xs leading-6 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-slate-200">
                   {logs.map((line, index) => (
                     <p key={`${line}-${index}`}>{line}</p>
                   ))}

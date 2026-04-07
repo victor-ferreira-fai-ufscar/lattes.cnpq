@@ -888,15 +888,17 @@ function FloatingExecutionPanel({
                         {isPinned ? "Painel fixado" : "Fixar painel"}
                       </TooltipContent>
                     </Tooltip>
-                    <Button
-                      aria-label="Fechar painel de execucao"
-                      className="h-10 rounded-2xl border-slate-200 bg-white px-3 text-slate-700 hover:bg-slate-50"
-                      type="button"
-                      variant="outline"
-                      onClick={() => onOpenChange(false)}
-                    >
-                      Fechar
-                    </Button>
+                    {!isPinned ? (
+                      <Button
+                        aria-label="Fechar painel de execucao"
+                        className="h-10 rounded-2xl border-slate-200 bg-white px-3 text-slate-700 hover:bg-slate-50"
+                        type="button"
+                        variant="outline"
+                        onClick={() => onOpenChange(false)}
+                      >
+                        Fechar
+                      </Button>
+                    ) : null}
                   </div>
                 </div>
                 <ExecutionLogCard isProcessing={isProcessing} logs={logs} variant="floating" />
