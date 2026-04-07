@@ -49,6 +49,8 @@ const FLOW_PANEL_PINNED_STORAGE_KEY = "lattes-flow-panel-pinned";
 const LOG_PANEL_OPEN_STORAGE_KEY = "lattes-log-panel-open";
 const LOG_PANEL_PINNED_STORAGE_KEY = "lattes-log-panel-pinned";
 
+type FlowStepTarget = "form" | "results" | "summary";
+
 export function LattesWorkbench() {
   const {
     mode,
@@ -125,15 +127,43 @@ export function LattesWorkbench() {
     : showResultsSection
         ? 1
         : 0;
+  const handleStepNavigation = (target: FlowStepTarget) => {
+    if (target === "form") {
+      scrollToSection(formSectionRef.current);
+      return;
+    }
+
+    if (target === "results") {
+      scrollToSection(resultsRef.current);
+      return;
+    }
+
+    scrollToSection(summaryResultRef.current);
+  };
   const flowSteps = mode === "individual"
     ? [
-        { title: "Pesquisar e selecionar" },
-        { title: "Resultados" },
-        { title: "Resumo" },
+        {
+          title: "Pesquisar e selecionar",
+          target: "form" as const,
+        },
+        {
+          title: "Resultados",
+          target: "results" as const,
+        },
+        {
+          title: "Resumo",
+          target: "summary" as const,
+        },
       ]
     : [
-        { title: "Enviar CSV" },
-        { title: "Resultados" },
+        {
+          title: "Enviar CSV",
+          target: "form" as const,
+        },
+        {
+          title: "Resultados",
+          target: "results" as const,
+        },
       ];
 
   useEffect(() => {
@@ -355,6 +385,7 @@ export function LattesWorkbench() {
                         index={index}
                         isActive={index === currentStepIndex}
                         isComplete={index < currentStepIndex}
+                        onClick={() => handleStepNavigation(step.target)}
                         title={step.title}
                       />
                     ))}
@@ -670,15 +701,19 @@ function StepProgressCard({
   index,
   isActive,
   isComplete,
+  onClick,
   title,
 }: {
   index: number;
   isActive: boolean;
   isComplete: boolean;
+  onClick: () => void;
   title: string;
 }) {
   return (
-    <motion.div
+    <motion.button
+      whileHover={{ y: -2, scale: 0.992 }}
+      whileTap={{ scale: 0.985 }}
       animate={{
         opacity: isActive || isComplete ? 1 : 0.72,
         scale: isActive ? 1 : 0.985,
@@ -686,16 +721,19 @@ function StepProgressCard({
       }}
       exit={{ opacity: 0, scale: 0.96, y: 8 }}
       className={cn(
-        "rounded-[24px] border p-4 transition-colors",
+        "rounded-[24px] border p-4 text-left transition-[transform,colors,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500/70 focus-visible:ring-offset-2",
         isActive
           ? "border-teal-300 bg-teal-50/90 shadow-[0_18px_44px_-34px_rgba(13,148,136,0.45)]"
           : isComplete
             ? "border-emerald-200 bg-emerald-50/85"
             : "border-slate-200/80 bg-white/82",
+        "cursor-pointer hover:border-teal-200 hover:shadow-[0_16px_36px_-30px_rgba(15,23,42,0.28)]",
       )}
       initial={{ opacity: 0, scale: 0.96, y: 8 }}
       layout
+      onClick={onClick}
       transition={{ duration: 0.25, ease: "easeOut" }}
+      type="button"
     >
       <div className="flex items-center gap-3">
         <div
@@ -710,9 +748,14 @@ function StepProgressCard({
         >
           {String(index + 1).padStart(2, "0")}
         </div>
-        <p className="font-semibold text-slate-950">{title}</p>
+        <div className="min-w-0">
+          <p className="font-semibold text-slate-950">{title}</p>
+          <p className="mt-1 text-xs font-medium text-slate-500">
+            Clique para ir para esta etapa
+          </p>
+        </div>
       </div>
-    </motion.div>
+    </motion.button>
   );
 }
 
