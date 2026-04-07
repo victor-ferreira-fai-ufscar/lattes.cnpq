@@ -45,6 +45,8 @@ import { cn } from "@/lib/utils";
 const ACTIVE_REQUEST_TOAST_ID = "lattes-active-request";
 const ERROR_REQUEST_TOAST_ID = "lattes-error-request";
 const FLOW_PANEL_PINNED_STORAGE_KEY = "lattes-flow-panel-pinned";
+const LOG_PANEL_OPEN_STORAGE_KEY = "lattes-log-panel-open";
+const LOG_PANEL_PINNED_STORAGE_KEY = "lattes-log-panel-pinned";
 
 export function LattesWorkbench() {
   const {
@@ -82,52 +84,55 @@ export function LattesWorkbench() {
   const resultsRef = useRef<HTMLDivElement | null>(null);
   const summaryResultRef = useRef<HTMLDivElement | null>(null);
   const formSectionRef = useRef<HTMLDivElement | null>(null);
-  const logsRef = useRef<HTMLDivElement | null>(null);
   const activeToastIdRef = useRef<string | number | null>(null);
   const lastErrorMessageRef = useRef<string | null>(null);
+  const hasLoadedPreferencesRef = useRef(false);
   const previousLoadingRef = useRef({
     scrape: loading.scrape,
     batch: loading.batch,
     summarize: loading.summarize,
   });
-  const [isFlowPanelPinned, setIsFlowPanelPinned] = useState(() => {
-    if (typeof window === "undefined") {
-      return true;
-    }
-
-    const storedPreference = window.localStorage.getItem(FLOW_PANEL_PINNED_STORAGE_KEY);
-
-    return storedPreference === null ? true : storedPreference === "true";
-  });
+  const [isFlowPanelPinned, setIsFlowPanelPinned] = useState(true);
+  const [isLogPanelOpen, setIsLogPanelOpen] = useState(false);
+  const [isLogPanelPinned, setIsLogPanelPinned] = useState(false);
   const hasMainResult = Boolean(scrapeResult || batchResult);
   const hasSummaryResult = Boolean(summaryResult);
   const hasLogs = activeLogs.length > 0;
+  const canShowLogPanel = isInteractionLocked || hasLogs;
+  const isLogPanelVisible = canShowLogPanel && (isLogPanelOpen || isLogPanelPinned);
   const activeFlowLabel =
     mode === "individual" ? "Busca individual" : "Processamento em lote";
-  const hasStartedStepTwo =
-    mode === "individual"
-      ? Boolean(lastSearchTerm || selectedCandidate || loading.search || loading.variants || loading.scrape || hasMainResult)
-      : Boolean(loading.batch || hasMainResult || hasLogs);
-  const hasStartedStepThree =
-    mode === "individual"
-      ? Boolean(selectedCandidate || loading.scrape || scrapeResult || loading.models || loading.summarize || hasSummaryResult)
-      : Boolean(loading.batch || hasMainResult || hasLogs);
-  const visibleStepCount = hasStartedStepThree ? 3 : hasStartedStepTwo ? 2 : 1;
-  const currentStepIndex = hasSummaryResult || loading.summarize || loading.models
-    ? 2
-    : hasMainResult || loading.scrape || loading.batch
-      ? 1
-      : 0;
+  const showResultsSection = mode === "individual"
+    ? Boolean(scrapeResult)
+    : Boolean(batchResult);
+  const showSummarySection = mode === "individual" && Boolean(scrapeResult);
+  const visibleStepCount = mode === "individual"
+    ? showSummarySection
+      ? 3
+      : showResultsSection
+        ? 2
+        : 1
+    : showResultsSection
+      ? 2
+      : 1;
+  const currentStepIndex = mode === "individual"
+    ? hasSummaryResult || loading.summarize || loading.models
+      ? 2
+      : showResultsSection
+        ? 1
+        : 0
+    : showResultsSection
+        ? 1
+        : 0;
   const flowSteps = mode === "individual"
     ? [
-        { title: "Buscar nome" },
-        { title: "Preparar curriculo" },
-        { title: "Resumo e revisao" },
+        { title: "Pesquisar e selecionar" },
+        { title: "Resultados" },
+        { title: "Resumo" },
       ]
     : [
         { title: "Enviar CSV" },
-        { title: "Processar lote" },
-        { title: "Resultados e logs" },
+        { title: "Resultados" },
       ];
 
   useEffect(() => {
@@ -231,11 +236,55 @@ export function LattesWorkbench() {
       return;
     }
 
+    const frameId = window.requestAnimationFrame(() => {
+      const nextFlowPanelPinned =
+        window.localStorage.getItem(FLOW_PANEL_PINNED_STORAGE_KEY) !== "false";
+      const nextLogPanelOpen =
+        window.localStorage.getItem(LOG_PANEL_OPEN_STORAGE_KEY) === "true";
+      const nextLogPanelPinned =
+        window.localStorage.getItem(LOG_PANEL_PINNED_STORAGE_KEY) === "true";
+
+      setIsFlowPanelPinned((currentValue) =>
+        currentValue === nextFlowPanelPinned ? currentValue : nextFlowPanelPinned,
+      );
+      setIsLogPanelOpen((currentValue) =>
+        currentValue === nextLogPanelOpen ? currentValue : nextLogPanelOpen,
+      );
+      setIsLogPanelPinned((currentValue) =>
+        currentValue === nextLogPanelPinned ? currentValue : nextLogPanelPinned,
+      );
+      hasLoadedPreferencesRef.current = true;
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !hasLoadedPreferencesRef.current) {
+      return;
+    }
+
     window.localStorage.setItem(
       FLOW_PANEL_PINNED_STORAGE_KEY,
       String(isFlowPanelPinned),
     );
   }, [isFlowPanelPinned]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !hasLoadedPreferencesRef.current) {
+      return;
+    }
+
+    window.localStorage.setItem(LOG_PANEL_OPEN_STORAGE_KEY, String(isLogPanelOpen));
+  }, [isLogPanelOpen]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !hasLoadedPreferencesRef.current) {
+      return;
+    }
+
+    window.localStorage.setItem(LOG_PANEL_PINNED_STORAGE_KEY, String(isLogPanelPinned));
+  }, [isLogPanelPinned]);
 
   return (
     <main className="relative overflow-x-clip px-3 py-5 pb-[calc(7.5rem+env(safe-area-inset-bottom))] sm:px-5 sm:py-8 sm:pb-8 lg:px-8 lg:py-10">
@@ -438,9 +487,9 @@ export function LattesWorkbench() {
               onClick={() => scrollToSection(summaryResultRef.current)}
             />
             <QuickJumpButton
-              disabled={!hasLogs}
-              label="Ir para logs"
-              onClick={() => scrollToSection(logsRef.current)}
+              disabled={!canShowLogPanel}
+              label="Abrir logs"
+              onClick={() => setIsLogPanelOpen(true)}
             />
           </div>
         </div>
@@ -459,45 +508,45 @@ export function LattesWorkbench() {
           </div>
         ) : null}
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
-          <div className="space-y-6">
-            <div
-              ref={formSectionRef}
-              className="rounded-[30px] border border-white/70 bg-white/84 p-4 shadow-[0_24px_80px_-50px_rgba(15,23,42,0.5)] backdrop-blur sm:p-5"
-            >
-              <SectionBlockHeader
-                eyebrow="Etapa 1"
-                title={mode === "individual" ? "Pesquise e selecione a pessoa" : "Envie e configure o arquivo CSV"}
-                infoDescription={mode === "individual"
-                  ? "Nesta etapa voce busca um nome, revisa as correspondencias e escolhe a pessoa correta antes de gerar os arquivos."
-                  : "Nesta etapa voce envia o CSV, ajusta limites opcionais e define o formato de saida do processamento em lote."}
-                infoTitle="Detalhes da etapa 1"
-              />
-              <div className="mt-4">
-                {mode === "individual" ? (
-                  <IndividualSearchPanel
-                    candidates={candidates}
-                    disabled={isInteractionLocked}
-                    isScraping={loading.scrape}
-                    isSearching={loading.search}
-                    isTryingVariants={loading.variants}
-                    lastSearchTerm={lastSearchTerm}
-                    selectedCandidate={selectedCandidate}
-                    onScrape={scrapeSelected}
-                    onSearch={searchCandidates}
-                    onTrySearchVariants={trySearchVariants}
-                    onSelectCandidate={setSelectedCandidate}
-                  />
-                ) : (
-                  <BatchUploadPanel
-                    disabled={isInteractionLocked}
-                    isSubmitting={loading.batch}
-                    onSubmitBatch={submitBatch}
-                  />
-                )}
-              </div>
+        <div className="space-y-6">
+          <div
+            ref={formSectionRef}
+            className="rounded-[30px] border border-white/70 bg-white/84 p-4 shadow-[0_24px_80px_-50px_rgba(15,23,42,0.5)] backdrop-blur sm:p-5"
+          >
+            <SectionBlockHeader
+              eyebrow="Etapa 1"
+              title={mode === "individual" ? "Pesquise e selecione a pessoa" : "Envie e configure o arquivo CSV"}
+              infoDescription={mode === "individual"
+                ? "Nesta etapa voce busca um nome, revisa as correspondencias e escolhe a pessoa correta antes de gerar os arquivos."
+                : "Nesta etapa voce envia o CSV, ajusta limites opcionais e define o formato de saida do processamento em lote."}
+              infoTitle="Detalhes da etapa 1"
+            />
+            <div className="mt-4">
+              {mode === "individual" ? (
+                <IndividualSearchPanel
+                  candidates={candidates}
+                  disabled={isInteractionLocked}
+                  isScraping={loading.scrape}
+                  isSearching={loading.search}
+                  isTryingVariants={loading.variants}
+                  lastSearchTerm={lastSearchTerm}
+                  selectedCandidate={selectedCandidate}
+                  onScrape={scrapeSelected}
+                  onSearch={searchCandidates}
+                  onTrySearchVariants={trySearchVariants}
+                  onSelectCandidate={setSelectedCandidate}
+                />
+              ) : (
+                <BatchUploadPanel
+                  disabled={isInteractionLocked}
+                  isSubmitting={loading.batch}
+                  onSubmitBatch={submitBatch}
+                />
+              )}
             </div>
+          </div>
 
+          {showResultsSection ? (
             <div
               ref={resultsRef}
               className="rounded-[30px] border border-white/70 bg-white/84 p-4 shadow-[0_24px_80px_-50px_rgba(15,23,42,0.5)] backdrop-blur sm:p-5"
@@ -511,58 +560,32 @@ export function LattesWorkbench() {
               <div className="mt-4 space-y-6">
                 {scrapeResult ? <ScrapeResultCard result={scrapeResult} /> : null}
                 {batchResult ? <BatchResultCard result={batchResult} /> : null}
-                {!scrapeResult && !batchResult && (loading.scrape || loading.batch) ? (
-                  <div className="rounded-3xl border border-slate-200/80 bg-white/80 p-6 shadow-[0_24px_80px_-48px_rgba(15,23,42,0.45)] backdrop-blur">
-                    <div className="space-y-3">
-                      <Skeleton className="h-5 w-48" />
-                      <Skeleton className="h-4 w-64" />
-                      <Skeleton className="h-28 w-full rounded-2xl" />
-                      <div className="grid gap-3 md:grid-cols-2">
-                        <Skeleton className="h-20 w-full rounded-2xl" />
-                        <Skeleton className="h-20 w-full rounded-2xl" />
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-                {!hasMainResult && !loading.scrape && !loading.batch ? (
-                  <EmptyStateCard
-                    title="Os resultados vao aparecer aqui"
-                    description="Assim que voce concluir uma busca individual ou um processamento em lote, esta area recebe os artefatos principais."
-                  />
-                ) : null}
               </div>
             </div>
-          </div>
+          ) : null}
 
-          <div className="space-y-6">
+          {showSummarySection ? (
             <div className="rounded-[30px] border border-white/70 bg-white/84 p-4 shadow-[0_24px_80px_-50px_rgba(15,23,42,0.5)] backdrop-blur sm:p-5">
               <SectionBlockHeader
                 eyebrow="Etapa 3"
-                title="Resumo e acompanhamento"
-                infoDescription="Use esta etapa para gerar um resumo com IA quando o curriculo estiver pronto e revisar os logs da execucao no mesmo bloco."
+                title="Resumo"
+                infoDescription="Use esta etapa para gerar um resumo com IA depois que o curriculo estiver pronto."
                 infoTitle="Detalhes da etapa 3"
               />
               <div className="mt-4 space-y-6">
-                {scrapeResult ? (
-                  <SummaryPanel
-                    defaultValues={summaryConfig}
-                    disabled={isInteractionLocked}
-                    storedApiKeys={storedApiKeys}
-                    isLoadingModels={loading.models}
-                    isSubmitting={loading.summarize}
-                    models={availableModels}
-                    onConfigChange={updateSummaryConfig}
-                    onLoadModels={loadModels}
-                    onSubmitSummary={async (values) => {
-                      await summarize(values);
-                    }}
-                  />
-                ) : (
-                  <EmptyStateCard
-                    title="Resumo liberado depois do curriculo"
-                    description="A etapa de resumo so faz sentido quando o curriculo ja foi preparado e os dados principais estao prontos para leitura."
-                  />
-                )}
+                <SummaryPanel
+                  defaultValues={summaryConfig}
+                  disabled={isInteractionLocked}
+                  storedApiKeys={storedApiKeys}
+                  isLoadingModels={loading.models}
+                  isSubmitting={loading.summarize}
+                  models={availableModels}
+                  onConfigChange={updateSummaryConfig}
+                  onLoadModels={loadModels}
+                  onSubmitSummary={async (values) => {
+                    await summarize(values);
+                  }}
+                />
                 {summaryResult ? (
                   <div ref={summaryResultRef} className="scroll-mt-32 sm:scroll-mt-36 lg:scroll-mt-40">
                     <SummaryResultCard result={summaryResult} />
@@ -577,24 +600,27 @@ export function LattesWorkbench() {
                     </div>
                   </div>
                 ) : null}
-                <div ref={logsRef}>
-                  <ExecutionLogCard
-                    isProcessing={isInteractionLocked}
-                    logs={activeLogs}
-                  />
-                </div>
               </div>
             </div>
-          </div>
+          ) : null}
         </div>
       </section>
+      <FloatingExecutionPanel
+        isAvailable={canShowLogPanel}
+        isOpen={isLogPanelVisible}
+        isPinned={isLogPanelPinned}
+        isProcessing={isInteractionLocked}
+        logs={activeLogs}
+        onOpenChange={setIsLogPanelOpen}
+        onPinnedChange={setIsLogPanelPinned}
+      />
       <MobileBottomBar
-        hasLogs={hasLogs}
+        hasLogs={canShowLogPanel}
         hasMainResult={hasMainResult}
         hasSummaryResult={hasSummaryResult}
         isInteractionLocked={isInteractionLocked}
         onGoToForm={() => scrollToSection(formSectionRef.current)}
-        onGoToLogs={() => scrollToSection(logsRef.current)}
+        onGoToLogs={() => setIsLogPanelOpen(true)}
         onGoToResults={() => scrollToSection(resultsRef.current)}
         onGoToSummary={() => scrollToSection(summaryResultRef.current)}
       />
@@ -797,23 +823,102 @@ function QuickJumpButton({
   );
 }
 
-function EmptyStateCard({
-  title,
-  description,
+function FloatingExecutionPanel({
+  isAvailable,
+  isOpen,
+  isPinned,
+  isProcessing,
+  logs,
+  onOpenChange,
+  onPinnedChange,
 }: {
-  title: string;
-  description: string;
+  isAvailable: boolean;
+  isOpen: boolean;
+  isPinned: boolean;
+  isProcessing: boolean;
+  logs: string[];
+  onOpenChange: (nextValue: boolean) => void;
+  onPinnedChange: (nextValue: boolean) => void;
 }) {
   return (
-    <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50/80 p-5 text-sm text-slate-600">
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-700 shadow-sm">
+    <div className="pointer-events-none fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-3 z-40 lg:bottom-6 lg:right-6">
+      <div className="flex flex-col items-end gap-3">
+        <AnimatePresence>
+          {isOpen && isAvailable ? (
+            <motion.div
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              className="pointer-events-auto w-[min(92vw,420px)]"
+              exit={{ opacity: 0, y: 10, scale: 0.98 }}
+              initial={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+            >
+              <div className="rounded-[28px] border border-slate-200/80 bg-white/96 p-3 shadow-[0_28px_70px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl">
+                <div className="mb-3 flex items-center justify-between gap-3 px-1">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                      Execucao
+                    </p>
+                    <p className="text-sm font-semibold text-slate-950">
+                      {isProcessing ? "Acompanhamento ao vivo" : "Ultimos registros"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          aria-label={isPinned ? "Desafixar painel de execucao" : "Fixar painel de execucao"}
+                          className={cn(
+                            "h-10 w-10 rounded-2xl px-0",
+                            isPinned
+                              ? "border-teal-200 bg-teal-50 text-teal-800 hover:bg-teal-100"
+                              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+                          )}
+                          type="button"
+                          variant="outline"
+                          onClick={() => onPinnedChange(!isPinned)}
+                        >
+                          {isPinned ? <Pin className="h-4 w-4" /> : <PinOff className="h-4 w-4" />}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        {isPinned ? "Painel fixado" : "Fixar painel"}
+                      </TooltipContent>
+                    </Tooltip>
+                    <Button
+                      aria-label="Fechar painel de execucao"
+                      className="h-10 rounded-2xl border-slate-200 bg-white px-3 text-slate-700 hover:bg-slate-50"
+                      type="button"
+                      variant="outline"
+                      onClick={() => onOpenChange(false)}
+                    >
+                      Fechar
+                    </Button>
+                  </div>
+                </div>
+                <ExecutionLogCard isProcessing={isProcessing} logs={logs} variant="floating" />
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        <Button
+          className="pointer-events-auto h-12 rounded-full border-slate-200 bg-white/96 px-4 text-slate-900 shadow-[0_18px_48px_-28px_rgba(15,23,42,0.45)] hover:bg-white"
+          disabled={!isAvailable}
+          type="button"
+          variant="outline"
+          onClick={() => {
+            if (isPinned && isOpen) {
+              onPinnedChange(false);
+              onOpenChange(false);
+              return;
+            }
+
+            onOpenChange(!isOpen);
+          }}
+        >
           <TerminalSquare className="h-4 w-4" />
-        </div>
-        <div>
-          <p className="font-semibold text-slate-900">{title}</p>
-          <p className="mt-1 leading-6">{description}</p>
-        </div>
+          {isProcessing ? "Acompanhar execucao" : "Detalhes da execucao"}
+        </Button>
       </div>
     </div>
   );
@@ -861,7 +966,7 @@ function MobileBottomBar({
             onClick={onGoToSummary}
           />
           <MobileBottomBarButton
-            disabled={isInteractionLocked || !hasLogs}
+            disabled={!hasLogs}
             icon={<TerminalSquare className="h-4 w-4" />}
             label="Logs"
             onClick={onGoToLogs}
