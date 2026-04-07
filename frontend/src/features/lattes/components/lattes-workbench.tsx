@@ -4,21 +4,30 @@ import {
   AlertCircle,
   ArrowDownRight,
   BrainCircuit,
+  CircleHelp,
   CheckCircle2,
   FileCheck2,
   FileSpreadsheet,
+  Info,
   Pin,
   PinOff,
   Search,
-  Sparkles,
   TerminalSquare,
   Trash2,
 } from "lucide-react";
+import { motion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { SectionHeading } from "@/components/shared/section-heading";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BatchUploadPanel } from "@/features/lattes/components/batch-upload-panel";
 import { BatchResultCard } from "@/features/lattes/components/batch-result-card";
@@ -76,42 +85,45 @@ export function LattesWorkbench() {
   const logsRef = useRef<HTMLDivElement | null>(null);
   const activeToastIdRef = useRef<string | number | null>(null);
   const lastErrorMessageRef = useRef<string | null>(null);
-  const hasLoadedPinPreferenceRef = useRef(false);
   const previousLoadingRef = useRef({
     scrape: loading.scrape,
     batch: loading.batch,
     summarize: loading.summarize,
   });
-  const [isFlowPanelPinned, setIsFlowPanelPinned] = useState(true);
+  const [isFlowPanelPinned, setIsFlowPanelPinned] = useState(() => {
+    if (typeof window === "undefined") {
+      return true;
+    }
+
+    const storedPreference = window.localStorage.getItem(FLOW_PANEL_PINNED_STORAGE_KEY);
+
+    return storedPreference === null ? true : storedPreference === "true";
+  });
   const hasMainResult = Boolean(scrapeResult || batchResult);
   const hasSummaryResult = Boolean(summaryResult);
   const hasLogs = activeLogs.length > 0;
   const activeFlowLabel =
     mode === "individual" ? "Busca individual" : "Processamento em lote";
-  const statusCards = [
+  const currentStepIndex = hasSummaryResult || loading.summarize || loading.models
+    ? 2
+    : hasMainResult || loading.scrape || loading.batch
+      ? 1
+      : 0;
+  const flowSteps = [
     {
-      title: "Fluxo atual",
-      value: activeFlowLabel,
-      tone: "from-white to-teal-50/80",
+      title: mode === "individual" ? "Buscar e selecionar" : "Enviar e configurar CSV",
+      description:
+        mode === "individual"
+          ? "Escolha a pessoa certa antes de gerar os arquivos."
+          : "Defina a lista e os parametros do lote.",
     },
     {
-      title: "Ultima busca",
-      value: lastSearchTerm ?? "Nenhuma ainda",
-      tone: "from-white to-amber-50/80",
+      title: "Processar e revisar",
+      description: "Acompanhe a execucao e confira os arquivos gerados.",
     },
     {
-      title: "Resultados",
-      value: hasMainResult
-        ? batchResult
-          ? "Lote pronto"
-          : "Curriculo pronto"
-        : "Aguardando execucao",
-      tone: "from-white to-cyan-50/80",
-    },
-    {
-      title: "Resumo IA",
-      value: hasSummaryResult ? "Gerado" : scrapeResult ? "Disponivel" : "Indisponivel",
-      tone: "from-white to-slate-100",
+      title: "Resumir e auditar",
+      description: "Use IA quando fizer sentido e revise os logs no mesmo fluxo.",
     },
   ];
 
@@ -154,9 +166,6 @@ export function LattesWorkbench() {
     activeToastIdRef.current = toast.custom(
       () => (
         <RequestLoadingToast
-          description={activeRequest.description}
-          hint={activeRequest.hint}
-          title={activeRequest.title}
           onCancel={() => {
             toast.dismiss(ACTIVE_REQUEST_TOAST_ID);
             activeToastIdRef.current = null;
@@ -215,17 +224,7 @@ export function LattesWorkbench() {
   }, [canRetryLastAction, errorMessage, retryActionLabel, retryLastAction]);
 
   useEffect(() => {
-    const storedPreference = window.localStorage.getItem(FLOW_PANEL_PINNED_STORAGE_KEY);
-
-    if (storedPreference !== null) {
-      setIsFlowPanelPinned(storedPreference === "true");
-    }
-
-    hasLoadedPinPreferenceRef.current = true;
-  }, []);
-
-  useEffect(() => {
-    if (!hasLoadedPinPreferenceRef.current) {
+    if (typeof window === "undefined") {
       return;
     }
 
@@ -240,58 +239,71 @@ export function LattesWorkbench() {
       <div className="absolute inset-x-0 top-0 -z-10 h-[420px] bg-[radial-gradient(circle_at_top_left,_rgba(13,148,136,0.24),_transparent_38%),radial-gradient(circle_at_top_right,_rgba(249,115,22,0.18),_transparent_34%),linear-gradient(180deg,_rgba(255,251,235,0.95),_rgba(248,250,252,0.96)_40%,_rgba(240,253,250,0.92)_100%)]" />
       <div className="absolute inset-x-0 top-24 -z-10 h-[720px] bg-[linear-gradient(180deg,rgba(255,255,255,0)_0%,rgba(255,255,255,0.32)_24%,rgba(255,255,255,0)_100%)]" />
       <section className="mx-auto flex w-full max-w-7xl flex-col gap-5 sm:gap-6 lg:gap-8">
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)] xl:items-stretch">
-          <div className="relative overflow-hidden rounded-[32px] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.94),rgba(240,253,250,0.88))] p-5 shadow-[0_28px_100px_-52px_rgba(15,23,42,0.55)] backdrop-blur sm:p-7 lg:p-8">
-            <div className="absolute -right-14 top-0 h-40 w-40 rounded-full bg-teal-200/40 blur-3xl" />
-            <div className="absolute bottom-0 left-0 h-36 w-36 rounded-full bg-amber-200/40 blur-3xl" />
-            <div className="relative space-y-6">
-              <div className="inline-flex w-fit items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-teal-800">
-                <Sparkles className="h-3.5 w-3.5" />
-                Workspace Lattes
+        <div className="relative overflow-hidden rounded-[32px] border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.94),rgba(240,253,250,0.88))] p-5 shadow-[0_28px_100px_-52px_rgba(15,23,42,0.55)] backdrop-blur sm:p-7 lg:p-8">
+          <div className="absolute -right-14 top-0 h-40 w-40 rounded-full bg-teal-200/40 blur-3xl" />
+          <div className="absolute bottom-0 left-0 h-36 w-36 rounded-full bg-amber-200/40 blur-3xl" />
+          <div className="relative space-y-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="max-w-3xl space-y-3">
+                <div className="inline-flex w-fit items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-teal-800">
+                  Consulta de curriculos Lattes
+                </div>
+                <div className="space-y-2">
+                  <h2 className="text-balance text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl lg:text-[3.1rem] lg:leading-[1.02]">
+                    Fluxo mais limpo para pesquisar, processar e revisar resultados.
+                  </h2>
+                  <p className="max-w-2xl text-sm leading-6 text-slate-600 sm:text-base sm:leading-7">
+                    A tela agora concentra o que importa: escolha do fluxo, progresso por etapa e acesso discreto ao contexto de uso quando necessario.
+                  </p>
+                </div>
               </div>
-              <SectionHeading
-                eyebrow="Consulta de currículos Lattes"
-                title="Uma tela mais guiada para pesquisar, gerar arquivos e revisar resultados"
-                description="O fluxo agora prioriza leitura em telas pequenas, com etapas mais claras, atalhos rápidos e contexto visual para reduzir cliques desnecessários."
-              />
-              <div className="grid gap-3 sm:grid-cols-3">
-                <HeroFeatureCard
-                  title="Busca precisa"
-                  description="Pesquise um nome, escolha a pessoa certa e continue sem perder o contexto."
-                />
-                <HeroFeatureCard
-                  title="Lote sem atrito"
-                  description="Envie CSV, acompanhe a execução e volte para os resultados com menos esforço."
-                />
-                <HeroFeatureCard
-                  title="Resumo opcional"
-                  description="Gere o resumo com IA só quando fizer sentido para a triagem."
-                />
-              </div>
-            </div>
-          </div>
 
-          <div className="rounded-[30px] border border-white/70 bg-white/86 p-5 shadow-[0_24px_80px_-50px_rgba(15,23,42,0.5)] backdrop-blur sm:p-6">
-            <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
-              <ArrowDownRight className="h-4 w-4 text-teal-700" />
-              Roteiro rápido
+              <div className="flex items-center gap-2 self-start">
+                <div className="rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
+                  {activeFlowLabel}
+                </div>
+                <WorkspaceInfoDialog />
+              </div>
             </div>
-            <div className="mt-4 space-y-3 text-sm text-slate-600">
-              <GuideStep
-                index="01"
-                title="Escolha o fluxo"
-                description="Use busca individual quando precisar validar uma pessoa, ou lote quando já tiver a lista pronta."
-              />
-              <GuideStep
-                index="02"
-                title="Execute com feedback"
-                description="A aplicação bloqueia interações conflitantes e mostra um toast persistente enquanto processa a solicitacao."
-              />
-              <GuideStep
-                index="03"
-                title="Revise os artefatos"
-                description="Resultados, resumo e logs ficam organizados em sequência para facilitar a leitura depois da execução."
-              />
+
+            <div className="space-y-4 rounded-[28px] border border-white/80 bg-white/72 p-4 shadow-[0_18px_50px_-36px_rgba(15,23,42,0.35)] backdrop-blur sm:p-5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">
+                    Passo a passo
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    O indicador avanca conforme o usuario conclui cada etapa do fluxo.
+                  </p>
+                </div>
+                <div className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">
+                  Etapa {currentStepIndex + 1} de {flowSteps.length}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="relative h-2 overflow-hidden rounded-full bg-slate-200/80">
+                  <motion.div
+                    animate={{ width: `${((currentStepIndex + 1) / flowSteps.length) * 100}%` }}
+                    className="h-full rounded-full bg-[linear-gradient(90deg,#0f766e,#14b8a6,#f59e0b)]"
+                    initial={false}
+                    transition={{ duration: 0.35, ease: "easeOut" }}
+                  />
+                </div>
+
+                <div className="grid gap-3 lg:grid-cols-3">
+                  {flowSteps.map((step, index) => (
+                    <StepProgressCard
+                      key={step.title}
+                      description={step.description}
+                      index={index}
+                      isActive={index === currentStepIndex}
+                      isComplete={index < currentStepIndex}
+                      title={step.title}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -426,17 +438,6 @@ export function LattesWorkbench() {
               onClick={() => scrollToSection(logsRef.current)}
             />
           </div>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {statusCards.map((card) => (
-            <StatusCard
-              key={card.title}
-              title={card.title}
-              value={card.value}
-              tone={card.tone}
-            />
-          ))}
         </div>
 
         {errorMessage ? (
@@ -613,61 +614,119 @@ function scrollToSection(element: HTMLElement | null) {
   });
 }
 
-function GuideStep({
+function StepProgressCard({
+  description,
   index,
+  isActive,
+  isComplete,
   title,
-  description,
 }: {
-  index: string;
-  title: string;
   description: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-slate-200/70 bg-slate-50/70 p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-        {index}
-      </p>
-      <p className="mt-2 font-semibold text-slate-900">{title}</p>
-      <p className="mt-1 leading-6 text-slate-600">{description}</p>
-    </div>
-  );
-}
-
-function HeroFeatureCard({
-  title,
-  description,
-}: {
+  index: number;
+  isActive: boolean;
+  isComplete: boolean;
   title: string;
-  description: string;
 }) {
   return (
-    <div className="rounded-2xl border border-white/70 bg-white/75 p-4 shadow-[0_12px_28px_-24px_rgba(15,23,42,0.55)] backdrop-blur">
-      <p className="text-sm font-semibold text-slate-900">{title}</p>
-      <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>
-    </div>
-  );
-}
-
-function StatusCard({
-  title,
-  value,
-  tone,
-}: {
-  title: string;
-  value: string;
-  tone: string;
-}) {
-  return (
-    <div
+    <motion.div
+      animate={{ opacity: isActive || isComplete ? 1 : 0.72, y: isActive ? -2 : 0 }}
       className={cn(
-        "rounded-[26px] border border-white/70 bg-gradient-to-br p-4 shadow-[0_18px_48px_-36px_rgba(15,23,42,0.45)] backdrop-blur",
-        tone,
+        "rounded-[24px] border p-4 transition-colors",
+        isActive
+          ? "border-teal-300 bg-teal-50/90 shadow-[0_18px_44px_-34px_rgba(13,148,136,0.45)]"
+          : isComplete
+            ? "border-emerald-200 bg-emerald-50/85"
+            : "border-slate-200/80 bg-white/82",
       )}
+      initial={false}
+      transition={{ duration: 0.25, ease: "easeOut" }}
     >
-      <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
-        {title}
-      </p>
-      <p className="mt-2 text-sm font-semibold text-slate-950 sm:text-base">{value}</p>
+      <div className="flex items-start gap-3">
+        <div
+          className={cn(
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-sm font-semibold",
+            isActive
+              ? "bg-slate-900 text-white"
+              : isComplete
+                ? "bg-emerald-600 text-white"
+                : "bg-slate-100 text-slate-600",
+          )}
+        >
+          {String(index + 1).padStart(2, "0")}
+        </div>
+        <div>
+          <p className="font-semibold text-slate-950">{title}</p>
+          <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function WorkspaceInfoDialog() {
+  return (
+    <Dialog>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DialogTrigger asChild>
+            <Button
+              aria-label="Ver informacoes do Workspace Lattes"
+              className="h-11 w-11 rounded-full border-slate-200 bg-white/90 px-0 text-slate-700 shadow-sm hover:bg-white"
+              type="button"
+              variant="outline"
+            >
+              <Info className="h-4 w-4" />
+            </Button>
+          </DialogTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Informacoes desta tela</TooltipContent>
+      </Tooltip>
+      <DialogContent className="w-[min(92vw,640px)] max-w-[640px] p-0">
+        <div className="space-y-5 p-6 sm:p-7">
+          <DialogHeader className="space-y-3">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-teal-800">
+              <CircleHelp className="h-3.5 w-3.5" />
+              Workspace Lattes
+            </div>
+            <div className="space-y-2">
+              <DialogTitle>Como usar este fluxo</DialogTitle>
+              <DialogDescription>
+                A interface foi condensada em tres etapas para reduzir ruido visual sem perder contexto operacional.
+              </DialogDescription>
+            </div>
+          </DialogHeader>
+
+          <div className="grid gap-3">
+            <InfoCard
+              title="1. Escolha o fluxo"
+              description="Use busca individual para validar uma pessoa por vez ou CSV para processar listas maiores com menos interacao manual."
+            />
+            <InfoCard
+              title="2. Acompanhe o processamento"
+              description="Enquanto a solicitacao estiver ativa, a tela mostra apenas o estado de processamento e oferece cancelamento imediato."
+            />
+            <InfoCard
+              title="3. Revise o que foi gerado"
+              description="Resultados, resumo com IA e logs continuam organizados por etapa para facilitar triagem e auditoria."
+            />
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function InfoCard({
+  description,
+  title,
+}: {
+  description: string;
+  title: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
+      <p className="text-sm font-semibold text-slate-950">{title}</p>
+      <p className="mt-1 text-sm leading-6 text-slate-600">{description}</p>
     </div>
   );
 }

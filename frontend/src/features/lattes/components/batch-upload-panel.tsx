@@ -31,7 +31,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { OUTPUT_FORMAT_OPTIONS } from "@/features/lattes/lib/output-format";
+import {
+  DEFAULT_OUTPUT_FORMAT,
+  OUTPUT_FORMAT_OPTIONS,
+} from "@/features/lattes/lib/output-format";
 import {
   BatchUploadSchema,
   type BatchUploadFormData,
@@ -59,7 +62,7 @@ export function BatchUploadPanel({
     defaultValues: {
       skip: 0,
       limit: "",
-      outputFormat: "docx",
+      outputFormat: DEFAULT_OUTPUT_FORMAT,
     },
   });
 

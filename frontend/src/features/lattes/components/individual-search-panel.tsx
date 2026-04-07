@@ -72,7 +72,7 @@ export function IndividualSearchPanel({
 }: IndividualSearchPanelProps) {
   const form = useForm<IndividualSearchFormInput, unknown, IndividualSearchFormData>({
     resolver: zodResolver(IndividualSearchSchema),
-    defaultValues: { nome: lastSearchTerm ?? "", outputFormat: "docx" },
+    defaultValues: { nome: lastSearchTerm ?? "", outputFormat: DEFAULT_OUTPUT_FORMAT },
   });
 
   useEffect(() => {

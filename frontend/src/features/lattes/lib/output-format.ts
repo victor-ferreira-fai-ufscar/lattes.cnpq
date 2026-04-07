@@ -1,6 +1,6 @@
 export type OutputFormat = "pdf" | "docx" | "json" | "html" | "csv" | "all";
 
-export const DEFAULT_OUTPUT_FORMAT: OutputFormat = "docx";
+export const DEFAULT_OUTPUT_FORMAT: OutputFormat = "pdf";
 
 export const OUTPUT_FORMAT_OPTIONS: Array<{
   value: OutputFormat;
