@@ -92,6 +92,10 @@ export function SummaryPanel({
     control: form.control,
     name: "provedor",
   });
+  const apiKey = useWatch({
+    control: form.control,
+    name: "apiKey",
+  });
 
   useEffect(() => {
     const storedKey = storedApiKeys[provedor] ?? "";
@@ -100,6 +104,7 @@ export function SummaryPanel({
 
   const isOllama = provedor === "ollama";
   const hasStoredKeyForProvider = !isOllama && Boolean(storedApiKeys[provedor]);
+  const hasProviderSetup = isOllama || Boolean(apiKey || hasStoredKeyForProvider);
 
   const handleClearApiKey = () => {
     form.setValue("apiKey", "", { shouldValidate: false });
@@ -131,19 +136,22 @@ export function SummaryPanel({
           </CardTitle>
           <CardDescription>
             Se quiser, a ferramenta pode montar um texto mais curto para ajudar
-            na leitura rapida do curriculo.
+            na leitura rápida do currículo. Essa etapa é opcional.
           </CardDescription>
         </div>
       </CardHeader>
       <CardContent>
         <Form {...form}>
           <form className="grid gap-4 md:grid-cols-2" onSubmit={handleSubmit}>
+            <div className="rounded-2xl border border-cyan-200 bg-cyan-50/70 px-4 py-3 text-sm text-cyan-900 md:col-span-2">
+              Use este recurso apenas se quiser um resumo pronto para leitura. O currículo original e os arquivos gerados continuam disponíveis mesmo sem IA.
+            </div>
             <FormField
               control={form.control}
               name="provedor"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Servico de IA</FormLabel>
+                  <FormLabel>Serviço de IA</FormLabel>
                   <Select
                     disabled={disabled}
                     value={field.value}
@@ -155,7 +163,7 @@ export function SummaryPanel({
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Selecione um servico" />
+                        <SelectValue placeholder="Selecione um serviço" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -164,6 +172,9 @@ export function SummaryPanel({
                       <SelectItem value="ollama">Ollama</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-slate-500">
+                    Escolha de onde o resumo será gerado.
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}
@@ -186,7 +197,7 @@ export function SummaryPanel({
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecione uma opcao" />
+                          <SelectValue placeholder="Selecione uma opção" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -201,6 +212,7 @@ export function SummaryPanel({
                     <FormControl>
                       <Input
                         disabled={disabled}
+                        placeholder="Digite o nome do modelo"
                         {...field}
                         onChange={(event) => {
                           field.onChange(event);
@@ -209,6 +221,11 @@ export function SummaryPanel({
                       />
                     </FormControl>
                   )}
+                  <p className="text-xs text-slate-500">
+                    {models.length > 0
+                      ? "Escolha um dos modelos disponíveis para o serviço selecionado."
+                      : "Se a lista estiver vazia, carregue as opções ou informe o modelo manualmente."}
+                  </p>
                   <FormMessage />
                 </FormItem>
               )}
@@ -218,9 +235,9 @@ export function SummaryPanel({
               <div className="md:col-span-2 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
                 <Server className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>
-                  <span className="font-semibold">Apenas local</span> — O Ollama precisa estar
-                  em execução na mesma máquina que o backend. Ao usar via docker-compose, adicione
-                  um serviço <code className="font-mono">ollama</code> e configure{" "}
+                  <span className="font-semibold">Uso local</span> — O Ollama precisa estar em
+                  execução na mesma máquina que o backend. Se estiver usando Docker Compose,
+                  adicione um serviço <code className="font-mono">ollama</code> e configure{" "}
                   <code className="font-mono">OLLAMA_BASE_URL</code> no backend. Não é necessária
                   chave de API.
                 </span>
@@ -266,6 +283,9 @@ export function SummaryPanel({
                         }}
                       />
                     </FormControl>
+                    <p className="text-xs text-slate-500">
+                      Informe a chave apenas se quiser usar este serviço de IA nesta etapa.
+                    </p>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -286,18 +306,23 @@ export function SummaryPanel({
                 ) : (
                   <RefreshCcw className="h-4 w-4" />
                 )}
-                {isLoadingModels ? "Atualizando opcoes..." : "Atualizar opcoes"}
+                {isLoadingModels ? "Carregando modelos..." : "Carregar modelos"}
               </Button>
-              <Button disabled={disabled || isSubmitting} type="submit">
+              <Button disabled={disabled || isSubmitting || !hasProviderSetup} type="submit">
                 {isSubmitting ? <Spinner className="h-4 w-4" /> : null}
                 {isSubmitting ? "Gerando resumo..." : "Gerar resumo"}
               </Button>
             </div>
+            {!hasProviderSetup ? (
+              <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-600 md:col-span-2">
+                Para gerar o resumo, selecione um serviço e informe a chave de acesso, exceto no uso com Ollama.
+              </div>
+            ) : null}
             {isLoadingModels || isSubmitting ? (
               <div className="rounded-2xl border border-cyan-200 bg-cyan-50/70 px-4 py-3 text-sm text-cyan-900 md:col-span-2">
                 {isLoadingModels
-                  ? "Consultando os modelos disponiveis para o provedor selecionado."
-                  : "A IA esta analisando o curriculo e preparando o resumo final."}
+                  ? "Consultando os modelos disponíveis para o serviço selecionado."
+                  : "A IA está analisando o currículo e preparando o resumo final."}
               </div>
             ) : null}
           </form>

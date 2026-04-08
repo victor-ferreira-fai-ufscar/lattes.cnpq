@@ -248,7 +248,7 @@ export function LattesWorkbench() {
         <RequestErrorToast
           message={errorMessage}
           retryLabel={retryActionLabel ?? undefined}
-          title="Nao foi possivel concluir a solicitacao"
+          title="Não foi possível concluir a solicitação"
           onRetry={
             canRetryLastAction
               ? () => {
@@ -333,7 +333,7 @@ export function LattesWorkbench() {
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="max-w-3xl space-y-3">
                 <div className="inline-flex w-fit items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-teal-800">
-                  Consulta de curriculos Lattes
+                  Consulta de currículos Lattes
                 </div>
                 <h2 className="text-balance text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl lg:text-[3.1rem] lg:leading-[1.02]">
                   Pesquisar, processar e revisar.
@@ -345,12 +345,12 @@ export function LattesWorkbench() {
                   {activeFlowLabel}
                 </div>
                 <InfoDialogButton
-                  description="Esta tela foi reduzida ao minimo necessario. Os detalhes de operacao ficam aqui para consulta sob demanda."
+                  description="Esta tela foi reduzida ao mínimo necessário. Os detalhes de operação ficam disponíveis apenas quando você precisar consultar."
                   items={[
                     "Escolha busca individual para validar uma pessoa por vez.",
-                    "Use CSV quando quiser processar listas maiores com menos interacao manual.",
-                    "As etapas aparecem aos poucos conforme voce avanca no fluxo.",
-                    "Resultados, resumo e logs continuam disponiveis nas seções abaixo.",
+                    "Use CSV quando quiser processar listas maiores com menos interação manual.",
+                    "As etapas aparecem aos poucos conforme você avança no fluxo.",
+                    "Resultados, resumo e logs continuam disponíveis nas seções abaixo.",
                   ]}
                   title="Workspace Lattes"
                 />
@@ -506,7 +506,7 @@ export function LattesWorkbench() {
                       cancelLabel="Cancelar"
                       confirmLabel="Limpar"
                       description="Isso remove buscas, execucoes e logs salvos da sessao atual."
-                      title="Limpar historico?"
+                      title="Limpar histórico?"
                       tone="danger"
                       onCancel={() => {
                         toast.dismiss(CLEAR_HISTORY_TOAST_ID);
@@ -525,7 +525,7 @@ export function LattesWorkbench() {
               }}
             >
               <Trash2 className="h-4 w-4" />
-              Limpar historico
+              Limpar histórico
             </Button>
             <QuickJumpButton
               disabled={!hasMainResult}
@@ -605,7 +605,7 @@ export function LattesWorkbench() {
               <SectionBlockHeader
                 eyebrow="Etapa 2"
                 title="Resultados principais"
-                infoDescription="Esta area concentra os arquivos gerados e o retorno principal do processamento assim que a execucao termina."
+                infoDescription="Esta área concentra os arquivos gerados e o retorno principal do processamento assim que a execução termina."
                 infoTitle="Detalhes da etapa 2"
               />
               <div className="mt-4 space-y-6">
@@ -620,7 +620,7 @@ export function LattesWorkbench() {
               <SectionBlockHeader
                 eyebrow="Etapa 3"
                 title="Resumo"
-                infoDescription="Use esta etapa para gerar um resumo com IA depois que o curriculo estiver pronto."
+                infoDescription="Use esta etapa para gerar um resumo com IA depois que o currículo estiver pronto."
                 infoTitle="Detalhes da etapa 3"
               />
               <div className="mt-4 space-y-6">
@@ -774,7 +774,7 @@ function InfoDialogButton({
         <TooltipTrigger asChild>
           <DialogTrigger asChild>
             <Button
-              aria-label="Ver informacoes do Workspace Lattes"
+              aria-label="Ver informações do Workspace Lattes"
               className="h-11 w-11 rounded-full border-slate-200 bg-white/90 px-0 text-slate-700 shadow-sm hover:bg-white"
               type="button"
               variant="outline"
@@ -783,14 +783,14 @@ function InfoDialogButton({
             </Button>
           </DialogTrigger>
         </TooltipTrigger>
-        <TooltipContent side="bottom">Informacoes desta tela</TooltipContent>
+        <TooltipContent side="bottom">Informações desta tela</TooltipContent>
       </Tooltip>
       <DialogContent className="w-[min(92vw,640px)] max-w-[640px] p-0">
         <div className="space-y-5 p-6 sm:p-7">
           <DialogHeader className="space-y-3">
             <div className="inline-flex w-fit items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-teal-800">
               <CircleHelp className="h-3.5 w-3.5" />
-              Mais informacoes
+              Mais informações
             </div>
             <div className="space-y-2">
               <DialogTitle>{title}</DialogTitle>
@@ -977,10 +977,10 @@ function FloatingExecutionPanel({
                   <div className="mb-3 flex items-center justify-between gap-3 px-1">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                        Execucao
+                        Execução
                       </p>
                       <p className="text-sm font-semibold text-slate-950">
-                        {isProcessing ? "Acompanhamento ao vivo" : "Ultimos registros"}
+                        {isProcessing ? "Acompanhamento ao vivo" : "Últimos registros"}
                       </p>
                       <p className="mt-1 text-xs text-slate-500">
                         Arraste pelo canto para redimensionar sem perder scroll e quebra de linha.
@@ -990,7 +990,7 @@ function FloatingExecutionPanel({
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
-                            aria-label={isPinned ? "Desafixar painel de execucao" : "Fixar painel de execucao"}
+                            aria-label={isPinned ? "Desafixar painel de execução" : "Fixar painel de execução"}
                             className={cn(
                               "h-10 w-10 rounded-2xl px-0",
                               isPinned
@@ -1010,7 +1010,7 @@ function FloatingExecutionPanel({
                       </Tooltip>
                       {!isPinned ? (
                         <Button
-                          aria-label="Fechar painel de execucao"
+                          aria-label="Fechar painel de execução"
                           className="h-10 rounded-2xl border-slate-200 bg-white px-3 text-slate-700 hover:bg-slate-50"
                           type="button"
                           variant="outline"
@@ -1051,7 +1051,7 @@ function FloatingExecutionPanel({
           }}
         >
           <TerminalSquare className="h-4 w-4" />
-          {isProcessing ? "Acompanhar execucao" : "Detalhes da execucao"}
+          {isProcessing ? "Acompanhar execução" : "Detalhes da execução"}
         </Button>
       </div>
     </div>

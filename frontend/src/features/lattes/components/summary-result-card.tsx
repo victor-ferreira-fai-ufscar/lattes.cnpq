@@ -84,7 +84,7 @@ export function SummaryResultCard({ result }: SummaryResultCardProps) {
             <div className="space-y-1.5">
               <CardTitle className="text-lg text-cyan-950">Resumo executivo e detalhes</CardTitle>
               <CardDescription>
-                Estruturado em Markdown e priorizando as informacoes extraidas do PDF do curriculo.
+                Estruturado em Markdown e priorizando as informações extraídas do PDF do currículo.
               </CardDescription>
             </div>
             <Tooltip>
@@ -115,13 +115,13 @@ export function SummaryResultCard({ result }: SummaryResultCardProps) {
               <SummaryMetaCard
                 icon={<Check className="h-4 w-4" />}
                 label="Base do resumo"
-                value={result.fonte_resumo === "pdf" ? "PDF" : "HTML (fallback)"}
+                value={result.fonte_resumo === "pdf" ? "PDF" : "HTML (apoio)"}
               />
             ) : null}
             {typeof result.duracao_segundos === "number" ? (
               <SummaryMetaCard
                 icon={<Clock3 className="h-4 w-4" />}
-                label="Duracao"
+                label="Duração"
                 value={`${result.duracao_segundos} s`}
               />
             ) : null}
@@ -174,7 +174,7 @@ export function SummaryResultCard({ result }: SummaryResultCardProps) {
               </div>
               <DialogTitle>{result.nome}</DialogTitle>
               <DialogDescription>
-                Visualizacao completa do markdown com melhor leitura de tabelas, listas, blocos de codigo e detalhes do CV.
+                Visualização completa do markdown com melhor leitura de tabelas, listas, blocos de código e detalhes do currículo.
               </DialogDescription>
             </div>
             <Tooltip>

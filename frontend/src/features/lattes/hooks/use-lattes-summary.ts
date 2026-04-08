@@ -126,7 +126,7 @@ export function useLattesSummary({
       });
     }
 
-    notifySuccess(`Opcoes de ${modelsRequest.provedor} atualizadas.`);
+    notifySuccess(`Opções de ${modelsRequest.provedor} atualizadas.`);
   }, [
     modelsQuery.data,
     modelsQuery.dataUpdatedAt,
@@ -168,7 +168,7 @@ export function useLattesSummary({
 
   const summarize = async (config?: Partial<SummaryFormData>) => {
     if (!scrapeResult) {
-      notifyError(new Error("Prepare um curriculo antes de gerar o resumo."));
+      notifyError(new Error("Prepare um currículo antes de gerar o resumo."));
       return;
     }
 

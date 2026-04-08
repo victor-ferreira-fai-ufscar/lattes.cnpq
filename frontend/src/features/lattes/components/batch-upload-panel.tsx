@@ -84,11 +84,11 @@ export function BatchUploadPanel({
         </div>
         <div>
           <CardTitle className="text-xl text-slate-950">
-            Processe varias pessoas de uma vez
+            Processe várias pessoas de uma vez
           </CardTitle>
           <CardDescription>
-            Envie um arquivo CSV simples, com um nome por linha. Ao final, voce
-            podera baixar os curriculos encontrados em um unico arquivo.
+            Envie um arquivo CSV com um nome por linha. Ao final, você poderá
+            baixar os currículos encontrados em um único arquivo.
           </CardDescription>
         </div>
       </CardHeader>
@@ -131,7 +131,9 @@ export function BatchUploadPanel({
                       onChange={(e) => field.onChange(e.target.value)}
                     />
                   </FormControl>
-                  <FormDescription>Use 0 para comecar do inicio.</FormDescription>
+                  <FormDescription>
+                    Use 0 para começar pela primeira linha do arquivo.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -142,7 +144,7 @@ export function BatchUploadPanel({
               name="limit"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Quantidade maxima</FormLabel>
+                  <FormLabel>Quantidade máxima</FormLabel>
                   <FormControl>
                     <Input
                       disabled={disabled}
@@ -154,6 +156,9 @@ export function BatchUploadPanel({
                       onChange={(e) => field.onChange(e.target.value)}
                     />
                   </FormControl>
+                  <FormDescription>
+                    Preencha apenas se quiser testar com uma parte da lista.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

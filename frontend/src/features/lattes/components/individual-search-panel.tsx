@@ -100,7 +100,7 @@ export function IndividualSearchPanel({
           </CardTitle>
           <CardDescription>
             Digite o nome, escolha a opção correta e depois prepare o currículo
-            em PDF para leitura.
+            no formato que você preferir.
           </CardDescription>
         </div>
       </CardHeader>
@@ -140,7 +140,7 @@ export function IndividualSearchPanel({
                   }}
                 >
                   {isTryingVariants ? <Spinner className="h-4 w-4" /> : null}
-                  {isTryingVariants ? "Testando variacoes..." : "Testar variacoes do nome"}
+                  {isTryingVariants ? "Testando variações..." : "Tentar outras variações do nome"}
                 </Button>
               </div>
             </form>
@@ -151,7 +151,7 @@ export function IndividualSearchPanel({
                   <p className="text-sm font-semibold text-slate-900">Pessoas encontradas</p>
                   <p className="text-sm text-slate-500">
                     {lastSearchTerm
-                      ? `Ultima busca: ${lastSearchTerm}`
+                      ? `Última busca: ${lastSearchTerm}`
                       : "Faça uma busca para ver as opções disponíveis."}
                   </p>
                 </div>
@@ -167,8 +167,8 @@ export function IndividualSearchPanel({
                     <div>
                       <p className="font-medium">
                         {isTryingVariants
-                          ? "Testando variacoes automaticas do nome informado."
-                          : "Buscando pessoas e montando a lista de opcoes."}
+                          ? "Testando variações automáticas do nome informado."
+                          : "Buscando pessoas e montando a lista de opções."}
                       </p>
                       <p className="mt-1 text-xs text-teal-700">
                         O resultado aparece aqui assim que a consulta terminar.
@@ -251,7 +251,7 @@ export function IndividualSearchPanel({
                 }}
               >
                 {isScraping ? <Spinner className="h-4 w-4" /> : null}
-                {isScraping ? "Gerando arquivos..." : "Gerar arquivos do currículo"}
+                {isScraping ? "Preparando arquivos..." : "Preparar arquivos do currículo"}
               </Button>
             </div>
           </div>

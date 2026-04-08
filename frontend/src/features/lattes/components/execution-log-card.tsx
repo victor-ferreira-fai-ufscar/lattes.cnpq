@@ -32,12 +32,11 @@ export function ExecutionLogCard({
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg text-white">
             <TerminalSquare className="h-4 w-4 text-teal-300" />
-            Detalhes da execucao
+            Detalhes técnicos da execução
           </CardTitle>
           <CardDescription className="text-slate-400">
-            Os registros tecnicos ficam escondidos por padrao. Abra apenas se
-            quiser acompanhar o que aconteceu durante o processamento no horario
-            de Brasilia (GMT-3).
+            Esses registros ficam escondidos por padrão. Abra apenas se quiser
+            acompanhar o processamento com mais detalhe no horário de Brasília (GMT-3).
           </CardDescription>
         </CardHeader>
       ) : null}
@@ -54,7 +53,7 @@ export function ExecutionLogCard({
           ) : (
             <details className="group rounded-2xl border border-white/10 bg-slate-900/60 p-4">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-medium text-slate-100">
-                Ver registros da execucao
+                Ver registros da execução
                 <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
               </summary>
               <ScrollArea className="mt-4 max-h-72 rounded-2xl border border-white/10 bg-slate-950/70">
@@ -74,9 +73,9 @@ export function ExecutionLogCard({
             <div className="flex items-start gap-3">
               <Spinner className="mt-0.5 h-4 w-4 shrink-0 text-teal-300" />
               <div>
-                <p className="font-medium text-slate-100">Execucao em andamento</p>
+                <p className="font-medium text-slate-100">Execução em andamento</p>
                 <p className="mt-1 text-slate-400">
-                  Os registros tecnicos aparecerao aqui assim que o backend enviar novas linhas.
+                  Os registros técnicos aparecerão aqui assim que o backend enviar novas linhas.
                 </p>
               </div>
             </div>
@@ -86,7 +85,7 @@ export function ExecutionLogCard({
             "rounded-2xl border border-dashed border-white/15 bg-slate-900/50 p-4 text-sm text-slate-400",
             isFloating && "flex h-full min-h-0 items-center",
           )}>
-            Nenhum registro disponivel ainda.
+            Nenhum registro disponível ainda. Eles aparecem quando uma busca ou processamento começa.
           </div>
         )}
       </CardContent>

@@ -78,7 +78,7 @@ export function useLattesWorkbench() {
 
   const trySearchVariants = async (nome: string) => {
     const trimmedName = nome.trim();
-    setRetryActionLabel("Testar variacoes novamente");
+    setRetryActionLabel("Testar variações novamente");
     lastRetryActionRef.current = async () => {
       await trySearchVariants(trimmedName);
     };
@@ -139,7 +139,7 @@ export function useLattesWorkbench() {
     setSearchTerm(null);
     lastRetryActionRef.current = null;
     setRetryActionLabel(null);
-    notifySuccess("Historico limpo com sucesso.");
+    notifySuccess("Histórico limpo com sucesso.");
   };
 
   const activeLogs = useMemo(
@@ -201,7 +201,7 @@ export function useLattesWorkbench() {
       await summaryFlow.cancelActiveRequest();
     }
 
-    notifySuccess("Solicitacao cancelada.");
+    notifySuccess("Solicitação cancelada.");
   }, [
     activeRequest,
     batchFlow,
@@ -275,7 +275,7 @@ function loadingState(
       kind: "search" as const,
       title: "Buscando pessoas no Lattes",
       description:
-        "A aplicacao esta consultando os candidatos para o nome informado e preparando a lista de opcoes.",
+        "A aplicação está consultando os candidatos para o nome informado e preparando a lista de opções.",
       hint: "Isso pode levar alguns segundos, dependendo da resposta do backend.",
     };
   }
@@ -283,20 +283,20 @@ function loadingState(
   if (isTryingVariants) {
     return {
       kind: "variants" as const,
-      title: "Testando variacoes do nome",
+      title: "Testando variações do nome",
       description:
-        "A busca esta tentando grafias alternativas para encontrar correspondencias com mais precisao.",
-      hint: "O resultado mais promissor sera carregado automaticamente se houver correspondencias.",
+        "A busca está tentando grafias alternativas para encontrar correspondências com mais precisão.",
+      hint: "O resultado mais promissor será carregado automaticamente se houver correspondências.",
     };
   }
 
   if (isScraping) {
     return {
       kind: "scrape" as const,
-      title: "Gerando arquivos do curriculo",
+      title: "Preparando arquivos do currículo",
       description:
-        "O PDF esta sendo localizado e os arquivos de saida estao sendo preparados para download.",
-      hint: "Se houver cache valido, o processamento tende a terminar mais rapido.",
+        "O PDF está sendo localizado e os arquivos de saída estão sendo preparados para download.",
+      hint: "Se já houver uma versão salva, o processamento tende a terminar mais rápido.",
     };
   }
 
@@ -305,17 +305,17 @@ function loadingState(
       kind: "batch" as const,
       title: "Processando lista em lote",
       description:
-        "Os nomes do CSV estao sendo enviados para processamento e os registros serao atualizados conforme a execucao avanca.",
-      hint: "Voce pode acompanhar os detalhes tecnicos no painel de execucao abaixo.",
+        "Os nomes do CSV estão sendo enviados para processamento e os registros serão atualizados conforme a execução avança.",
+      hint: "Você pode acompanhar os detalhes técnicos no painel de execução abaixo.",
     };
   }
 
   if (isLoadingModels) {
     return {
       kind: "models" as const,
-      title: "Atualizando opcoes de modelos",
+      title: "Atualizando opções de modelos",
       description:
-        "A aplicacao esta consultando os modelos disponiveis para o provedor de IA selecionado.",
+        "A aplicação está consultando os modelos disponíveis para o serviço de IA selecionado.",
       hint: "Se a chave de acesso mudou recentemente, a lista pode demorar um pouco mais.",
     };
   }
@@ -325,8 +325,8 @@ function loadingState(
       kind: "summarize" as const,
       title: "Gerando resumo com IA",
       description:
-        "O curriculo esta sendo analisado para montar um resumo mais direto e estruturado.",
-      hint: "O resultado aparecera automaticamente assim que a resposta for concluida.",
+        "O currículo está sendo analisado para montar um resumo mais direto e estruturado.",
+      hint: "O resultado aparecerá automaticamente assim que a resposta for concluída.",
     };
   }
 

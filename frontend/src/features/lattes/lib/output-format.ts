@@ -10,32 +10,32 @@ export const OUTPUT_FORMAT_OPTIONS: Array<{
   {
     value: "docx",
     label: "DOCX",
-    description: "Gera um documento baseado no modelo disponível e no texto extraído.",
+    description: "Gera um documento editável para leitura e ajustes posteriores.",
   },
   {
     value: "json",
     label: "JSON",
-    description: "Entrega os dados extraídos em formato estruturado.",
+    description: "Entrega os dados em formato estruturado para integração ou análise técnica.",
   },
   {
     value: "html",
     label: "HTML",
-    description: "Cria uma versão navegável do conteúdo extraído.",
+    description: "Cria uma versão para abrir no navegador com navegação mais simples.",
   },
   {
     value: "csv",
     label: "CSV",
-    description: "Exporta uma linha com metadados e texto normalizado.",
+    description: "Exporta os dados em formato de planilha para conferência e organização.",
   },
   {
     value: "pdf",
     label: "PDF",
-    description: "Salva uma cópia local do PDF gerado do currículo.",
+    description: "Baixa o PDF do currículo para leitura direta.",
   },
   {
     value: "all",
     label: "Todos os formatos",
-    description: "Gera DOCX, JSON, HTML, CSV e PDF em uma única pasta.",
+    description: "Gera todos os formatos em uma única pasta para você escolher depois.",
   },
 ];
 

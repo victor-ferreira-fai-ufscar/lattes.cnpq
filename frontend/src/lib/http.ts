@@ -11,7 +11,7 @@ export const http = axios.create({
 });
 
 export class RequestCancelledError extends Error {
-  constructor(message = "Solicitacao cancelada.") {
+  constructor(message = "Solicitação cancelada.") {
     super(message);
     this.name = "RequestCancelledError";
   }
@@ -43,7 +43,7 @@ export function isRequestCancelledError(error: unknown): boolean {
 
 export function getApiErrorMessage(error: unknown): string {
   if (isRequestCancelledError(error)) {
-    return "Solicitacao cancelada pelo usuario.";
+    return "Solicitação cancelada pelo usuário.";
   }
 
   if (axios.isAxiosError(error)) {
@@ -56,8 +56,17 @@ export function getApiErrorMessage(error: unknown): string {
         normalizedDetail.includes("nenhum resultado encontrado") ||
         normalizedDetail.includes("nome informado")
       ) {
-        return "Nao encontramos esse nome no Lattes apos tentar variacoes automaticas (com/sem acento, caixa e nome parcial). Confira a grafia ou tente a busca individual para selecionar entre homonimos.";
+        return "Não encontramos esse nome no Lattes. Confira a grafia, tente uma variação do nome ou use a busca individual para escolher a pessoa correta.";
       }
+
+      if (
+        normalizedDetail.includes("erro ao chamar a ia") ||
+        normalizedDetail.includes("api key") ||
+        normalizedDetail.includes("authentication")
+      ) {
+        return "Não foi possível gerar o resumo com IA. Revise a chave de acesso e tente novamente.";
+      }
+
       return detail;
     }
 
@@ -72,35 +81,45 @@ export function getApiErrorMessage(error: unknown): string {
         return where ? `${first.msg} (${where})` : first.msg;
       }
 
-      return "Dados inválidos enviados para a API.";
+      return "Os dados enviados estão incompletos ou inválidos. Revise os campos e tente novamente.";
     }
 
     if (error.response?.status) {
       const status = error.response.status;
-      const statusText = error.response.statusText;
-      return statusText
-        ? `Erro na API (${status} - ${statusText})`
-        : `Erro na API (${status})`;
+
+      if (status >= 500) {
+        return "O serviço encontrou um problema ao processar sua solicitação. Tente novamente em instantes.";
+      }
+
+      if (status === 404) {
+        return "Não encontramos o recurso solicitado. Tente executar a ação novamente.";
+      }
+
+      if (status === 400) {
+        return "A solicitação não pôde ser concluída. Revise os dados informados e tente novamente.";
+      }
+
+      return `A solicitação não pôde ser concluída (erro ${status}).`;
     }
 
     if (error.code === "ECONNABORTED") {
       const url = error.config?.url ?? "";
       if (url.includes("batch")) {
-        return "O processamento em lote demorou mais do esperado. Tente reduzir o número de itens com o campo Limite.";
+        return "O processamento da lista demorou mais do que o esperado. Se quiser, tente novamente com menos nomes por vez.";
       }
-      return `Tempo limite excedido ao conectar com ${http.defaults.baseURL}.`;
+      return "A resposta demorou mais do que o esperado. Tente novamente em instantes.";
     }
 
     if (error.request) {
-      return `Nao foi possivel conectar ao backend em ${http.defaults.baseURL}. Verifique se o servidor FastAPI esta ativo.`;
+      return "Não foi possível se conectar ao serviço da aplicação. Verifique se o backend está em execução e tente novamente.";
     }
 
     if (error.message) {
-      return `Falha ao montar request para API: ${error.message}`;
+      return `Não foi possível concluir a solicitação: ${error.message}`;
     }
 
-    return "Falha inesperada ao chamar o backend.";
+    return "Ocorreu uma falha inesperada ao chamar o serviço da aplicação.";
   }
 
-  return error instanceof Error ? error.message : "Erro inesperado.";
+  return error instanceof Error ? error.message : "Ocorreu um erro inesperado.";
 }

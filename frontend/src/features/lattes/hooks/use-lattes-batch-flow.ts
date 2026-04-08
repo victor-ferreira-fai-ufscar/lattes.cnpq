@@ -68,7 +68,7 @@ export function useLattesBatchFlow({
         setLiveBatchLogs(response.logs ?? []);
       }
       notifySuccess(
-        `Processamento concluido para ${response.total_processados} pessoa(s).`,
+        `Processamento concluído para ${response.total_processados} pessoa(s).`,
       );
     },
     onError: (error) => {

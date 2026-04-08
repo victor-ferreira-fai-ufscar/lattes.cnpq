@@ -78,8 +78,8 @@ export function useLattesIndividualFlow({
     setLastSearchTerm(response.nome_busca || searchTerm);
     notifySuccess(
       response.total > 0
-        ? `${response.total} opcao(oes) encontrada(s). Escolha uma pessoa para continuar.`
-        : "Nao encontramos resultados para o nome informado.",
+        ? `${response.total} opção(ões) encontrada(s). Escolha uma pessoa para continuar.`
+        : "Não encontramos resultados para o nome informado.",
     );
   }, [
     searchTerm,
@@ -131,7 +131,7 @@ export function useLattesIndividualFlow({
         { signal: controller.signal },
       );
       setScrapeResult(result);
-      notifySuccess("Curriculo preparado com sucesso.");
+      notifySuccess("Currículo preparado com sucesso.");
     } catch (error) {
       if (!isRequestCancelledError(error)) {
         notifyError(error);
@@ -155,7 +155,7 @@ export function useLattesIndividualFlow({
   const searchWithVariants = async (rawName: string) => {
     const baseName = rawName.trim();
     if (!baseName) {
-      notifyError(new Error("Informe um nome para tentar variacoes."));
+      notifyError(new Error("Informe um nome para tentar variações."));
       return null;
     }
 
@@ -179,7 +179,7 @@ export function useLattesIndividualFlow({
           setCandidates(response.candidatos);
           setLastSearchTerm(response.nome_busca || variant);
           notifySuccess(
-            `${response.total} opcao(oes) encontrada(s) com a variacao "${response.nome_busca || variant}".`,
+            `${response.total} opção(ões) encontrada(s) com a variação "${response.nome_busca || variant}".`,
           );
           return response.nome_busca || variant;
         }
@@ -189,7 +189,7 @@ export function useLattesIndividualFlow({
       setLastSearchTerm(baseName);
       notifyError(
         new Error(
-          "Nao encontramos resultados mesmo apos testar variacoes automaticas do nome.",
+          "Não encontramos resultados mesmo após testar variações automáticas do nome.",
         ),
       );
       return null;

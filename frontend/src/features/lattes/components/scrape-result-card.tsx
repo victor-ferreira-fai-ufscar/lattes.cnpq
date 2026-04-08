@@ -26,10 +26,10 @@ export function ScrapeResultCard({ result }: ScrapeResultCardProps) {
 
   const cacheLabel =
     result.cache_status === "hit"
-      ? "Cache reutilizado"
+      ? "Arquivo reaproveitado"
       : result.cache_status === "miss"
-        ? "Atualizado via scraping"
-        : "Origem nao informada";
+        ? "Arquivo atualizado agora"
+        : "Origem não informada";
 
   const cacheClassName =
     result.cache_status === "hit"
@@ -40,17 +40,17 @@ export function ScrapeResultCard({ result }: ScrapeResultCardProps) {
 
   const cacheTooltipMessage =
     result.cache_status === "hit"
-      ? "PDF reaproveitado do Supabase Storage porque estava dentro da validade configurada."
+      ? "O PDF já estava disponível e pôde ser reaproveitado sem nova coleta."
       : result.cache_status === "miss"
-        ? "PDF gerado novamente via scraping porque nao havia cache valido no Storage."
-        : "Origem nao foi informada pela API.";
+        ? "O PDF precisou ser gerado novamente porque não havia uma versão válida salva."
+        : "A origem do arquivo não foi informada pela API.";
 
   return (
     <Card variant="successSubtle">
       <CardHeader>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-lg text-emerald-950">
-            Curriculo pronto para leitura
+            Currículo pronto para uso
           </CardTitle>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -60,15 +60,15 @@ export function ScrapeResultCard({ result }: ScrapeResultCardProps) {
           </Tooltip>
         </div>
         <CardDescription>
-          O curriculo foi localizado e preparado. O PDF continua disponivel e os
-          arquivos solicitados foram salvos no Supabase Storage e empacotados para download.
+          O currículo foi localizado e preparado. Você já pode abrir o PDF ou
+          baixar os arquivos gerados no formato escolhido.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <CompactMetricCard label="Pessoa encontrada" value={result.nome} />
           <CompactMetricCard
-            label="Ultima atualizacao"
+            label="Última atualização"
             value={result.ultima_atualizacao_curriculo}
           />
           <CompactMetricCard label="Arquivo" value={result.arquivo_pdf} />
@@ -135,7 +135,7 @@ export function ScrapeResultCard({ result }: ScrapeResultCardProps) {
           <div className="mt-4 grid gap-3 text-sm text-slate-700 sm:grid-cols-2">
             <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Pasta visivel
+                Pasta visível
               </p>
               <p className="mt-2 break-words font-medium text-slate-900">
                 {result.output_label ?? result.output_directory}

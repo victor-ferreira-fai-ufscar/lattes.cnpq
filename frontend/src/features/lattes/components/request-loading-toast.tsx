@@ -19,7 +19,7 @@ export function RequestLoadingToast({
             </div>
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Solicitacao em andamento
+                Solicitação em andamento
               </p>
               <p className="text-sm font-semibold text-slate-950">Processando</p>
             </div>
@@ -40,7 +40,7 @@ export function RequestLoadingToast({
           onClick={onViewDetails}
         >
           <TerminalSquare className="h-3.5 w-3.5" />
-          Ver detalhes da execucao
+          Ver detalhes da execução
         </button>
       </div>
     </div>

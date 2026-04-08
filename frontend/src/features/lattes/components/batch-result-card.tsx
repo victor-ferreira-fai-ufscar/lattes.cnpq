@@ -51,7 +51,7 @@ function normalizeText(text?: string | null) {
 function diagnoseBatchError(item: BatchItemError): BatchErrorDiagnosis {
   const errorText = normalizeText(item.erro);
   const detailText = normalizeText(item.erro_detalhe);
-  const locator = item.erro_locator || "(nao informado)";
+  const locator = item.erro_locator || "(não informado)";
 
   const isTimeout =
     item.erro_tipo === "TimeoutError" ||
@@ -75,15 +75,15 @@ function diagnoseBatchError(item: BatchItemError): BatchErrorDiagnosis {
     return {
       category: "nome-nao-encontrado",
       confidence: "alta",
-      title: "Nome nao encontrado na busca",
+      title: "Não encontramos esse nome na busca",
       probableCause:
-        "O nome enviado nao retornou candidatos no Lattes neste formato. Diferencas de acento, grafia ou composicao do nome podem impactar o resultado.",
+        "O nome enviado não retornou candidatos no Lattes neste formato. Diferenças de acento, grafia ou composição do nome podem impactar o resultado.",
       evidence: [
         `Nome enviado: ${item.nome}`,
-        "A API retornou sinal de nenhum resultado para este nome apos tentar variacoes automaticas de busca.",
+        "A busca não encontrou resultados mesmo após tentar variações automáticas do nome.",
       ],
       suggestedAction:
-        "Tentar variacoes do nome (sem acento e nome parcial) e, se houver homonimos, usar a busca individual para selecionar o candidato correto.",
+        "Tente variações do nome, como uma versão sem acento ou mais curta. Se houver homônimos, use a busca individual para escolher a pessoa correta.",
       quickChecks: variants.slice(0, 5),
     };
   }
@@ -92,20 +92,20 @@ function diagnoseBatchError(item: BatchItemError): BatchErrorDiagnosis {
     return {
       category: "timeout-sincronizacao",
       confidence: "alta",
-      title: "Falha de sincronizacao da interface",
+      title: "A página não respondeu como esperado",
       probableCause:
-        "O script tentou clicar em um elemento que existe no DOM, mas permaneceu invisivel ate o timeout.",
+        "A página demorou para liberar a próxima etapa e o processamento atingiu o tempo limite.",
       evidence: [
         `Tipo de erro: ${item.erro_tipo ?? "TimeoutError"}`,
-        `Locator afetado: ${locator}`,
-        "Log indica repetidas tentativas de click com elemento invisivel.",
+        `Elemento afetado: ${locator}`,
+        "Os registros indicam tentativas repetidas de interação sem resposta visível da página.",
       ],
       suggestedAction:
-        "Validar se o modal/painel correto realmente abriu antes do click e trocar a espera para visibilidade explicita do elemento clicavel.",
+        "Tente novamente em alguns instantes. Se o problema continuar, execute de novo com menos nomes por vez ou revise os detalhes técnicos abaixo.",
       quickChecks: [
-        "Conferir se o locator esta especifico o suficiente (evitar seletor generico como 'a').",
-        "Esperar explicitamente o elemento ficar visivel antes do click.",
-        "Garantir que nenhum overlay/modal esteja bloqueando a interacao.",
+        "Tentar novamente daqui a pouco.",
+        "Reduzir a quantidade de nomes processados de uma vez.",
+        "Usar a busca individual se o problema acontecer sempre com a mesma pessoa.",
       ],
     };
   }
@@ -114,18 +114,18 @@ function diagnoseBatchError(item: BatchItemError): BatchErrorDiagnosis {
     return {
       category: "timeout",
       confidence: "media",
-      title: "Timeout durante automacao",
+      title: "O processamento demorou mais do que o esperado",
       probableCause:
-        "A etapa demorou mais do que o limite configurado para a condicao esperada.",
+        "Uma das etapas da coleta levou mais tempo do que o limite configurado.",
       evidence: [
-        `Timeout configurado: ${item.erro_timeout_ms ?? "nao informado"}ms`,
-        `Locator afetado: ${locator}`,
+        `Tempo limite configurado: ${item.erro_timeout_ms ?? "não informado"}ms`,
+        `Elemento afetado: ${locator}`,
       ],
       suggestedAction:
-        "Revisar se ha variacao de carregamento na pagina e aguardar uma condicao mais estavel (rede ociosa, elemento visivel ou estado da tela).",
+        "Tente novamente. Se estiver processando uma lista grande, vale reduzir a quantidade de nomes para facilitar a execução.",
       quickChecks: [
-        "Aumentar timeout apenas depois de validar condicao de espera correta.",
-        "Checar se houve redirecionamento ou captcha durante a execucao.",
+        "Repetir a tentativa com menos nomes por vez.",
+        "Verificar se houve lentidão temporária no site do Lattes.",
       ],
     };
   }
@@ -133,18 +133,18 @@ function diagnoseBatchError(item: BatchItemError): BatchErrorDiagnosis {
   return {
     category: "generico",
     confidence: "baixa",
-    title: "Erro nao classificado automaticamente",
+    title: "Não foi possível classificar o problema automaticamente",
     probableCause:
-      "Nao foi possivel inferir uma causa unica a partir do padrao conhecido deste erro.",
+      "Não foi possível identificar uma causa única com base nos padrões já conhecidos.",
     evidence: [
-      `Tipo de erro: ${item.erro_tipo ?? "nao informado"}`,
-      `Locator afetado: ${locator}`,
+      `Tipo de erro: ${item.erro_tipo ?? "não informado"}`,
+      `Elemento afetado: ${locator}`,
     ],
     suggestedAction:
-      "Usar os detalhes tecnicos para reproduzir o problema e ajustar a etapa correspondente do scraping.",
+      "Tente novamente. Se o erro persistir, use os detalhes técnicos para investigar o caso específico.",
     quickChecks: [
-      "Executar novamente com logs detalhados para comparar comportamento.",
-      "Validar se a pagina de destino mudou estrutura recentemente.",
+      "Executar novamente para confirmar se foi uma falha momentânea.",
+      "Usar a busca individual se quiser isolar um único nome.",
     ],
   };
 }
@@ -161,6 +161,7 @@ function confidenceBadgeStyle(confidence: BatchErrorDiagnosis["confidence"]) {
 
 export function BatchResultCard({ result }: BatchResultCardProps) {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const hasErrors = result.erro > 0;
 
   const handleCopyDebug = async (key: string, payload: Record<string, unknown>) => {
     try {
@@ -180,28 +181,42 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
         <CardTitle className="text-lg text-amber-950">Lista processada</CardTitle>
         <CardDescription>
           Sua lista foi processada. Confira abaixo o total de resultados e os
-          arquivos disponiveis.
+          arquivos disponíveis.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-sm text-amber-950">
+          <p className="font-semibold">
+            {hasErrors
+              ? `A lista terminou com ${result.sucesso} resultado(s) concluído(s) e ${result.erro} com problema.`
+              : `Tudo certo: ${result.sucesso} resultado(s) foram concluído(s) sem problemas.`}
+          </p>
+          <p className="mt-1 text-amber-900/80">
+            Comece pelo download do lote e abra os detalhes apenas se quiser revisar cada pessoa.
+          </p>
+        </div>
+
         <div className="grid gap-3 grid-cols-2 xl:grid-cols-4">
           <Metric label="Arquivo enviado" value={result.arquivo} />
+          <Metric label="Pessoas processadas" value={String(result.total_processados)} />
+          <Metric label="Concluídos" value={String(result.sucesso)} />
+          <Metric label="Com problema" value={String(result.erro)} />
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           <Metric
-            label="Formato"
+            label="Formato escolhido"
             value={OUTPUT_FORMAT_LABELS[result.output_format] ?? result.output_format}
           />
-          <Metric label="Pessoas processadas" value={String(result.total_processados)} />
-          <Metric label="Concluidos" value={String(result.sucesso)} />
-          <Metric label="Com problema" value={String(result.erro)} />
           {typeof result.cache_hits === "number" ? (
             <Tooltip>
               <TooltipTrigger asChild>
                 <div>
-                  <Metric label="Cache hit" value={String(result.cache_hits)} />
+                  <Metric label="Arquivo já salvo" value={String(result.cache_hits)} />
                 </div>
               </TooltipTrigger>
               <TooltipContent>
-                Quantidade de PDFs reaproveitados do Storage sem novo scraping.
+                Quantidade de PDFs reaproveitados sem precisar gerar tudo de novo.
               </TooltipContent>
             </Tooltip>
           ) : null}
@@ -209,11 +224,11 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
             <Tooltip>
               <TooltipTrigger asChild>
                 <div>
-                  <Metric label="Scraping" value={String(result.cache_misses)} />
+                  <Metric label="Gerado agora" value={String(result.cache_misses)} />
                 </div>
               </TooltipTrigger>
               <TooltipContent>
-                Quantidade de casos em que foi necessario gerar o PDF novamente via scraping.
+                Quantidade de casos em que foi necessário gerar o PDF novamente.
               </TooltipContent>
             </Tooltip>
           ) : null}
@@ -274,13 +289,13 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
                                   : "rounded-full bg-amber-100 px-2.5 py-1 font-semibold uppercase tracking-[0.08em] text-amber-800"
                               }
                             >
-                              {item.cache_status === "hit" ? "Cache" : "Scraping"}
+                              {item.cache_status === "hit" ? "Já disponível" : "Gerado agora"}
                             </span>
                           </TooltipTrigger>
                           <TooltipContent>
                             {item.cache_status === "hit"
-                              ? "PDF reaproveitado do Storage dentro da janela de validade."
-                              : "Sem cache valido: PDF gerado novamente via scraping."}
+                              ? "O PDF já estava salvo e foi reaproveitado."
+                              : "O PDF precisou ser gerado novamente neste processamento."}
                           </TooltipContent>
                         </Tooltip>
                       ) : null}
@@ -294,7 +309,7 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
                           : "rounded-full bg-red-100 px-3 py-1 text-xs font-medium text-red-800"
                       }
                     >
-                      {item.status === "sucesso" ? "Concluido" : "Erro"}
+                      {item.status === "sucesso" ? "Concluído" : "Erro"}
                     </span>
                     <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 transition group-open:rotate-180" />
                   </div>
@@ -321,7 +336,7 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
                       <p className="mt-1 text-xs text-slate-500">Storage: {item.output_directory}</p>
                       {item.template_name ? (
                         <p className="mt-1 text-xs text-slate-600">
-                          Template DOCX: {item.template_name}
+                          Modelo DOCX: {item.template_name}
                         </p>
                       ) : null}
                       <div className="mt-3 flex flex-wrap gap-2">
@@ -352,19 +367,19 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
                         <div className="rounded-lg border border-red-200 bg-white/70 p-3 text-xs text-red-900">
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <p className="font-semibold uppercase tracking-[0.1em] text-red-800">
-                              Diagnostico automatico
+                              O que pode ter acontecido
                             </p>
                             <span
                               className={`rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${confidenceBadgeStyle(diagnosis.confidence)}`}
                             >
-                              Confianca {diagnosis.confidence}
+                              Confiança {diagnosis.confidence}
                             </span>
                           </div>
                           <p className="mt-2 text-sm font-semibold text-red-900">
                             {diagnosis.title}
                           </p>
                           <p className="mt-1 leading-relaxed">
-                            <span className="font-semibold">Causa provavel:</span>{" "}
+                            <span className="font-semibold">Causa provável:</span>{" "}
                             {diagnosis.probableCause}
                           </p>
                           <div className="mt-2 space-y-1 leading-relaxed">
@@ -373,12 +388,12 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
                             ))}
                           </div>
                           <p className="mt-2 leading-relaxed">
-                            <span className="font-semibold">Acao sugerida:</span>{" "}
+                            <span className="font-semibold">O que fazer agora:</span>{" "}
                             {diagnosis.suggestedAction}
                           </p>
                           {diagnosis.quickChecks.length > 0 ? (
                             <div className="mt-2 space-y-1 leading-relaxed">
-                              <p className="font-semibold">Testes rapidos:</p>
+                              <p className="font-semibold">Sugestões rápidas:</p>
                               {diagnosis.quickChecks.map((line) => (
                                 <p key={line}>- {line}</p>
                               ))}
@@ -391,7 +406,7 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
                     {(item.erro_detalhe || item.erro_tipo || item.erro_timeout_ms || item.erro_locator) && (
                       <details className="rounded-lg border border-red-200/80 bg-red-50/50 p-2">
                         <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.12em] text-red-800">
-                          Detalhes tecnicos
+                          Detalhes técnicos
                         </summary>
                         <div className="mt-2 space-y-1 text-xs text-red-900">
                           {item.erro_tipo && <p>Tipo: {item.erro_tipo}</p>}

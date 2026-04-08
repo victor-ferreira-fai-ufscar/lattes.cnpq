@@ -25,12 +25,12 @@ export const BatchUploadSchema = z.object({
       message: "Use apenas arquivos .csv.",
     })
     .refine((file) => file.size > 0, {
-      message: "O arquivo nao pode estar vazio.",
+      message: "O arquivo não pode estar vazio.",
     })
     .refine((file) => file.size <= 5 * 1024 * 1024, {
-      message: "O arquivo nao pode exceder 5MB.",
+      message: "O arquivo não pode exceder 5MB.",
     }),
-  skip: z.coerce.number().int().min(0, "Esse valor nao pode ser negativo."),
+  skip: z.coerce.number().int().min(0, "Esse valor não pode ser negativo."),
   limit: z
     .union([
       z.literal(""),
@@ -46,7 +46,7 @@ export type BatchUploadFormInput = z.input<typeof BatchUploadSchema>;
 
 export const SummarySchema = z.object({
   provedor: z.enum(["openai", "gemini", "ollama"]),
-  modelo: z.string().trim().min(1, "Escolha ou informe uma opcao."),
+  modelo: z.string().trim().min(1, "Escolha ou informe uma opção."),
   apiKey: z.string().trim().optional(),
 });
 
