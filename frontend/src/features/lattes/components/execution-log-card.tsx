@@ -9,14 +9,17 @@ import {
 } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 
 type ExecutionLogCardProps = {
+  className?: string;
   isProcessing?: boolean;
   logs: string[];
   variant?: "default" | "floating";
 };
 
 export function ExecutionLogCard({
+  className,
   isProcessing = false,
   logs,
   variant = "default",
@@ -24,7 +27,7 @@ export function ExecutionLogCard({
   const isFloating = variant === "floating";
 
   return (
-    <Card variant="inverse">
+    <Card className={cn(isFloating && "h-full", className)} variant="inverse">
       {!isFloating ? (
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg text-white">
@@ -38,11 +41,11 @@ export function ExecutionLogCard({
           </CardDescription>
         </CardHeader>
       ) : null}
-      <CardContent>
+      <CardContent className={cn(isFloating && "flex h-full min-h-0 flex-col p-0")}>
         {logs.length > 0 ? (
           isFloating ? (
-            <ScrollArea className="max-h-80 rounded-2xl border border-white/10 bg-slate-950/80">
-              <div className="space-y-2 p-4 font-mono text-xs leading-6 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-slate-200">
+            <ScrollArea className="h-full min-h-0 rounded-2xl border border-white/10 bg-slate-950/80">
+              <div className="space-y-2 p-4 pr-5 font-mono text-xs leading-6 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-slate-200">
                 {logs.map((line, index) => (
                   <p key={`${line}-${index}`}>{line}</p>
                 ))}
@@ -55,7 +58,7 @@ export function ExecutionLogCard({
                 <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
               </summary>
               <ScrollArea className="mt-4 max-h-72 rounded-2xl border border-white/10 bg-slate-950/70">
-                <div className="space-y-2 p-4 font-mono text-xs leading-6 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-slate-200">
+                <div className="space-y-2 p-4 pr-5 font-mono text-xs leading-6 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-slate-200">
                   {logs.map((line, index) => (
                     <p key={`${line}-${index}`}>{line}</p>
                   ))}
@@ -64,7 +67,10 @@ export function ExecutionLogCard({
             </details>
           )
         ) : isProcessing ? (
-          <div className="rounded-2xl border border-teal-400/20 bg-slate-900/60 p-4 text-sm text-slate-300">
+          <div className={cn(
+            "rounded-2xl border border-teal-400/20 bg-slate-900/60 p-4 text-sm text-slate-300",
+            isFloating && "flex h-full min-h-0 items-start",
+          )}>
             <div className="flex items-start gap-3">
               <Spinner className="mt-0.5 h-4 w-4 shrink-0 text-teal-300" />
               <div>
@@ -76,7 +82,10 @@ export function ExecutionLogCard({
             </div>
           </div>
         ) : (
-          <div className="rounded-2xl border border-dashed border-white/15 bg-slate-900/50 p-4 text-sm text-slate-400">
+          <div className={cn(
+            "rounded-2xl border border-dashed border-white/15 bg-slate-900/50 p-4 text-sm text-slate-400",
+            isFloating && "flex h-full min-h-0 items-center",
+          )}>
             Nenhum registro disponivel ainda.
           </div>
         )}

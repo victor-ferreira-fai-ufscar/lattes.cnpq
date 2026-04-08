@@ -961,57 +961,75 @@ function FloatingExecutionPanel({
           {isOpen && isAvailable ? (
             <motion.div
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              className="pointer-events-auto w-[min(92vw,420px)]"
+              className="pointer-events-auto"
               exit={{ opacity: 0, y: 10, scale: 0.98 }}
               initial={{ opacity: 0, y: 12, scale: 0.98 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
             >
-              <div className="rounded-[28px] border border-slate-200/80 bg-white/96 p-3 shadow-[0_28px_70px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl">
-                <div className="mb-3 flex items-center justify-between gap-3 px-1">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
-                      Execucao
-                    </p>
-                    <p className="text-sm font-semibold text-slate-950">
-                      {isProcessing ? "Acompanhamento ao vivo" : "Ultimos registros"}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
+              <div
+                className="flex min-h-[300px] min-w-[320px] max-h-[78vh] max-w-[min(92vw,760px)] resize overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/96 p-3 shadow-[0_28px_70px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl"
+                style={{
+                  height: "clamp(20rem, 46vh, 34rem)",
+                  width: "min(92vw, 420px)",
+                }}
+              >
+                <div className="flex h-full min-h-0 w-full flex-col">
+                  <div className="mb-3 flex items-center justify-between gap-3 px-1">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
+                        Execucao
+                      </p>
+                      <p className="text-sm font-semibold text-slate-950">
+                        {isProcessing ? "Acompanhamento ao vivo" : "Ultimos registros"}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Arraste pelo canto para redimensionar sem perder scroll e quebra de linha.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            aria-label={isPinned ? "Desafixar painel de execucao" : "Fixar painel de execucao"}
+                            className={cn(
+                              "h-10 w-10 rounded-2xl px-0",
+                              isPinned
+                                ? "border-teal-200 bg-teal-50 text-teal-800 hover:bg-teal-100"
+                                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+                            )}
+                            type="button"
+                            variant="outline"
+                            onClick={() => onPinnedChange(!isPinned)}
+                          >
+                            {isPinned ? <Pin className="h-4 w-4" /> : <PinOff className="h-4 w-4" />}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          {isPinned ? "Painel fixado" : "Fixar painel"}
+                        </TooltipContent>
+                      </Tooltip>
+                      {!isPinned ? (
                         <Button
-                          aria-label={isPinned ? "Desafixar painel de execucao" : "Fixar painel de execucao"}
-                          className={cn(
-                            "h-10 w-10 rounded-2xl px-0",
-                            isPinned
-                              ? "border-teal-200 bg-teal-50 text-teal-800 hover:bg-teal-100"
-                              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
-                          )}
+                          aria-label="Fechar painel de execucao"
+                          className="h-10 rounded-2xl border-slate-200 bg-white px-3 text-slate-700 hover:bg-slate-50"
                           type="button"
                           variant="outline"
-                          onClick={() => onPinnedChange(!isPinned)}
+                          onClick={() => onOpenChange(false)}
                         >
-                          {isPinned ? <Pin className="h-4 w-4" /> : <PinOff className="h-4 w-4" />}
+                          Fechar
                         </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        {isPinned ? "Painel fixado" : "Fixar painel"}
-                      </TooltipContent>
-                    </Tooltip>
-                    {!isPinned ? (
-                      <Button
-                        aria-label="Fechar painel de execucao"
-                        className="h-10 rounded-2xl border-slate-200 bg-white px-3 text-slate-700 hover:bg-slate-50"
-                        type="button"
-                        variant="outline"
-                        onClick={() => onOpenChange(false)}
-                      >
-                        Fechar
-                      </Button>
-                    ) : null}
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="min-h-0 flex-1">
+                    <ExecutionLogCard
+                      className="h-full"
+                      isProcessing={isProcessing}
+                      logs={logs}
+                      variant="floating"
+                    />
                   </div>
                 </div>
-                <ExecutionLogCard isProcessing={isProcessing} logs={logs} variant="floating" />
               </div>
             </motion.div>
           ) : null}
