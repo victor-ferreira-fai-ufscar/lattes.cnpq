@@ -55,6 +55,12 @@ const FLOATING_LOG_PANEL_DEFAULT_WIDTH = 420;
 const FLOATING_LOG_PANEL_DEFAULT_HEIGHT = 368;
 
 type FlowStepTarget = "form" | "results" | "summary";
+type ActiveRequestState = {
+  kind: "search" | "variants" | "scrape" | "batch" | "models" | "summarize";
+  title: string;
+  description: string;
+  hint: string;
+};
 
 export function LattesWorkbench() {
   const {
@@ -132,6 +138,18 @@ export function LattesWorkbench() {
     : showResultsSection
         ? 1
         : 0;
+  const notice = getWorkbenchNotice({
+    activeRequest,
+    canRetryLastAction,
+    errorMessage,
+    hasMainResult,
+    hasSummaryResult,
+    lastSearchTerm,
+    mode,
+    scrapeResult,
+    selectedCandidate,
+    statusMessage,
+  });
   const handleStepNavigation = (target: FlowStepTarget) => {
     if (target === "form") {
       scrollToSection(formSectionRef.current);
@@ -550,19 +568,21 @@ export function LattesWorkbench() {
           </div>
         </div>
 
-        {errorMessage ? (
-          <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <p>{errorMessage}</p>
-          </div>
-        ) : null}
-
-        {statusMessage ? (
-          <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
-            <p>{statusMessage}</p>
-          </div>
-        ) : null}
+        <WorkbenchNoticeCard
+          notice={notice}
+          onCancelRequest={() => {
+            void cancelActiveRequest();
+          }}
+          onOpenLogs={() => {
+            setIsLogPanelOpen(true);
+            setIsLogPanelPinned(true);
+          }}
+          onRetry={() => {
+            void retryLastAction();
+          }}
+          onViewResults={() => scrollToSection(resultsRef.current)}
+          onViewSummary={() => scrollToSection(summaryResultRef.current)}
+        />
 
         <div className="space-y-6">
           <div
@@ -700,6 +720,268 @@ function scrollToSection(element: HTMLElement | null) {
       behavior: "smooth",
     });
   });
+}
+
+function getWorkbenchNotice({
+  activeRequest,
+  canRetryLastAction,
+  errorMessage,
+  hasMainResult,
+  hasSummaryResult,
+  lastSearchTerm,
+  mode,
+  scrapeResult,
+  selectedCandidate,
+  statusMessage,
+}: {
+  activeRequest: ActiveRequestState | null;
+  canRetryLastAction: boolean;
+  errorMessage: string | null;
+  hasMainResult: boolean;
+  hasSummaryResult: boolean;
+  lastSearchTerm: string | null;
+  mode: "individual" | "lote";
+  scrapeResult: unknown;
+  selectedCandidate: unknown;
+  statusMessage: string | null;
+}) {
+  if (activeRequest) {
+    return {
+      tone: "info" as const,
+      title: activeRequest.title,
+      message: activeRequest.description,
+      hint: activeRequest.hint,
+      primaryAction: { label: "Cancelar", action: "cancel" as const },
+      secondaryAction: {
+        label: "Abrir logs",
+        action: "logs" as const,
+      },
+    };
+  }
+
+  if (errorMessage) {
+    return {
+      tone: "error" as const,
+      title: "Algo precisou de atenção",
+      message: errorMessage,
+      hint: canRetryLastAction
+        ? "Se quiser, tente novamente usando o mesmo fluxo."
+        : "Revise as informações do fluxo atual e tente novamente.",
+      primaryAction: canRetryLastAction
+        ? { label: "Tentar novamente", action: "retry" as const }
+        : undefined,
+      secondaryAction: hasMainResult
+        ? { label: "Ver resultados", action: "results" as const }
+        : undefined,
+    };
+  }
+
+  if (statusMessage) {
+    return {
+      tone: "success" as const,
+      title: hasSummaryResult
+        ? "Resumo pronto"
+        : hasMainResult
+          ? "Processo concluído"
+          : "Atualização recente",
+      message: statusMessage,
+      hint: hasSummaryResult
+        ? "O resumo completo está disponível logo abaixo na etapa 3."
+        : hasMainResult
+          ? "Os arquivos e resultados principais já estão disponíveis na próxima etapa."
+          : "Você pode continuar pelo fluxo atual normalmente.",
+      primaryAction: hasSummaryResult
+        ? { label: "Ir para resumo", action: "summary" as const }
+        : hasMainResult
+          ? { label: "Ir para resultados", action: "results" as const }
+          : undefined,
+    };
+  }
+
+  if (mode === "individual") {
+    if (!lastSearchTerm) {
+      return {
+        tone: "neutral" as const,
+        title: "Comece pesquisando uma pessoa",
+        message:
+          "Digite o nome de quem você quer localizar e a aplicação mostrará as opções encontradas no Lattes.",
+        hint: "Depois de escolher a pessoa correta, será possível gerar os arquivos do currículo.",
+      };
+    }
+
+    if (lastSearchTerm && !selectedCandidate) {
+      return {
+        tone: "neutral" as const,
+        title: "Revise as opções encontradas",
+        message:
+          "Escolha a pessoa correta na lista antes de continuar para a geração dos arquivos.",
+        hint: "Se necessário, teste outras variações do nome para melhorar a busca.",
+      };
+    }
+
+    if (selectedCandidate && !scrapeResult) {
+      return {
+        tone: "neutral" as const,
+        title: "Tudo pronto para gerar os arquivos",
+        message:
+          "A pessoa já foi selecionada. Agora você pode escolher o formato de saída e preparar o currículo.",
+        hint: "O PDF continua sendo a opção mais direta para leitura imediata.",
+      };
+    }
+  }
+
+  return {
+    tone: "neutral" as const,
+    title: "Envie a lista para começar",
+    message:
+      "Carregue um arquivo CSV com os nomes que deseja processar. O andamento aparece nos logs e os resultados ficam disponíveis na etapa seguinte.",
+    hint: "Se quiser testar primeiro, use uma lista pequena ou limite a quantidade de linhas processadas.",
+  };
+}
+
+function WorkbenchNoticeCard({
+  notice,
+  onCancelRequest,
+  onOpenLogs,
+  onRetry,
+  onViewResults,
+  onViewSummary,
+}: {
+  notice: ReturnType<typeof getWorkbenchNotice>;
+  onCancelRequest: () => void;
+  onOpenLogs: () => void;
+  onRetry: () => void;
+  onViewResults: () => void;
+  onViewSummary: () => void;
+}) {
+  const toneStyles = {
+    error: {
+      container: "border-red-200 bg-red-50/95",
+      iconWrap: "bg-red-100 text-red-700",
+      eyebrow: "text-red-700",
+      title: "text-red-950",
+      message: "text-red-900",
+      hint: "text-red-800/80",
+    },
+    success: {
+      container: "border-emerald-200 bg-emerald-50/95",
+      iconWrap: "bg-emerald-100 text-emerald-700",
+      eyebrow: "text-emerald-700",
+      title: "text-emerald-950",
+      message: "text-emerald-900",
+      hint: "text-emerald-800/80",
+    },
+    info: {
+      container: "border-cyan-200 bg-cyan-50/95",
+      iconWrap: "bg-cyan-100 text-cyan-700",
+      eyebrow: "text-cyan-700",
+      title: "text-cyan-950",
+      message: "text-cyan-900",
+      hint: "text-cyan-800/80",
+    },
+    neutral: {
+      container: "border-slate-200 bg-white/92",
+      iconWrap: "bg-slate-100 text-slate-700",
+      eyebrow: "text-slate-500",
+      title: "text-slate-950",
+      message: "text-slate-700",
+      hint: "text-slate-500",
+    },
+  } as const;
+
+  const icon = notice.tone === "error"
+    ? <AlertCircle className="h-4 w-4" />
+    : notice.tone === "success"
+      ? <CheckCircle2 className="h-4 w-4" />
+      : <Info className="h-4 w-4" />;
+  const style = toneStyles[notice.tone];
+
+  const runPrimaryAction = () => {
+    if (notice.primaryAction?.action === "cancel") {
+      onCancelRequest();
+      return;
+    }
+
+    if (notice.primaryAction?.action === "retry") {
+      onRetry();
+      return;
+    }
+
+    if (notice.primaryAction?.action === "results") {
+      onViewResults();
+      return;
+    }
+
+    if (notice.primaryAction?.action === "summary") {
+      onViewSummary();
+    }
+  };
+
+  const runSecondaryAction = () => {
+    if (notice.secondaryAction?.action === "logs") {
+      onOpenLogs();
+      return;
+    }
+
+    if (notice.secondaryAction?.action === "results") {
+      onViewResults();
+    }
+  };
+
+  return (
+    <div className={cn("rounded-[28px] border p-4 shadow-[0_22px_60px_-46px_rgba(15,23,42,0.45)] sm:p-5", style.container)}>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className={cn("mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl", style.iconWrap)}>
+            {icon}
+          </div>
+          <div className="min-w-0 space-y-1.5">
+            <p className={cn("text-[11px] font-semibold uppercase tracking-[0.22em]", style.eyebrow)}>
+              Avisos e notificações
+            </p>
+            <p className={cn("text-base font-semibold", style.title)}>{notice.title}</p>
+            <p className={cn("text-sm leading-6", style.message)}>{notice.message}</p>
+            {notice.hint ? (
+              <p className={cn("text-sm leading-6", style.hint)}>{notice.hint}</p>
+            ) : null}
+          </div>
+        </div>
+
+        {notice.primaryAction || notice.secondaryAction ? (
+          <div className="flex flex-wrap gap-2 lg:justify-end">
+            {notice.secondaryAction ? (
+              <Button
+                className="rounded-full border-slate-300 bg-white/90 text-slate-700 hover:bg-white"
+                type="button"
+                variant="outline"
+                onClick={runSecondaryAction}
+              >
+                {notice.secondaryAction.label}
+              </Button>
+            ) : null}
+            {notice.primaryAction ? (
+              <Button
+                className={cn(
+                  "rounded-full",
+                  notice.tone === "error"
+                    ? "bg-red-600 text-white hover:bg-red-700"
+                    : notice.tone === "success"
+                      ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                      : notice.tone === "info"
+                        ? "bg-cyan-700 text-white hover:bg-cyan-800"
+                        : "bg-slate-900 text-white hover:bg-slate-800",
+                )}
+                type="button"
+                onClick={runPrimaryAction}
+              >
+                {notice.primaryAction.label}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
 }
 
 function StepProgressCard({
