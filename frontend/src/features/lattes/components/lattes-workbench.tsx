@@ -3,6 +3,7 @@
 import {
   AlertCircle,
   ArrowDownRight,
+  ArrowUpLeft,
   BrainCircuit,
   CircleHelp,
   CheckCircle2,
@@ -1063,7 +1064,7 @@ function FloatingExecutionPanel({
               transition={{ duration: 0.2, ease: "easeOut" }}
             >
               <div
-                className="relative flex min-h-[300px] min-w-[320px] max-h-[78vh] max-w-[min(92vw,760px)] overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/96 p-3 shadow-[0_28px_70px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl"
+                className="group/panel relative min-h-[300px] min-w-[320px] max-h-[78vh] max-w-[min(92vw,760px)]"
                 style={{
                   height: panelSize.height,
                   width: panelSize.width,
@@ -1071,13 +1072,14 @@ function FloatingExecutionPanel({
               >
                 <button
                   aria-label="Redimensionar painel de execução pelo canto superior esquerdo"
-                  className="absolute left-3 top-3 z-10 flex h-7 w-7 cursor-nwse-resize items-start justify-start rounded-tl-xl border-l-2 border-t-2 border-slate-300/90 bg-white/70 transition hover:border-teal-400"
+                  className="absolute -left-2.5 -top-2.5 z-20 flex h-8 w-8 cursor-nwse-resize items-center justify-center rounded-full border border-slate-200/90 bg-white/96 text-slate-400 opacity-0 shadow-[0_10px_24px_-18px_rgba(15,23,42,0.45)] backdrop-blur transition duration-200 hover:border-teal-200 hover:bg-teal-50 hover:text-teal-700 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300 focus-visible:ring-offset-2 focus-visible:ring-offset-white group-hover/panel:opacity-100 group-focus-within/panel:opacity-100"
                   type="button"
                   onMouseDown={handleResizeStart}
                 >
+                  <ArrowUpLeft className="pointer-events-none h-3.5 w-3.5" />
                   <span className="sr-only">Redimensionar</span>
                 </button>
-                <div className="flex h-full min-h-0 w-full flex-col">
+                <div className="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/96 p-3 shadow-[0_28px_70px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl">
                   <div className="mb-3 flex items-center justify-between gap-3 px-1">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">
@@ -1087,7 +1089,7 @@ function FloatingExecutionPanel({
                         {isProcessing ? "Acompanhamento ao vivo" : "Últimos registros"}
                       </p>
                       <p className="mt-1 text-xs text-slate-500">
-                        Arraste pelo canto superior esquerdo para redimensionar. Os logs agora têm rolagem vertical e horizontal.
+                        Passe o cursor no canto superior esquerdo para ajustar o tamanho. Os logs têm rolagem vertical e horizontal.
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
