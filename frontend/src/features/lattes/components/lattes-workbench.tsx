@@ -48,6 +48,10 @@ const CLEAR_HISTORY_TOAST_ID = "lattes-clear-history";
 const FLOW_PANEL_PINNED_STORAGE_KEY = "lattes-flow-panel-pinned";
 const LOG_PANEL_OPEN_STORAGE_KEY = "lattes-log-panel-open";
 const LOG_PANEL_PINNED_STORAGE_KEY = "lattes-log-panel-pinned";
+const FLOATING_LOG_PANEL_MIN_WIDTH = 320;
+const FLOATING_LOG_PANEL_MIN_HEIGHT = 300;
+const FLOATING_LOG_PANEL_DEFAULT_WIDTH = 420;
+const FLOATING_LOG_PANEL_DEFAULT_HEIGHT = 368;
 
 type FlowStepTarget = "form" | "results" | "summary";
 
@@ -954,6 +958,98 @@ function FloatingExecutionPanel({
   onOpenChange: (nextValue: boolean) => void;
   onPinnedChange: (nextValue: boolean) => void;
 }) {
+  const [panelSize, setPanelSize] = useState({
+    width: FLOATING_LOG_PANEL_DEFAULT_WIDTH,
+    height: FLOATING_LOG_PANEL_DEFAULT_HEIGHT,
+  });
+  const resizeStateRef = useRef<{
+    startX: number;
+    startY: number;
+    startWidth: number;
+    startHeight: number;
+  } | null>(null);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const clampPanelSize = (width: number, height: number) => {
+    if (typeof window === "undefined") {
+      return { width, height };
+    }
+
+    const maxWidth = Math.min(Math.floor(window.innerWidth * 0.92), 760);
+    const maxHeight = Math.floor(window.innerHeight * 0.78);
+
+    return {
+      width: Math.min(Math.max(width, FLOATING_LOG_PANEL_MIN_WIDTH), maxWidth),
+      height: Math.min(Math.max(height, FLOATING_LOG_PANEL_MIN_HEIGHT), maxHeight),
+    };
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const syncPanelSize = () => {
+      setPanelSize((current) => clampPanelSize(current.width, current.height));
+    };
+
+    syncPanelSize();
+    window.addEventListener("resize", syncPanelSize);
+
+    return () => {
+      window.removeEventListener("resize", syncPanelSize);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isResizing) {
+      return;
+    }
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const resizeState = resizeStateRef.current;
+      if (!resizeState) {
+        return;
+      }
+
+      const nextWidth = resizeState.startWidth + (resizeState.startX - event.clientX);
+      const nextHeight = resizeState.startHeight + (resizeState.startY - event.clientY);
+      setPanelSize(clampPanelSize(nextWidth, nextHeight));
+    };
+
+    const handleMouseUp = () => {
+      resizeStateRef.current = null;
+      setIsResizing(false);
+      document.body.style.removeProperty("cursor");
+      document.body.style.removeProperty("user-select");
+    };
+
+    document.body.style.cursor = "nwse-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.removeProperty("cursor");
+      document.body.style.removeProperty("user-select");
+    };
+  }, [isResizing]);
+
+  const handleResizeStart = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    resizeStateRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      startWidth: panelSize.width,
+      startHeight: panelSize.height,
+    };
+    setIsResizing(true);
+  };
+
   return (
     <div className="pointer-events-none fixed bottom-[calc(5.75rem+env(safe-area-inset-bottom))] right-3 z-40 lg:bottom-6 lg:right-6">
       <div className="flex flex-col items-end gap-3">
@@ -967,12 +1063,20 @@ function FloatingExecutionPanel({
               transition={{ duration: 0.2, ease: "easeOut" }}
             >
               <div
-                className="flex min-h-[300px] min-w-[320px] max-h-[78vh] max-w-[min(92vw,760px)] resize overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/96 p-3 shadow-[0_28px_70px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl"
+                className="relative flex min-h-[300px] min-w-[320px] max-h-[78vh] max-w-[min(92vw,760px)] overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/96 p-3 shadow-[0_28px_70px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl"
                 style={{
-                  height: "clamp(20rem, 46vh, 34rem)",
-                  width: "min(92vw, 420px)",
+                  height: panelSize.height,
+                  width: panelSize.width,
                 }}
               >
+                <button
+                  aria-label="Redimensionar painel de execução pelo canto superior esquerdo"
+                  className="absolute left-3 top-3 z-10 flex h-7 w-7 cursor-nwse-resize items-start justify-start rounded-tl-xl border-l-2 border-t-2 border-slate-300/90 bg-white/70 transition hover:border-teal-400"
+                  type="button"
+                  onMouseDown={handleResizeStart}
+                >
+                  <span className="sr-only">Redimensionar</span>
+                </button>
                 <div className="flex h-full min-h-0 w-full flex-col">
                   <div className="mb-3 flex items-center justify-between gap-3 px-1">
                     <div>
@@ -983,7 +1087,7 @@ function FloatingExecutionPanel({
                         {isProcessing ? "Acompanhamento ao vivo" : "Últimos registros"}
                       </p>
                       <p className="mt-1 text-xs text-slate-500">
-                        Arraste pelo canto para redimensionar sem perder scroll e quebra de linha.
+                        Arraste pelo canto superior esquerdo para redimensionar. Os logs agora têm rolagem vertical e horizontal.
                       </p>
                     </div>
                     <div className="flex items-center gap-2">

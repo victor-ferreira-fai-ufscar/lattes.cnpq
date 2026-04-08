@@ -43,10 +43,15 @@ export function ExecutionLogCard({
       <CardContent className={cn(isFloating && "flex h-full min-h-0 flex-col p-0")}>
         {logs.length > 0 ? (
           isFloating ? (
-            <ScrollArea className="h-full min-h-0 rounded-2xl border border-white/10 bg-slate-950/80">
-              <div className="space-y-2 p-4 pr-5 font-mono text-xs leading-6 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-slate-200">
+            <ScrollArea
+              className="h-full min-h-0 rounded-2xl border border-white/10 bg-slate-950/80"
+              type="always"
+            >
+              <div className="w-max min-w-full space-y-2 p-4 pr-5 font-mono text-xs leading-6 text-slate-200">
                 {logs.map((line, index) => (
-                  <p key={`${line}-${index}`}>{line}</p>
+                  <p key={`${line}-${index}`} className="whitespace-pre">
+                    {line}
+                  </p>
                 ))}
               </div>
             </ScrollArea>
@@ -56,10 +61,15 @@ export function ExecutionLogCard({
                 Ver registros da execução
                 <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
               </summary>
-              <ScrollArea className="mt-4 max-h-72 rounded-2xl border border-white/10 bg-slate-950/70">
-                <div className="space-y-2 p-4 pr-5 font-mono text-xs leading-6 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-slate-200">
+              <ScrollArea
+                className="mt-4 max-h-72 rounded-2xl border border-white/10 bg-slate-950/70"
+                type="always"
+              >
+                <div className="w-max min-w-full space-y-2 p-4 pr-5 font-mono text-xs leading-6 text-slate-200">
                   {logs.map((line, index) => (
-                    <p key={`${line}-${index}`}>{line}</p>
+                    <p key={`${line}-${index}`} className="whitespace-pre">
+                      {line}
+                    </p>
                   ))}
                 </div>
               </ScrollArea>
