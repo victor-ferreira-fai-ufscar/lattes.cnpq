@@ -30,6 +30,7 @@ async def stream_request_events(request_id: str, request: Request):
                     continue
 
                 if item is None:
+                    yield _sse_event("end", {"request_id": request_id})
                     break
 
                 event, payload = item

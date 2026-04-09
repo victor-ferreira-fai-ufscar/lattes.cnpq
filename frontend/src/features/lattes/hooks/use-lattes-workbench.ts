@@ -18,6 +18,9 @@ export function useLattesWorkbench() {
   const resetWorkbenchState = useLattesWorkbenchStore(
     (state) => state.resetWorkbenchState,
   );
+  const liveExecutionLogs = useLattesWorkbenchStore(
+    (state) => state.liveExecutionLogs,
+  );
   const clearLiveExecutionLogs = useLattesWorkbenchStore(
     (state) => state.clearLiveExecutionLogs,
   );
@@ -58,6 +61,7 @@ export function useLattesWorkbench() {
     };
 
     resetFeedback();
+    clearLiveExecutionLogs();
     summaryFlow.reset();
 
     if (trimmedName === (searchTerm ?? "").trim()) {
@@ -75,6 +79,7 @@ export function useLattesWorkbench() {
     };
 
     resetFeedback();
+    clearLiveExecutionLogs();
     summaryFlow.reset();
     await individualFlow.scrapeSelected(outputFormat);
   };
@@ -87,6 +92,7 @@ export function useLattesWorkbench() {
     };
 
     resetFeedback();
+    clearLiveExecutionLogs();
     summaryFlow.reset();
     const matchedTerm = await individualFlow.searchWithVariants(trimmedName);
     if (matchedTerm) {
@@ -106,6 +112,7 @@ export function useLattesWorkbench() {
     };
 
     resetFeedback();
+    clearLiveExecutionLogs();
     await batchFlow.submitBatch(file, skip, limit, outputFormat);
   };
 
@@ -119,6 +126,7 @@ export function useLattesWorkbench() {
     };
 
     resetFeedback();
+    clearLiveExecutionLogs();
     await summaryFlow.loadModels(provisorio);
   };
 
@@ -133,6 +141,7 @@ export function useLattesWorkbench() {
     };
 
     resetFeedback();
+    clearLiveExecutionLogs();
     await summaryFlow.summarize(config);
   };
 
@@ -152,15 +161,15 @@ export function useLattesWorkbench() {
 
   const activeLogs = useMemo(
     () =>
-      (batchFlow.liveBatchLogs.length > 0
-        ? batchFlow.liveBatchLogs
+      (liveExecutionLogs.length > 0
+        ? liveExecutionLogs
         : summaryFlow.summaryResult?.logs ??
           individualFlow.scrapeResult?.logs ??
           batchFlow.batchResult?.logs) ?? [],
     [
       batchFlow.batchResult?.logs,
-      batchFlow.liveBatchLogs,
       individualFlow.scrapeResult?.logs,
+      liveExecutionLogs,
       summaryFlow.summaryResult?.logs,
     ],
   );

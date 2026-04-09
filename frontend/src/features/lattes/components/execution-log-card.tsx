@@ -11,7 +11,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 
 type ExecutionLogCardProps = {
@@ -108,11 +107,11 @@ export function ExecutionLogCard({
             isFloating && "flex h-full min-h-0 items-start",
           )}>
             <div className="flex items-start gap-3">
-              <Spinner className="mt-0.5 h-4 w-4 shrink-0 text-teal-300" />
+              <TerminalSquare className="mt-0.5 h-4 w-4 shrink-0 text-teal-300" />
               <div>
-                <p className="font-medium text-slate-100">Execução em andamento</p>
+                <p className="font-medium text-slate-100">Execução conectada ao backend</p>
                 <p className="mt-1 text-slate-400">
-                  Os registros técnicos aparecerão aqui assim que o backend enviar novas linhas.
+                  O painel permanece pronto para exibir a primeira etapa publicada pelo backend assim que o stream SSE entregar o evento inicial.
                 </p>
               </div>
             </div>

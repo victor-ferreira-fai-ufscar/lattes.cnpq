@@ -29,7 +29,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Skeleton } from "@/components/ui/skeleton";
 import { BatchUploadPanel } from "@/features/lattes/components/batch-upload-panel";
 import { BatchResultCard } from "@/features/lattes/components/batch-result-card";
 import { ExecutionLogCard } from "@/features/lattes/components/execution-log-card";
@@ -113,6 +112,7 @@ export function LattesWorkbench() {
   const hasMainResult = Boolean(scrapeResult || batchResult);
   const hasSummaryResult = Boolean(summaryResult);
   const hasLogs = activeLogs.length > 0;
+  const latestActiveLog = hasLogs ? activeLogs[activeLogs.length - 1] : null;
   const canShowLogPanel = isInteractionLocked || hasLogs;
   const isLogPanelVisible = canShowLogPanel && (isLogPanelOpen || isLogPanelPinned);
   const activeFlowLabel =
@@ -673,9 +673,18 @@ export function LattesWorkbench() {
                 {!summaryResult && loading.summarize ? (
                   <div className="rounded-3xl border border-cyan-200/70 bg-cyan-50/60 p-6">
                     <div className="space-y-3">
-                      <Skeleton className="h-5 w-44" />
-                      <Skeleton className="h-4 w-72" />
-                      <Skeleton className="h-40 w-full rounded-2xl" />
+                      <div className="inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800">
+                        <TerminalSquare className="h-3.5 w-3.5" />
+                        Execução acompanhada em tempo real
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-sm font-semibold text-slate-900">
+                          O resumo está sendo montado a partir dos eventos publicados pelo backend.
+                        </p>
+                        <p className="text-sm leading-6 text-slate-600">
+                          {latestActiveLog ?? "Aguardando a primeira etapa confirmada pelo backend."}
+                        </p>
+                      </div>
                     </div>
                   </div>
                 ) : null}

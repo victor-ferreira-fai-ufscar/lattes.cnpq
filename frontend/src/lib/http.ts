@@ -18,6 +18,12 @@ type MonitoredRequestOptions = {
   onLog?: (line: string) => void;
 };
 
+type RequestMonitorPayload = {
+  detail?: unknown;
+  operation?: unknown;
+  title?: unknown;
+};
+
 export class RequestCancelledError extends Error {
   constructor(message = "Solicitação cancelada.") {
     super(message);
@@ -100,7 +106,14 @@ export async function runMonitoredRequest<T>({
     }
   });
 
-  eventSource.addEventListener("request-error", () => {
+  eventSource.addEventListener("start", (event) => {
+    const payload = parseMonitorPayload(event);
+    onLog(formatMonitorStart(payload));
+  });
+
+  eventSource.addEventListener("request-error", (event) => {
+    const payload = parseMonitorPayload(event);
+    onLog(formatMonitorError(payload));
     hasTerminalEvent = true;
     finalizeMonitor();
   });
@@ -269,14 +282,32 @@ function ensureTrailingSlash(value: string) {
 
 function parseMonitorPayload(event: Event) {
   if (!(event instanceof MessageEvent) || typeof event.data !== "string") {
-    return {} as Record<string, unknown>;
+    return {} as RequestMonitorPayload & Record<string, unknown>;
   }
 
   try {
-    return JSON.parse(event.data) as Record<string, unknown>;
+    return JSON.parse(event.data) as RequestMonitorPayload & Record<string, unknown>;
   } catch {
-    return {} as Record<string, unknown>;
+    return {} as RequestMonitorPayload & Record<string, unknown>;
   }
+}
+
+function formatMonitorStart(payload: RequestMonitorPayload) {
+  const title =
+    typeof payload.title === "string" && payload.title.trim().length > 0
+      ? payload.title.trim()
+      : "Solicitação iniciada";
+
+  return `Início da execução: ${title}.`;
+}
+
+function formatMonitorError(payload: RequestMonitorPayload) {
+  const detail =
+    typeof payload.detail === "string" && payload.detail.trim().length > 0
+      ? payload.detail.trim()
+      : "Falha reportada pelo backend.";
+
+  return `Falha na execução: ${detail}`;
 }
 
 function resolveBaseUrl() {
