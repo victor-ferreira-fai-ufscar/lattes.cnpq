@@ -228,6 +228,7 @@ export function LattesWorkbench() {
     activeToastIdRef.current = toast.custom(
       () => (
         <RequestLoadingToast
+          description={activeRequest.description}
           onCancel={() => {
             toast.dismiss(ACTIVE_REQUEST_TOAST_ID);
             activeToastIdRef.current = null;
@@ -237,6 +238,7 @@ export function LattesWorkbench() {
             setIsLogPanelOpen(true);
             setIsLogPanelPinned(true);
           }}
+          title={activeRequest.title}
         />
       ),
       {
