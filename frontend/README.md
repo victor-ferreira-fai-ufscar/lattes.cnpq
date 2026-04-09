@@ -46,7 +46,7 @@ Para evitar confusão, cada tipo de estado tem um lugar específico.
 
 1. Server State (dados vindos da API): React Query
 2. UI State compartilhado da feature: Zustand
-3. Estado navegável/compartilhável: Query Params da URL
+3. Estado de navegação por rota: App Router
 4. Estado local de formulário: React Hook Form
 
 ### Onde cada um está hoje
@@ -58,9 +58,11 @@ Para evitar confusão, cada tipo de estado tem um lugar específico.
 
 2. Zustand
 - Configuração de resumo e chaves por provedor em src/features/lattes/stores/lattes-summary-store.ts
+- Histórico de execução, resultados persistidos e último termo buscado em src/features/lattes/stores/lattes-workbench-store.ts
 
-3. Query Params
-- Fluxo atual (individual ou lote) e termo de busca em src/features/lattes/hooks/use-lattes-workbench-mode.ts
+3. Rota
+- Fluxo atual (individual ou lote) em src/features/lattes/hooks/use-lattes-workbench-mode.ts
+- Busca individual permanece em estado persistido da aplicação, sem sincronização com a URL
 
 4. Formulários
 - Busca individual, lote e resumo em componentes dentro de src/features/lattes/components
@@ -91,16 +93,16 @@ A feature foi dividida para manter coesão:
 
 1. Nunca colocar chamada HTTP direto em componente.
 2. Se estado vem de API, preferir React Query.
-3. Se estado precisa sobreviver refresh e ser compartilhável, usar URL.
+3. Se estado precisa sobreviver refresh dentro da mesma máquina, preferir Zustand persistido.
 4. Se estado é da feature e compartilhado entre painéis, usar Zustand.
 5. Se for input de formulário, manter no React Hook Form.
 6. Evitar criar novos hooks grandes de orquestração.
 
 ## Checklist para PRs do frontend
 
-1. O tipo de estado está no lugar correto (API, UI compartilhada, URL ou formulário)?
+1. O tipo de estado está no lugar correto (API, UI compartilhada, rota ou formulário)?
 2. A mudança aumentou ou reduziu acoplamento?
-3. A feature continua navegável via URL quando aplicável?
+3. A navegação por rota continua clara entre busca individual e lote?
 4. O comportamento em loading e erro está claro para o usuário?
 5. Rodou pnpm lint e pnpm build?
 

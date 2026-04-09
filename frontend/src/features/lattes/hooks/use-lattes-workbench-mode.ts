@@ -1,13 +1,14 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { startTransition } from "react";
+
+import { useLattesWorkbenchStore } from "@/features/lattes/stores/lattes-workbench-store";
 
 export type WorkbenchMode = "individual" | "lote";
 
 const INDIVIDUAL_PATH = "/";
 const BATCH_PATH = "/lote";
-const SEARCH_PARAM = "nome";
 
 function parseMode(pathname: string): WorkbenchMode {
   return pathname === BATCH_PATH ? "lote" : "individual";
@@ -16,51 +17,35 @@ function parseMode(pathname: string): WorkbenchMode {
 export function useLattesWorkbenchMode() {
   const pathname = usePathname();
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const searchTerm = useLattesWorkbenchStore((state) => state.lastSearchTerm);
+  const setStoredSearchTerm = useLattesWorkbenchStore(
+    (state) => state.setLastSearchTerm,
+  );
   const mode = parseMode(pathname);
-  const searchTerm = searchParams.get(SEARCH_PARAM);
 
-  const navigateTo = (
-    nextPathname: string,
-    nextSearchParams: URLSearchParams,
-    method: "push" | "replace",
-  ) => {
-    const nextQueryString = nextSearchParams.toString();
-    const nextUrl = nextQueryString
-      ? `${nextPathname}?${nextQueryString}`
-      : nextPathname;
-
+  const navigateTo = (nextPathname: string, method: "push" | "replace") => {
     startTransition(() => {
       if (method === "push") {
-        router.push(nextUrl, { scroll: false });
+        router.push(nextPathname, { scroll: false });
         return;
       }
 
-      router.replace(nextUrl, { scroll: false });
+      router.replace(nextPathname, { scroll: false });
     });
   };
 
   const setMode = (nextMode: WorkbenchMode) => {
     const nextPathname = nextMode === "lote" ? BATCH_PATH : INDIVIDUAL_PATH;
-    const nextSearchParams =
-      nextMode === "individual"
-        ? new URLSearchParams(searchParams.toString())
-        : new URLSearchParams();
-
-    navigateTo(nextPathname, nextSearchParams, "push");
+    navigateTo(nextPathname, "push");
   };
 
   const setSearchTerm = (nextSearchTerm: string | null) => {
-    const nextSearchParams = new URLSearchParams(searchParams.toString());
     const normalized = nextSearchTerm?.trim() ?? "";
+    setStoredSearchTerm(normalized.length > 0 ? normalized : null);
 
-    if (normalized.length === 0) {
-      nextSearchParams.delete(SEARCH_PARAM);
-    } else {
-      nextSearchParams.set(SEARCH_PARAM, normalized);
+    if (mode !== "individual") {
+      navigateTo(INDIVIDUAL_PATH, "replace");
     }
-
-    navigateTo(INDIVIDUAL_PATH, nextSearchParams, "replace");
   };
 
   return {

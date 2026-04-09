@@ -52,7 +52,7 @@ Regras obrigatórias:
    - Prefira escopo `frontend` para mudanças em `frontend/**`.
    - Prefira escopo `backend` para mudanças em `backend/**`.
    - Use `docs(frontend)` para documentação específica do frontend.
-   - Quando a mudança combinar React Query, Zustand e Query Params no frontend, prefira verbos como `refactor`, `organize`, `document`, `stabilize` em vez de mensagens genéricas.
+   - Quando a mudança combinar React Query, Zustand e navegação por rota/estado persistido no frontend, prefira verbos como `refactor`, `organize`, `document`, `stabilize` em vez de mensagens genéricas.
 
 Fluxo da tarefa:
 

@@ -19,9 +19,11 @@ Regras de estado já adotadas e que devem ser preservadas em novos planos:
 
 2. UI State compartilhado da feature com Zustand
 - Configuração de resumo e chaves por provedor em store dedicada.
+- Histórico de execução, resultados persistidos e último termo buscado.
 
-3. Estado navegável com Query Params
-- Fluxo da interface (`individual`/`lote`) e termo de busca na URL.
+3. Estado de navegação por rota
+- Fluxo da interface separado por rota (`/` para individual, `/lote` para lote).
+- O termo de busca não deve ser sincronizado com a URL; permanece em estado persistido local.
 
 4. Estado local de inputs com React Hook Form
 - Formulários de busca, lote e resumo.
@@ -48,7 +50,7 @@ Arquivos-chave para contexto durante planejamento:
 Objetivo de qualquer plano frontend novo:
 
 - reduzir acoplamento,
-- manter rastreabilidade por URL,
+- manter navegação simples por rota,
 - reforçar previsibilidade de estado,
 - preservar simplicidade para onboarding do time.
 
