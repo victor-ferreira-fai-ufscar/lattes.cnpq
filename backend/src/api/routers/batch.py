@@ -3,7 +3,7 @@ import json
 from time import perf_counter
 from typing import Any, Callable, Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 
 from ...core.exporter import (
@@ -23,6 +23,13 @@ from ...core.storage import (
 from ...libs.csv_utils import parse_csv_names
 from ...libs.filename import build_curriculo_filename
 from ...libs.logging import now_brasilia, stamp, summarize_exception
+from ...libs.request_monitor import (
+    REQUEST_ID_HEADER,
+    publish_request_error,
+    publish_request_start,
+    publish_request_log,
+    request_monitor,
+)
 from ...models import OutputFormat
 
 router = APIRouter()
@@ -320,34 +327,52 @@ async def _process_batch(
 
 @router.post("/scrape/batch")
 async def scrape_batch(
+    request: Request,
     arquivo: Optional[UploadFile] = File(None),
     file: Optional[UploadFile] = File(None),
     skip: str = Form("0"),
     limit: Optional[str] = Form(None),
     output_format: str = Form("docx"),
 ):
-    (
-        arquivo_nome,
-        nomes_all,
-        nomes,
-        skip_value,
-        limit_value,
-        normalized_output_format,
-    ) = await _prepare_batch_input(
-        arquivo,
-        file,
-        skip,
-        limit,
-        output_format,
+    request_id = request.headers.get(REQUEST_ID_HEADER)
+    publish_request_start(
+        request_id,
+        operation="batch",
+        title="Processando lista em lote",
     )
-    return await _process_batch(
-        arquivo_nome=arquivo_nome,
-        nomes_all=nomes_all,
-        nomes=nomes,
-        skip_value=skip_value,
-        limit_value=limit_value,
-        output_format=normalized_output_format,
-    )
+
+    try:
+        (
+            arquivo_nome,
+            nomes_all,
+            nomes,
+            skip_value,
+            limit_value,
+            normalized_output_format,
+        ) = await _prepare_batch_input(
+            arquivo,
+            file,
+            skip,
+            limit,
+            output_format,
+        )
+        return await _process_batch(
+            arquivo_nome=arquivo_nome,
+            nomes_all=nomes_all,
+            nomes=nomes,
+            skip_value=skip_value,
+            limit_value=limit_value,
+            output_format=normalized_output_format,
+            on_log=lambda line: publish_request_log(request_id, line),
+        )
+    except HTTPException as exc:
+        publish_request_error(request_id, str(exc.detail))
+        raise
+    except Exception as exc:
+        publish_request_error(request_id, str(exc) or "Falha ao processar lote.")
+        raise
+    finally:
+        request_monitor.complete(request_id)
 
 
 @router.post("/scrape/batch/stream")

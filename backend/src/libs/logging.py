@@ -15,9 +15,16 @@ def stamp() -> str:
     return now_brasilia().strftime("%H:%M:%S")
 
 
-def build_logger(logs: list[str]) -> Callable[[str], None]:
+def build_logger(
+    logs: list[str],
+    *,
+    sink: Callable[[str], None] | None = None,
+) -> Callable[[str], None]:
     def add_log(message: str) -> None:
-        logs.append(f"[{stamp()}] {message}")
+        line = f"[{stamp()}] {message}"
+        logs.append(line)
+        if sink is not None:
+            sink(line)
 
     return add_log
 
