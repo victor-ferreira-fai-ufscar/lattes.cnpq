@@ -49,6 +49,15 @@ export function useLattesSummary({
   const setSummaryResult = useLattesWorkbenchStore(
     (state) => state.setSummaryResult,
   );
+  const liveExecutionLogs = useLattesWorkbenchStore(
+    (state) => state.liveExecutionLogs,
+  );
+  const setLiveExecutionLogs = useLattesWorkbenchStore(
+    (state) => state.setLiveExecutionLogs,
+  );
+  const appendLiveExecutionLog = useLattesWorkbenchStore(
+    (state) => state.appendLiveExecutionLog,
+  );
 
   const modelsQuery = useQuery({
     queryKey: [
@@ -62,7 +71,10 @@ export function useLattesSummary({
       listarModelosPorProvedor(
         modelsRequest?.provedor ?? "openai",
         modelsRequest?.apiKey || undefined,
-        { signal },
+        {
+          signal,
+          onLog: appendLiveExecutionLog,
+        },
       ),
     enabled: modelsRequest !== null,
     staleTime: 5 * 60_000,
@@ -79,7 +91,10 @@ export function useLattesSummary({
           provedor,
           modelo,
           apiKey || undefined,
-          { signal: controller.signal },
+          {
+            signal: controller.signal,
+            onLog: appendLiveExecutionLog,
+          },
         );
       } finally {
         if (summaryAbortRef.current === controller) {
@@ -88,6 +103,9 @@ export function useLattesSummary({
       }
     },
     onSuccess: (response, variables) => {
+      if (liveExecutionLogs.length === 0 && response.logs?.length) {
+        setLiveExecutionLogs(response.logs);
+      }
       setSummaryResult(response);
       updateSummaryConfig({
         provedor: variables.provedor,
@@ -113,6 +131,9 @@ export function useLattesSummary({
     }
 
     lastModelsFeedbackAt.current = modelsQuery.dataUpdatedAt;
+    if (liveExecutionLogs.length === 0 && modelsQuery.data.logs?.length) {
+      setLiveExecutionLogs(modelsQuery.data.logs);
+    }
 
     if (modelsQuery.data.modelos[0]) {
       const nextModel = modelsQuery.data.modelos.includes(summaryConfig.modelo)
@@ -131,7 +152,9 @@ export function useLattesSummary({
     modelsQuery.data,
     modelsQuery.dataUpdatedAt,
     modelsRequest,
+    liveExecutionLogs.length,
     notifySuccess,
+    setLiveExecutionLogs,
     summaryConfig.modelo,
     updateSummaryConfig,
   ]);

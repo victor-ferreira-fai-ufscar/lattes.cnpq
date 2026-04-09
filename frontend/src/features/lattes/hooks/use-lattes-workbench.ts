@@ -18,6 +18,9 @@ export function useLattesWorkbench() {
   const resetWorkbenchState = useLattesWorkbenchStore(
     (state) => state.resetWorkbenchState,
   );
+  const clearLiveExecutionLogs = useLattesWorkbenchStore(
+    (state) => state.clearLiveExecutionLogs,
+  );
   const { errorMessage, statusMessage, resetFeedback, notifyError, notifySuccess } =
     useLattesWorkbenchFeedback();
   const [retryActionLabel, setRetryActionLabel] = useState<string | null>(null);
@@ -142,9 +145,14 @@ export function useLattesWorkbench() {
     notifySuccess("Histórico limpo com sucesso.");
   };
 
+  const clearExecutionLogs = () => {
+    clearLiveExecutionLogs();
+    notifySuccess("Logs limpos.");
+  };
+
   const activeLogs = useMemo(
     () =>
-      (mode === "lote" && batchFlow.liveBatchLogs.length > 0
+      (batchFlow.liveBatchLogs.length > 0
         ? batchFlow.liveBatchLogs
         : summaryFlow.summaryResult?.logs ??
           individualFlow.scrapeResult?.logs ??
@@ -153,7 +161,6 @@ export function useLattesWorkbench() {
       batchFlow.batchResult?.logs,
       batchFlow.liveBatchLogs,
       individualFlow.scrapeResult?.logs,
-      mode,
       summaryFlow.summaryResult?.logs,
     ],
   );
@@ -254,6 +261,7 @@ export function useLattesWorkbench() {
     loadModels,
     summarize,
     clearHistory,
+    clearExecutionLogs,
     cancelActiveRequest,
     canRetryLastAction: retryActionLabel !== null,
     retryActionLabel,

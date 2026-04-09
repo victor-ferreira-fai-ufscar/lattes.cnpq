@@ -89,6 +89,7 @@ export function LattesWorkbench() {
     loadModels,
     summarize,
     clearHistory,
+    clearExecutionLogs,
     cancelActiveRequest,
     canRetryLastAction,
     retryActionLabel,
@@ -689,6 +690,7 @@ export function LattesWorkbench() {
         isPinned={isLogPanelPinned}
         isProcessing={isInteractionLocked}
         logs={activeLogs}
+        onClearLogs={clearExecutionLogs}
         onOpenChange={setIsLogPanelOpen}
         onPinnedChange={setIsLogPanelPinned}
       />
@@ -1232,6 +1234,7 @@ function FloatingExecutionPanel({
   isPinned,
   isProcessing,
   logs,
+  onClearLogs,
   onOpenChange,
   onPinnedChange,
 }: {
@@ -1240,6 +1243,7 @@ function FloatingExecutionPanel({
   isPinned: boolean;
   isProcessing: boolean;
   logs: string[];
+  onClearLogs: () => void;
   onOpenChange: (nextValue: boolean) => void;
   onPinnedChange: (nextValue: boolean) => void;
 }) {
@@ -1380,6 +1384,23 @@ function FloatingExecutionPanel({
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
+                            aria-label="Limpar logs da execução"
+                            className="h-10 w-10 rounded-2xl px-0 text-slate-600 hover:bg-red-50 hover:text-red-700"
+                            disabled={logs.length === 0}
+                            type="button"
+                            variant="outline"
+                            onClick={onClearLogs}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          Limpar logs
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
                             aria-label={isPinned ? "Desafixar painel de execução" : "Fixar painel de execução"}
                             className={cn(
                               "h-10 w-10 rounded-2xl px-0",
@@ -1416,6 +1437,7 @@ function FloatingExecutionPanel({
                       className="h-full"
                       isProcessing={isProcessing}
                       logs={logs}
+                      onClearLogs={onClearLogs}
                       variant="floating"
                     />
                   </div>

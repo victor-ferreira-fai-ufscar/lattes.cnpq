@@ -1,4 +1,4 @@
-import { http, RequestCancelledError } from "@/lib/http";
+import { http, runMonitoredRequest } from "@/lib/http";
 import type { OutputFormat } from "@/features/lattes/lib/output-format";
 
 export type AIProvider = "openai" | "gemini" | "ollama";
@@ -21,6 +21,8 @@ export type SearchResponse = {
   nome_busca: string;
   total: number;
   candidatos: SearchCandidate[];
+  logs?: string[];
+  duracao_segundos?: number;
 };
 
 export type ScrapeResponse = {
@@ -58,6 +60,7 @@ export type ModelsResponse = {
   provedor: AIProvider;
   total: number;
   modelos: string[];
+  logs?: string[];
   duracao_segundos?: number;
 };
 
@@ -124,6 +127,7 @@ type BatchStreamCallbacks = {
 
 type RequestOptions = {
   signal?: AbortSignal;
+  onLog?: (line: string) => void;
 };
 
 export async function buscarCandidatos(
@@ -131,12 +135,21 @@ export async function buscarCandidatos(
   limit = 20,
   options?: RequestOptions,
 ): Promise<SearchResponse> {
-  const response = await http.post<SearchResponse>(
-    "/search",
-    { nome, limit },
-    { signal: options?.signal },
-  );
-  return response.data;
+  return runMonitoredRequest({
+    signal: options?.signal,
+    onLog: options?.onLog,
+    execute: async (requestId) => {
+      const response = await http.post<SearchResponse>(
+        "/search",
+        { nome, limit },
+        {
+          signal: options?.signal,
+          headers: buildRequestIdHeaders(requestId),
+        },
+      );
+      return response.data;
+    },
+  });
 }
 
 export async function scrapeCurriculoSelecionado(
@@ -145,16 +158,25 @@ export async function scrapeCurriculoSelecionado(
   outputFormat: OutputFormat,
   options?: RequestOptions,
 ): Promise<ScrapeResponse> {
-  const response = await http.post<ScrapeResponse>(
-    "/scrape",
-    {
-      nome,
-      href,
-      output_format: outputFormat,
+  return runMonitoredRequest({
+    signal: options?.signal,
+    onLog: options?.onLog,
+    execute: async (requestId) => {
+      const response = await http.post<ScrapeResponse>(
+        "/scrape",
+        {
+          nome,
+          href,
+          output_format: outputFormat,
+        },
+        {
+          signal: options?.signal,
+          headers: buildRequestIdHeaders(requestId),
+        },
+      );
+      return response.data;
     },
-    { signal: options?.signal },
-  );
-  return response.data;
+  });
 }
 
 export async function summarizeCurriculo(
@@ -164,17 +186,26 @@ export async function summarizeCurriculo(
   apiKey?: string,
   options?: RequestOptions,
 ): Promise<SummarizeResponse> {
-  const response = await http.post<SummarizeResponse>(
-    "/summarize",
-    {
-      nome,
-      provedor,
-      modelo,
-      api_key: apiKey || undefined,
+  return runMonitoredRequest({
+    signal: options?.signal,
+    onLog: options?.onLog,
+    execute: async (requestId) => {
+      const response = await http.post<SummarizeResponse>(
+        "/summarize",
+        {
+          nome,
+          provedor,
+          modelo,
+          api_key: apiKey || undefined,
+        },
+        {
+          signal: options?.signal,
+          headers: buildRequestIdHeaders(requestId),
+        },
+      );
+      return response.data;
     },
-    { signal: options?.signal },
-  );
-  return response.data;
+  });
 }
 
 export async function listarModelosPorProvedor(
@@ -182,15 +213,24 @@ export async function listarModelosPorProvedor(
   apiKey?: string,
   options?: RequestOptions,
 ): Promise<ModelsResponse> {
-  const response = await http.post<ModelsResponse>(
-    "/models",
-    {
-      provedor,
-      api_key: apiKey || undefined,
+  return runMonitoredRequest({
+    signal: options?.signal,
+    onLog: options?.onLog,
+    execute: async (requestId) => {
+      const response = await http.post<ModelsResponse>(
+        "/models",
+        {
+          provedor,
+          api_key: apiKey || undefined,
+        },
+        {
+          signal: options?.signal,
+          headers: buildRequestIdHeaders(requestId),
+        },
+      );
+      return response.data;
     },
-    { signal: options?.signal },
-  );
-  return response.data;
+  });
 }
 
 // Tempo estimado por item (segundos) + margem de segurança
@@ -208,121 +248,6 @@ function buildBatchFormData(file: File, options?: BatchOptions): FormData {
   }
 
   return formData;
-}
-
-async function scrapeCurriculosLoteStream(
-  file: File,
-  options: BatchOptions | undefined,
-  timeoutMs: number,
-  callbacks: BatchStreamCallbacks,
-  signal?: AbortSignal,
-): Promise<BatchScrapeResponse> {
-  const baseURL = http.defaults.baseURL || "http://localhost:8000";
-  const timeoutController = new AbortController();
-  const requestController = new AbortController();
-  const timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs);
-
-  const abortRequest = () => {
-    if (!requestController.signal.aborted) {
-      requestController.abort();
-    }
-  };
-
-  timeoutController.signal.addEventListener("abort", abortRequest);
-  signal?.addEventListener("abort", abortRequest);
-
-  try {
-    const response = await fetch(`${baseURL}/scrape/batch/stream`, {
-      method: "POST",
-      body: buildBatchFormData(file, options),
-      signal: requestController.signal,
-    });
-
-    if (!response.ok) {
-      const detail = await response.text();
-      throw new Error(
-        detail || `Falha ao iniciar stream do lote (HTTP ${response.status}).`,
-      );
-    }
-
-    if (!response.body) {
-      throw new Error("Stream de lote indisponível no navegador atual.");
-    }
-
-    const decoder = new TextDecoder();
-    const reader = response.body.getReader();
-    let buffer = "";
-    let finalResult: BatchScrapeResponse | null = null;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
-      }
-
-      buffer += decoder.decode(value, { stream: true });
-      const chunks = buffer.split("\n\n");
-      buffer = chunks.pop() ?? "";
-
-      for (const rawChunk of chunks) {
-        if (!rawChunk.trim()) {
-          continue;
-        }
-
-        let eventName = "message";
-        const dataLines: string[] = [];
-
-        for (const line of rawChunk.split("\n")) {
-          if (line.startsWith("event:")) {
-            eventName = line.slice("event:".length).trim();
-          }
-          if (line.startsWith("data:")) {
-            dataLines.push(line.slice("data:".length).trim());
-          }
-        }
-
-        const rawData = dataLines.join("\n");
-        const payload = rawData ? (JSON.parse(rawData) as Record<string, unknown>) : {};
-
-        if (eventName === "log" && typeof payload.message === "string") {
-          callbacks.onLog?.(payload.message);
-        }
-
-        if (eventName === "error") {
-          const detail =
-            typeof payload.detail === "string"
-              ? payload.detail
-              : "Falha ao processar lote em tempo real.";
-          throw new Error(detail);
-        }
-
-        if (eventName === "result") {
-          finalResult = payload as BatchScrapeResponse;
-        }
-      }
-    }
-
-    if (!finalResult) {
-      throw new Error("A API encerrou o stream sem retornar resultado final.");
-    }
-
-    return finalResult;
-  } catch (error) {
-    if (signal?.aborted) {
-      throw new RequestCancelledError();
-    }
-
-    if (timeoutController.signal.aborted) {
-      throw new Error(
-        "O processamento em lote demorou além do tempo máximo configurado.",
-      );
-    }
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
-    timeoutController.signal.removeEventListener("abort", abortRequest);
-    signal?.removeEventListener("abort", abortRequest);
-  }
 }
 
 export async function scrapeCurriculosLote(
@@ -348,21 +273,25 @@ export async function scrapeCurriculosLote(
     itemCount * BATCH_SECONDS_PER_ITEM * 1000,
   );
 
-  if (callbacks?.onLog) {
-    return scrapeCurriculosLoteStream(
-      normalizedFile,
-      options,
-      dynamicTimeout,
-      callbacks,
-      requestOptions?.signal,
-    );
-  }
+  return runMonitoredRequest({
+    signal: requestOptions?.signal,
+    onLog: callbacks?.onLog,
+    execute: async (requestId) => {
+      const response = await http.post<BatchScrapeResponse>(
+        "/scrape/batch",
+        buildBatchFormData(normalizedFile, options),
+        {
+          timeout: dynamicTimeout,
+          signal: requestOptions?.signal,
+          headers: buildRequestIdHeaders(requestId),
+        },
+      );
 
-  const response = await http.post<BatchScrapeResponse>(
-    "/scrape/batch",
-    buildBatchFormData(normalizedFile, options),
-    { timeout: dynamicTimeout, signal: requestOptions?.signal },
-  );
+      return response.data;
+    },
+  });
+}
 
-  return response.data;
+function buildRequestIdHeaders(requestId: string | null) {
+  return requestId ? { "X-Request-ID": requestId } : undefined;
 }

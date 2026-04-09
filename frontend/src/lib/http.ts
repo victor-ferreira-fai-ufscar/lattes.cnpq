@@ -10,10 +10,134 @@ export const http = axios.create({
   timeout: 120000,
 });
 
+const REQUEST_MONITOR_CONNECT_TIMEOUT_MS = 800;
+const REQUEST_MONITOR_DRAIN_TIMEOUT_MS = 400;
+
+type MonitoredRequestOptions = {
+  signal?: AbortSignal;
+  onLog?: (line: string) => void;
+};
+
 export class RequestCancelledError extends Error {
   constructor(message = "Solicitação cancelada.") {
     super(message);
     this.name = "RequestCancelledError";
+  }
+}
+
+export async function runMonitoredRequest<T>({
+  signal,
+  onLog,
+  execute,
+}: MonitoredRequestOptions & {
+  execute: (requestId: string | null) => Promise<T>;
+}): Promise<T> {
+  if (
+    !onLog ||
+    typeof window === "undefined" ||
+    typeof EventSource === "undefined"
+  ) {
+    return execute(null);
+  }
+
+  const requestId = createRequestId();
+  const eventSource = new EventSource(buildRequestMonitorUrl(requestId));
+  let isOpen = false;
+  let isClosed = false;
+  let hasTerminalEvent = false;
+  let connectTimeoutId: number | null = null;
+  let resolveReady: (() => void) | null = null;
+  let resolveDrain: (() => void) | null = null;
+  const readyPromise = new Promise<void>((resolve) => {
+    resolveReady = resolve;
+  });
+  const drainPromise = new Promise<void>((resolve) => {
+    resolveDrain = resolve;
+  });
+
+  const finalizeMonitor = () => {
+    resolveReady?.();
+    resolveDrain?.();
+  };
+
+  const closeMonitor = () => {
+    if (isClosed) {
+      return;
+    }
+
+    isClosed = true;
+    if (connectTimeoutId !== null) {
+      window.clearTimeout(connectTimeoutId);
+      connectTimeoutId = null;
+    }
+    eventSource.close();
+    finalizeMonitor();
+  };
+
+  const handleAbort = () => {
+    closeMonitor();
+  };
+
+  eventSource.onopen = () => {
+    isOpen = true;
+    if (connectTimeoutId !== null) {
+      window.clearTimeout(connectTimeoutId);
+      connectTimeoutId = null;
+    }
+    resolveReady?.();
+  };
+
+  eventSource.onerror = () => {
+    if (!isOpen) {
+      closeMonitor();
+    }
+  };
+
+  eventSource.addEventListener("log", (event) => {
+    const payload = parseMonitorPayload(event);
+    if (typeof payload.message === "string") {
+      onLog(payload.message);
+    }
+  });
+
+  eventSource.addEventListener("request-error", () => {
+    hasTerminalEvent = true;
+    finalizeMonitor();
+  });
+
+  eventSource.addEventListener("end", () => {
+    hasTerminalEvent = true;
+    closeMonitor();
+  });
+
+  if (signal) {
+    if (signal.aborted) {
+      closeMonitor();
+    } else {
+      signal.addEventListener("abort", handleAbort, { once: true });
+    }
+  }
+
+  connectTimeoutId = window.setTimeout(() => {
+    resolveReady?.();
+  }, REQUEST_MONITOR_CONNECT_TIMEOUT_MS);
+
+  try {
+    await readyPromise;
+    return await execute(requestId);
+  } finally {
+    if (signal) {
+      signal.removeEventListener("abort", handleAbort);
+    }
+
+    if (!hasTerminalEvent) {
+      await Promise.race([
+        drainPromise,
+        wait(REQUEST_MONITOR_DRAIN_TIMEOUT_MS),
+      ]);
+    }
+
+    closeMonitor();
   }
 }
 
@@ -122,4 +246,45 @@ export function getApiErrorMessage(error: unknown): string {
   }
 
   return error instanceof Error ? error.message : "Ocorreu um erro inesperado.";
+}
+
+function buildRequestMonitorUrl(requestId: string) {
+  return new URL(
+    `/events/requests/${requestId}`,
+    ensureTrailingSlash(resolveBaseUrl()),
+  ).toString();
+}
+
+function createRequestId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `req-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function ensureTrailingSlash(value: string) {
+  return value.endsWith("/") ? value : `${value}/`;
+}
+
+function parseMonitorPayload(event: Event) {
+  if (!(event instanceof MessageEvent) || typeof event.data !== "string") {
+    return {} as Record<string, unknown>;
+  }
+
+  try {
+    return JSON.parse(event.data) as Record<string, unknown>;
+  } catch {
+    return {} as Record<string, unknown>;
+  }
+}
+
+function resolveBaseUrl() {
+  return http.defaults.baseURL || "http://localhost:8000";
+}
+
+function wait(timeoutMs: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, timeoutMs);
+  });
 }

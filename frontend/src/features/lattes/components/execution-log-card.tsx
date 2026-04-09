@@ -1,4 +1,7 @@
-import { ChevronDown, TerminalSquare } from "lucide-react";
+"use client";
+
+import { ChevronDown, TerminalSquare, Trash2 } from "lucide-react";
+import { useEffect, useRef } from "react";
 
 import {
   Card,
@@ -15,6 +18,7 @@ type ExecutionLogCardProps = {
   className?: string;
   isProcessing?: boolean;
   logs: string[];
+  onClearLogs?: () => void;
   variant?: "default" | "floating";
 };
 
@@ -22,22 +26,43 @@ export function ExecutionLogCard({
   className,
   isProcessing = false,
   logs,
+  onClearLogs,
   variant = "default",
 }: ExecutionLogCardProps) {
   const isFloating = variant === "floating";
+  const logEndRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ block: "end" });
+  }, [logs.length]);
 
   return (
     <Card className={cn(isFloating && "h-full", className)} variant="inverse">
       {!isFloating ? (
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg text-white">
-            <TerminalSquare className="h-4 w-4 text-teal-300" />
-            Detalhes técnicos da execução
-          </CardTitle>
-          <CardDescription className="text-slate-400">
-            Esses registros ficam escondidos por padrão. Abra apenas se quiser
-            acompanhar o processamento com mais detalhe no horário de Brasília (GMT-3).
-          </CardDescription>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-lg text-white">
+                <TerminalSquare className="h-4 w-4 text-teal-300" />
+                Detalhes técnicos da execução
+              </CardTitle>
+              <CardDescription className="mt-2 text-slate-400">
+                Esses registros ficam escondidos por padrão. Abra apenas se quiser
+                acompanhar o processamento com mais detalhe no horário de Brasília (GMT-3).
+              </CardDescription>
+            </div>
+            {onClearLogs ? (
+              <button
+                aria-label="Limpar logs"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-slate-900/60 text-slate-300 transition hover:border-red-300/50 hover:bg-red-500/10 hover:text-red-200 disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={logs.length === 0}
+                type="button"
+                onClick={onClearLogs}
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            ) : null}
+          </div>
         </CardHeader>
       ) : null}
       <CardContent className={cn(isFloating && "flex h-full min-h-0 flex-col p-0")}>
@@ -53,6 +78,7 @@ export function ExecutionLogCard({
                     {line}
                   </p>
                 ))}
+                <div ref={logEndRef} />
               </div>
             </ScrollArea>
           ) : (
@@ -71,6 +97,7 @@ export function ExecutionLogCard({
                       {line}
                     </p>
                   ))}
+                  <div ref={logEndRef} />
                 </div>
               </ScrollArea>
             </details>

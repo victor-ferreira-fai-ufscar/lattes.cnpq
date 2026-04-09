@@ -29,13 +29,15 @@ export function useLattesBatchFlow({
   notifySuccess,
 }: BatchFlowFeedback) {
   const batchAbortRef = useRef<AbortController | null>(null);
-  const liveBatchLogs = useLattesWorkbenchStore((state) => state.liveBatchLogs);
-  const batchResult = useLattesWorkbenchStore((state) => state.batchResult);
-  const setLiveBatchLogs = useLattesWorkbenchStore(
-    (state) => state.setLiveBatchLogs,
+  const liveExecutionLogs = useLattesWorkbenchStore(
+    (state) => state.liveExecutionLogs,
   );
-  const appendLiveBatchLog = useLattesWorkbenchStore(
-    (state) => state.appendLiveBatchLog,
+  const batchResult = useLattesWorkbenchStore((state) => state.batchResult);
+  const setLiveExecutionLogs = useLattesWorkbenchStore(
+    (state) => state.setLiveExecutionLogs,
+  );
+  const appendLiveExecutionLog = useLattesWorkbenchStore(
+    (state) => state.appendLiveExecutionLog,
   );
   const setBatchResult = useLattesWorkbenchStore((state) => state.setBatchResult);
 
@@ -51,7 +53,7 @@ export function useLattesBatchFlow({
           totalNamesInCsv,
           {
             onLog: (line) => {
-              appendLiveBatchLog(line);
+              appendLiveExecutionLog(line);
             },
           },
           { signal: controller.signal },
@@ -64,8 +66,8 @@ export function useLattesBatchFlow({
     },
     onSuccess: (response) => {
       setBatchResult(response);
-      if (liveBatchLogs.length === 0) {
-        setLiveBatchLogs(response.logs ?? []);
+      if (liveExecutionLogs.length === 0) {
+        setLiveExecutionLogs(response.logs ?? []);
       }
       notifySuccess(
         `Processamento concluído para ${response.total_processados} pessoa(s).`,
@@ -86,7 +88,7 @@ export function useLattesBatchFlow({
   ) => {
     batchMutation.reset();
     setBatchResult(null);
-    setLiveBatchLogs([]);
+    setLiveExecutionLogs([]);
 
     const text = await file.text();
     const totalNamesInCsv = text
@@ -106,7 +108,7 @@ export function useLattesBatchFlow({
   const reset = () => {
     batchMutation.reset();
     setBatchResult(null);
-    setLiveBatchLogs([]);
+    setLiveExecutionLogs([]);
   };
 
   const cancelActiveRequest = () => {
@@ -115,7 +117,7 @@ export function useLattesBatchFlow({
 
   return {
     batchResult,
-    liveBatchLogs,
+    liveBatchLogs: liveExecutionLogs,
     isSubmitting: batchMutation.isPending,
     submitBatch,
     cancelActiveRequest,

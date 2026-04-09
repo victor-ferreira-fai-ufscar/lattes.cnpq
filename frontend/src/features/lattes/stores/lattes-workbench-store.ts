@@ -57,15 +57,16 @@ type LattesWorkbenchStore = {
   selectedCandidateHref: string | null;
   scrapeResult: ScrapeResponse | null;
   batchResult: BatchScrapeResponse | null;
-  liveBatchLogs: string[];
+  liveExecutionLogs: string[];
   summaryResult: SummarizeResponse | null;
   setLastSearchTerm: (term: string | null) => void;
   setCandidates: (candidates: SearchCandidate[]) => void;
   setSelectedCandidateHref: (href: string | null) => void;
   setScrapeResult: (result: ScrapeResponse | null) => void;
   setBatchResult: (result: BatchScrapeResponse | null) => void;
-  setLiveBatchLogs: (logs: string[]) => void;
-  appendLiveBatchLog: (line: string) => void;
+  setLiveExecutionLogs: (logs: string[]) => void;
+  appendLiveExecutionLog: (line: string) => void;
+  clearLiveExecutionLogs: () => void;
   setSummaryResult: (result: SummarizeResponse | null) => void;
   resetWorkbenchState: () => void;
 };
@@ -76,7 +77,7 @@ const initialState = {
   selectedCandidateHref: null,
   scrapeResult: null,
   batchResult: null,
-  liveBatchLogs: [],
+  liveExecutionLogs: [],
   summaryResult: null,
 } satisfies Pick<
   LattesWorkbenchStore,
@@ -85,7 +86,7 @@ const initialState = {
   | "selectedCandidateHref"
   | "scrapeResult"
   | "batchResult"
-  | "liveBatchLogs"
+  | "liveExecutionLogs"
   | "summaryResult"
 >;
 
@@ -126,13 +127,20 @@ export const useLattesWorkbenchStore = create<LattesWorkbenchStore>()(
           state.batchResult === normalized ? state : { batchResult: normalized },
         );
       },
-      setLiveBatchLogs: (logs) => {
-        set((state) => (state.liveBatchLogs === logs ? state : { liveBatchLogs: logs }));
+      setLiveExecutionLogs: (logs) => {
+        set((state) =>
+          state.liveExecutionLogs === logs ? state : { liveExecutionLogs: logs },
+        );
       },
-      appendLiveBatchLog: (line) => {
+      appendLiveExecutionLog: (line) => {
         set((state) => ({
-          liveBatchLogs: [...state.liveBatchLogs, line],
+          liveExecutionLogs: [...state.liveExecutionLogs, line],
         }));
+      },
+      clearLiveExecutionLogs: () => {
+        set((state) =>
+          state.liveExecutionLogs.length === 0 ? state : { liveExecutionLogs: [] },
+        );
       },
       setSummaryResult: (result) => {
         set((state) =>
@@ -155,7 +163,9 @@ export const useLattesWorkbenchStore = create<LattesWorkbenchStore>()(
           ...state,
           scrapeResult: normalizeScrapeResult(state?.scrapeResult ?? null),
           batchResult: normalizeBatchResult(state?.batchResult ?? null),
-          liveBatchLogs: Array.isArray(state?.liveBatchLogs) ? state.liveBatchLogs : [],
+          liveExecutionLogs: Array.isArray(state?.liveExecutionLogs)
+            ? state.liveExecutionLogs
+            : [],
           candidates: Array.isArray(state?.candidates) ? state.candidates : [],
         };
       },

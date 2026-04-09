@@ -42,6 +42,15 @@ export function useLattesIndividualFlow({
     (state) => state.setSelectedCandidateHref,
   );
   const setScrapeResult = useLattesWorkbenchStore((state) => state.setScrapeResult);
+  const liveExecutionLogs = useLattesWorkbenchStore(
+    (state) => state.liveExecutionLogs,
+  );
+  const setLiveExecutionLogs = useLattesWorkbenchStore(
+    (state) => state.setLiveExecutionLogs,
+  );
+  const appendLiveExecutionLog = useLattesWorkbenchStore(
+    (state) => state.appendLiveExecutionLog,
+  );
   const queryClient = useQueryClient();
   const [isTryingVariants, setIsTryingVariants] = useState(false);
   const variantsAbortRef = useRef<AbortController | null>(null);
@@ -51,7 +60,11 @@ export function useLattesIndividualFlow({
 
   const candidatesQuery = useQuery<SearchResponse>({
     queryKey: ["lattes", "search-candidates", searchTerm],
-    queryFn: ({ signal }) => buscarCandidatos(searchTerm ?? "", 20, { signal }),
+    queryFn: ({ signal }) =>
+      buscarCandidatos(searchTerm ?? "", 20, {
+        signal,
+        onLog: appendLiveExecutionLog,
+      }),
     enabled: Boolean(searchTerm),
     staleTime: 60_000,
   });
@@ -76,6 +89,9 @@ export function useLattesIndividualFlow({
     lastSearchFeedbackAt.current = candidatesQuery.dataUpdatedAt;
     setCandidates(response.candidatos);
     setLastSearchTerm(response.nome_busca || searchTerm);
+    if (liveExecutionLogs.length === 0 && response.logs?.length) {
+      setLiveExecutionLogs(response.logs);
+    }
     notifySuccess(
       response.total > 0
         ? `${response.total} opção(ões) encontrada(s). Escolha uma pessoa para continuar.`
@@ -85,9 +101,11 @@ export function useLattesIndividualFlow({
     searchTerm,
     candidatesQuery.data,
     candidatesQuery.dataUpdatedAt,
+    liveExecutionLogs.length,
     notifySuccess,
     setCandidates,
     setLastSearchTerm,
+    setLiveExecutionLogs,
   ]);
 
   useEffect(() => {
@@ -128,8 +146,14 @@ export function useLattesIndividualFlow({
         selectedCandidate.nome,
         selectedCandidate.href,
         outputFormat,
-        { signal: controller.signal },
+        {
+          signal: controller.signal,
+          onLog: appendLiveExecutionLog,
+        },
       );
+      if (liveExecutionLogs.length === 0 && result.logs?.length) {
+        setLiveExecutionLogs(result.logs);
+      }
       setScrapeResult(result);
       notifySuccess("Currículo preparado com sucesso.");
     } catch (error) {
@@ -172,8 +196,12 @@ export function useLattesIndividualFlow({
 
         const response = await buscarCandidatos(variant, 20, {
           signal: controller.signal,
+          onLog: appendLiveExecutionLog,
         });
         queryClient.setQueryData(["lattes", "search-candidates", variant], response);
+        if (liveExecutionLogs.length === 0 && response.logs?.length) {
+          setLiveExecutionLogs(response.logs);
+        }
 
         if (response.total > 0) {
           setCandidates(response.candidatos);
