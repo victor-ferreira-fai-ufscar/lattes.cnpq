@@ -128,7 +128,11 @@ type BatchStreamCallbacks = {
 type RequestOptions = {
   signal?: AbortSignal;
   onLog?: (line: string) => void;
+  timeoutMs?: number;
 };
+
+const SUMMARY_TIMEOUT_DEFAULT_MS = 120_000;
+const SUMMARY_TIMEOUT_OLLAMA_MS = 15 * 60_000;
 
 export async function buscarCandidatos(
   nome: string,
@@ -186,6 +190,10 @@ export async function summarizeCurriculo(
   apiKey?: string,
   options?: RequestOptions,
 ): Promise<SummarizeResponse> {
+  const timeout =
+    options?.timeoutMs ??
+    (provedor === "ollama" ? SUMMARY_TIMEOUT_OLLAMA_MS : SUMMARY_TIMEOUT_DEFAULT_MS);
+
   return runMonitoredRequest({
     signal: options?.signal,
     onLog: options?.onLog,
@@ -200,6 +208,7 @@ export async function summarizeCurriculo(
         },
         {
           signal: options?.signal,
+          timeout,
           headers: buildRequestIdHeaders(requestId),
         },
       );
