@@ -2,8 +2,8 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Search, UserRoundSearch } from "lucide-react";
-import { useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useEffect, useRef, useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -35,6 +35,10 @@ import {
   OUTPUT_FORMAT_OPTIONS,
   type OutputFormat,
 } from "@/features/lattes/lib/output-format";
+import {
+  formatIndividualSearchPlaceholder,
+  getNextIndividualSearchPlaceholder,
+} from "@/features/lattes/lib/search-placeholder-examples";
 import {
   IndividualSearchSchema,
   type IndividualSearchFormData,
@@ -70,9 +74,16 @@ export function IndividualSearchPanel({
   onSelectCandidate,
   onScrape,
 }: IndividualSearchPanelProps) {
+  const [isNameFocused, setIsNameFocused] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
   const form = useForm<IndividualSearchFormInput, unknown, IndividualSearchFormData>({
     resolver: zodResolver(IndividualSearchSchema),
     defaultValues: { nome: lastSearchTerm ?? "", outputFormat: DEFAULT_OUTPUT_FORMAT },
+  });
+  const watchedName = useWatch({
+    control: form.control,
+    name: "nome",
+    defaultValue: lastSearchTerm ?? "",
   });
 
   useEffect(() => {
@@ -82,6 +93,34 @@ export function IndividualSearchPanel({
       shouldValidate: false,
     });
   }, [form, lastSearchTerm]);
+
+  useEffect(() => {
+    const input = nameInputRef.current;
+
+    if (!input) {
+      return;
+    }
+
+    if (watchedName.trim() || isNameFocused) {
+      return;
+    }
+
+    const applyNextPlaceholder = () => {
+      input.placeholder = formatIndividualSearchPlaceholder(
+        getNextIndividualSearchPlaceholder(),
+      );
+    };
+
+    applyNextPlaceholder();
+
+    const intervalId = window.setInterval(() => {
+      applyNextPlaceholder();
+    }, 4500);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isNameFocused, watchedName]);
 
   const handleSearch = form.handleSubmit(async (values) => {
     await onSearch(values.nome);
@@ -116,9 +155,27 @@ export function IndividualSearchPanel({
                     <FormLabel>Nome da pessoa</FormLabel>
                     <FormControl>
                       <Input
-                        disabled={disabled}
-                        placeholder="Ex.: Neocles Alves Pereira"
                         {...field}
+                        disabled={disabled}
+                        placeholder={formatIndividualSearchPlaceholder("Dr. Neocles")}
+                        onBlur={() => {
+                          setIsNameFocused(false);
+                          field.onBlur();
+
+                          if (nameInputRef.current && !form.getValues("nome").trim()) {
+                            nameInputRef.current.placeholder =
+                              formatIndividualSearchPlaceholder(
+                                getNextIndividualSearchPlaceholder(),
+                              );
+                          }
+                        }}
+                        onFocus={() => {
+                          setIsNameFocused(true);
+                        }}
+                        ref={(element) => {
+                          nameInputRef.current = element;
+                          field.ref(element);
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
