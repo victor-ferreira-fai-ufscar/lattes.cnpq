@@ -58,14 +58,29 @@ const API_KEY_PLACEHOLDER: Record<AIProvider, string> = {
 
 const OLLAMA_LOCAL_SETUP_MARKDOWN = `### Para usar o Ollama, rode tudo localmente
 
-O Ollama **não funciona quando o backend está hospedado na web**. Para usar esta opção, o projeto precisa estar rodando na sua máquina.
+O Ollama **não funciona quando o backend está hospedado na web**. Para usar esta opção, o projeto e o Ollama precisam estar rodando na sua máquina.
 
 Passo a passo:
 
 1. Faça o git clone deste repositório: [github.com/victor-ferreira-fai-ufscar/lattes.cnpq](https://github.com/victor-ferreira-fai-ufscar/lattes.cnpq).
-2. Rode o projeto localmente com Docker Compose.
-3. Instale e abra o Ollama no mesmo computador.
-4. Configure o backend para acessar o Ollama pela variável \`OLLAMA_BASE_URL\`.
+2. No backend, copie o arquivo \`backend/.env.example\` para \`backend/.env\`.
+3. Nesse arquivo, você pode manter o valor padrão de \`OLLAMA_BASE_URL\`, que já funciona no fluxo local com Docker Compose.
+4. Instale e abra o Ollama no mesmo computador: [ollama.com/download](https://ollama.com/download).
+5. Para começar com um modelo mais leve, uma opção é o [Gemma 4 E2B](https://ollama.com/library/gemma4), pensado para uso local em máquinas mais comuns.
+6. Depois disso, rode o projeto localmente com Docker Compose.
+
+#### O que já vem no backend/.env.example
+
+\`\`\`env
+OLLAMA_BASE_URL=http://host.docker.internal:11434
+OLLAMA_MODEL=llama3.1
+\`\`\`
+
+Se quiser, você pode trocar o modelo padrão por um mais leve para testes, por exemplo:
+
+\`\`\`env
+OLLAMA_MODEL=gemma4:e2b
+\`\`\`
 
 #### Exemplo do backend no Docker Compose
 
@@ -79,13 +94,11 @@ backend:
     - "host.docker.internal:host-gateway"
 \`\`\`
 
-#### No arquivo backend/.env
+#### Exemplo para baixar ou abrir o modelo no Ollama
 
-\`\`\`env
-OLLAMA_BASE_URL=http://host.docker.internal:11434
+\`\`\`bash
+ollama run gemma4:e2b
 \`\`\`
-
-Baixe o Ollama em [ollama.com/download](https://ollama.com/download).
 `;
 
 const markdownComponents = {
