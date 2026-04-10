@@ -1,3 +1,5 @@
+import asyncio
+from contextlib import suppress
 import os
 from asyncio import to_thread
 from importlib import import_module
@@ -196,6 +198,29 @@ async def _resumir_ollama(
     log: LogFn | None = None,
 ) -> str:
     base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+
+    async def emit_ollama_progress() -> None:
+        elapsed = 0
+        while True:
+            await asyncio.sleep(10)
+            elapsed += 10
+
+            if not log:
+                continue
+
+            status_message = "aguardando resposta do Ollama"
+            try:
+                ps_payload = await to_thread(
+                    _consultar_status_ollama, base_url, api_key
+                )
+                status_message = _descrever_status_ollama(ps_payload, modelo)
+            except Exception:
+                status_message = "aguardando resposta do Ollama"
+
+            log(
+                f"Ollama ainda está processando o resumo ({elapsed}s): {status_message}."
+            )
+
     if log:
         log(f"Conectando ao Ollama em '{base_url}'.")
         log(f"Enviando solicitação para o modelo '{modelo}'.")
@@ -208,24 +233,75 @@ async def _resumir_ollama(
         base_url=f"{base_url}/v1",
     )
 
-    response = await client.chat.completions.create(
-        model=modelo,
-        messages=[
-            {"role": "system", "content": _PROMPT_SISTEMA},
-            {
-                "role": "user",
-                "content": _build_user_prompt(
-                    texto,
-                    texto_pdf=texto_pdf,
-                    texto_html=texto_html,
-                ),
-            },
-        ],
-        temperature=0.3,
-    )
+    progress_task = asyncio.create_task(emit_ollama_progress()) if log else None
+    try:
+        response = await client.chat.completions.create(
+            model=modelo,
+            messages=[
+                {"role": "system", "content": _PROMPT_SISTEMA},
+                {
+                    "role": "user",
+                    "content": _build_user_prompt(
+                        texto,
+                        texto_pdf=texto_pdf,
+                        texto_html=texto_html,
+                    ),
+                },
+            ],
+            temperature=0.3,
+        )
+    finally:
+        if progress_task:
+            progress_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await progress_task
+
     if log:
         log(f"Resposta recebida do modelo '{modelo}' via Ollama.")
     return response.choices[0].message.content or ""
+
+
+def _consultar_status_ollama(base_url: str, api_key: str | None) -> dict[str, Any]:
+    request = Request(f"{base_url}/api/ps")
+    if api_key:
+        request.add_header("Authorization", f"Bearer {api_key}")
+    with urlopen(request, timeout=10) as response:
+        payload = response.read().decode("utf-8")
+
+    import json
+
+    parsed = json.loads(payload)
+    return parsed if isinstance(parsed, dict) else {}
+
+
+def _descrever_status_ollama(payload: dict[str, Any], modelo: str) -> str:
+    models_raw = payload.get("models", []) if isinstance(payload, dict) else []
+    if not isinstance(models_raw, list) or not models_raw:
+        return "serviço ativo, mas sem modelo carregado no momento"
+
+    for item in models_raw:
+        if not isinstance(item, dict):
+            continue
+        if item.get("name") != modelo and item.get("model") != modelo:
+            continue
+
+        context_length = item.get("context_length")
+        expires_at = item.get("expires_at")
+        details = item.get("details") if isinstance(item.get("details"), dict) else {}
+        parameter_size = details.get("parameter_size")
+        quantization_level = details.get("quantization_level")
+        parts = ["modelo carregado na memória"]
+        if parameter_size:
+            parts.append(f"porte {parameter_size}")
+        if quantization_level:
+            parts.append(f"quantização {quantization_level}")
+        if context_length:
+            parts.append(f"contexto {context_length}")
+        if expires_at:
+            parts.append("runner ativo")
+        return ", ".join(parts)
+
+    return "serviço ativo, carregando ou alternando o modelo solicitado"
 
 
 async def resumir_curriculo(
