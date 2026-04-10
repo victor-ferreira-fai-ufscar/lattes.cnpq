@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { BrainCircuit, CheckCircle2, RefreshCcw, Server } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
@@ -195,6 +195,7 @@ export function SummaryPanel({
   onLoadModels,
   onSubmitSummary,
 }: SummaryPanelProps) {
+  const lastAutoLoadedRef = useRef<string>("");
   const form = useForm<SummaryFormData>({
     resolver: zodResolver(SummarySchema),
     defaultValues,
@@ -231,9 +232,35 @@ export function SummaryPanel({
   const isOllama = provedor === "ollama";
   const hasStoredKeyForProvider = !isOllama && Boolean(storedApiKeys[provedor]);
   const hasProviderSetup = isOllama || Boolean(apiKey || hasStoredKeyForProvider);
+  const resolvedApiKey = isOllama ? "" : (apiKey || storedApiKeys[provedor] || "");
+
+  useEffect(() => {
+    if (!hasProviderSetup) {
+      lastAutoLoadedRef.current = "";
+      return;
+    }
+
+    const requestSignature = `${provedor}:${resolvedApiKey}`;
+    if (lastAutoLoadedRef.current === requestSignature) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      lastAutoLoadedRef.current = requestSignature;
+      void onLoadModels({
+        provedor,
+        apiKey: resolvedApiKey || undefined,
+      });
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [hasProviderSetup, onLoadModels, provedor, resolvedApiKey]);
 
   const handleClearApiKey = () => {
     form.setValue("apiKey", "", { shouldValidate: false });
+    lastAutoLoadedRef.current = "";
     onConfigChange({ apiKey: "" });
   };
 
@@ -350,7 +377,7 @@ export function SummaryPanel({
                   <p className="text-xs text-slate-500">
                     {models.length > 0
                       ? "Escolha um dos modelos disponíveis para o serviço selecionado."
-                      : "Se a lista estiver vazia, carregue as opções ou informe o modelo manualmente."}
+                      : "As opções são atualizadas automaticamente. Se a lista continuar vazia, informe o modelo manualmente."}
                   </p>
                   <FormMessage />
                 </FormItem>
@@ -468,7 +495,7 @@ export function SummaryPanel({
                 ) : (
                   <RefreshCcw className="h-4 w-4" />
                 )}
-                {isLoadingModels ? "Carregando modelos..." : "Carregar modelos"}
+                {isLoadingModels ? "Atualizando modelos..." : "Atualizar modelos"}
               </Button>
               <Button disabled={disabled || isSubmitting || !hasProviderSetup} type="submit">
                 {isSubmitting ? <Spinner className="h-4 w-4" /> : null}
