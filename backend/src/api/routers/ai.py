@@ -74,6 +74,7 @@ async def summarize(request: SummarizeRequest, http_request: Request):
                 api_key=request.api_key,
                 modelo=request.modelo,
                 provedor=request.provedor,
+                log=add_log,
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -123,7 +124,11 @@ async def models(request: ModelsRequest, http_request: Request):
         add_log("Request /models recebida.")
         add_log(f"Consultando modelos disponíveis para o provedor '{provedor}'.")
         try:
-            modelos = await listar_modelos(provedor=provedor, api_key=request.api_key)
+            modelos = await listar_modelos(
+                provedor=provedor,
+                api_key=request.api_key,
+                log=add_log,
+            )
         except ValueError as exc:
             publish_request_error(request_id, str(exc))
             raise HTTPException(status_code=422, detail=str(exc)) from exc

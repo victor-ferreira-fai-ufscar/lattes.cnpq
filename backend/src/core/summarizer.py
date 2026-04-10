@@ -1,10 +1,12 @@
 import os
 from asyncio import to_thread
 from importlib import import_module
-from typing import Any
+from typing import Any, Callable
 from urllib.request import Request, urlopen
 
 from openai import AsyncOpenAI
+
+LogFn = Callable[[str], None]
 
 _PROMPT_SISTEMA = """\
 Você é um assistente especializado em análise de currículos acadêmicos brasileiros (Lattes/CNPq).
@@ -113,6 +115,7 @@ async def _resumir_openai(
     texto_html: str | None,
     api_key: str | None,
     modelo: str,
+    log: LogFn | None = None,
 ) -> str:
     chave = api_key or os.environ.get("OPENAI_API_KEY")
     if not chave:
@@ -147,6 +150,7 @@ async def _resumir_gemini(
     texto_html: str | None,
     api_key: str | None,
     modelo: str,
+    log: LogFn | None = None,
 ) -> str:
     chave = api_key or os.environ.get("GEMINI_API_KEY")
     if not chave:
@@ -189,8 +193,15 @@ async def _resumir_ollama(
     texto_html: str | None,
     api_key: str | None,
     modelo: str,
+    log: LogFn | None = None,
 ) -> str:
     base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+    if log:
+        log(f"Conectando ao Ollama em '{base_url}'.")
+        log(f"Enviando solicitação para o modelo '{modelo}'.")
+        log(
+            "O Ollama pode demorar no primeiro uso enquanto carrega o modelo na memória."
+        )
     # A API compatível com OpenAI do Ollama normalmente ignora api_key.
     client = AsyncOpenAI(
         api_key=api_key or os.environ.get("OLLAMA_API_KEY", "ollama"),
@@ -212,6 +223,8 @@ async def _resumir_ollama(
         ],
         temperature=0.3,
     )
+    if log:
+        log(f"Resposta recebida do modelo '{modelo}' via Ollama.")
     return response.choices[0].message.content or ""
 
 
@@ -223,6 +236,7 @@ async def resumir_curriculo(
     api_key: str | None = None,
     modelo: str = "gpt-4o-mini",
     provedor: str = "openai",
+    log: LogFn | None = None,
 ) -> str:
     provedor_normalizado = (provedor or "openai").strip().lower()
 
@@ -233,6 +247,7 @@ async def resumir_curriculo(
             texto_html=texto_html,
             api_key=api_key,
             modelo=modelo,
+            log=log,
         )
 
     if provedor_normalizado == "gemini":
@@ -242,6 +257,7 @@ async def resumir_curriculo(
             texto_html=texto_html,
             api_key=api_key,
             modelo=modelo,
+            log=log,
         )
 
     if provedor_normalizado == "ollama":
@@ -251,12 +267,15 @@ async def resumir_curriculo(
             texto_html=texto_html,
             api_key=api_key,
             modelo=modelo,
+            log=log,
         )
 
     raise ValueError("Provedor de IA inválido. Use: openai, gemini ou ollama.")
 
 
-async def _listar_modelos_openai(api_key: str | None) -> list[str]:
+async def _listar_modelos_openai(
+    api_key: str | None, log: LogFn | None = None
+) -> list[str]:
     chave = api_key or os.environ.get("OPENAI_API_KEY")
     if not chave:
         raise ValueError(
@@ -270,7 +289,9 @@ async def _listar_modelos_openai(api_key: str | None) -> list[str]:
     return modelos
 
 
-async def _listar_modelos_gemini(api_key: str | None) -> list[str]:
+async def _listar_modelos_gemini(
+    api_key: str | None, log: LogFn | None = None
+) -> list[str]:
     chave = api_key or os.environ.get("GEMINI_API_KEY")
     if not chave:
         raise ValueError(
@@ -302,8 +323,12 @@ async def _listar_modelos_gemini(api_key: str | None) -> list[str]:
         ) from exc
 
 
-async def _listar_modelos_ollama(api_key: str | None) -> list[str]:
+async def _listar_modelos_ollama(
+    api_key: str | None, log: LogFn | None = None
+) -> list[str]:
     base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+    if log:
+        log(f"Consultando modelos do Ollama em '{base_url}/api/tags'.")
 
     def _call_ollama() -> dict:
         request = Request(f"{base_url}/api/tags")
@@ -324,6 +349,8 @@ async def _listar_modelos_ollama(api_key: str | None) -> list[str]:
             if isinstance(item, dict) and item.get("name")
         }
     )
+    if log:
+        log(f"Ollama respondeu com {len(modelos)} modelo(s) disponível(is).")
     return modelos
 
 
@@ -331,16 +358,17 @@ async def listar_modelos(
     *,
     provedor: str = "openai",
     api_key: str | None = None,
+    log: LogFn | None = None,
 ) -> list[str]:
     provedor_normalizado = (provedor or "openai").strip().lower()
 
     if provedor_normalizado == "openai":
-        return await _listar_modelos_openai(api_key)
+        return await _listar_modelos_openai(api_key, log=log)
 
     if provedor_normalizado == "gemini":
-        return await _listar_modelos_gemini(api_key)
+        return await _listar_modelos_gemini(api_key, log=log)
 
     if provedor_normalizado == "ollama":
-        return await _listar_modelos_ollama(api_key)
+        return await _listar_modelos_ollama(api_key, log=log)
 
     raise ValueError("Provedor de IA inválido. Use: openai, gemini ou ollama.")
