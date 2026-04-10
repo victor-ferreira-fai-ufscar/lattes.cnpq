@@ -2,10 +2,21 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { BrainCircuit, CheckCircle2, RefreshCcw, Server } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import { useEffect } from "react";
 import { useForm, useWatch } from "react-hook-form";
+import remarkBreaks from "remark-breaks";
+import remarkGfm from "remark-gfm";
 
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Card,
@@ -23,6 +34,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -36,11 +48,112 @@ import {
 } from "@/features/lattes/schemas/lattes.schemas";
 import type { AIProvider } from "@/features/lattes/services/lattes.service";
 import type { StoredApiKeys } from "@/features/lattes/stores/lattes-summary-store";
+import { cn } from "@/lib/utils";
 
 const API_KEY_PLACEHOLDER: Record<AIProvider, string> = {
   openai: "Sua chave da API OpenAI (sk-...)",
   gemini: "Sua chave da API Gemini (AIza...)",
   ollama: "",
+};
+
+const OLLAMA_LOCAL_SETUP_MARKDOWN = `### Para usar o Ollama, rode tudo localmente
+
+O Ollama **não funciona quando o backend está hospedado na web**. Para usar esta opção, o projeto precisa estar rodando na sua máquina.
+
+Passo a passo:
+
+1. Faça o git clone deste repositório: [github.com/victor-ferreira-fai-ufscar/lattes.cnpq](https://github.com/victor-ferreira-fai-ufscar/lattes.cnpq).
+2. Rode o projeto localmente com Docker Compose.
+3. Instale e abra o Ollama no mesmo computador.
+4. Configure o backend para acessar o Ollama pela variável \`OLLAMA_BASE_URL\`.
+
+#### Exemplo do backend no Docker Compose
+
+\`\`\`yaml
+backend:
+  env_file:
+    - .env.docker
+    - path: ./backend/.env
+      required: false
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+\`\`\`
+
+#### No arquivo backend/.env
+
+\`\`\`env
+OLLAMA_BASE_URL=http://host.docker.internal:11434
+\`\`\`
+
+Baixe o Ollama em [ollama.com/download](https://ollama.com/download).
+`;
+
+const markdownComponents = {
+  h3: ({ className, ...props }: React.ComponentProps<"h3">) => (
+    <h3 className={cn("mt-2 text-lg font-semibold text-slate-950 first:mt-0", className)} {...props} />
+  ),
+  h4: ({ className, ...props }: React.ComponentProps<"h4">) => (
+    <h4 className={cn("mt-6 text-sm font-semibold uppercase tracking-[0.16em] text-cyan-800", className)} {...props} />
+  ),
+  p: ({ className, ...props }: React.ComponentProps<"p">) => (
+    <p className={cn("my-4 text-sm leading-7 text-slate-700 sm:text-[15px]", className)} {...props} />
+  ),
+  ol: ({ className, ...props }: React.ComponentProps<"ol">) => (
+    <ol className={cn("my-4 list-decimal space-y-2 pl-6 text-sm leading-7 text-slate-700 sm:text-[15px]", className)} {...props} />
+  ),
+  ul: ({ className, ...props }: React.ComponentProps<"ul">) => (
+    <ul className={cn("my-4 list-disc space-y-2 pl-6 text-sm leading-7 text-slate-700 sm:text-[15px]", className)} {...props} />
+  ),
+  li: ({ className, ...props }: React.ComponentProps<"li">) => (
+    <li className={cn("pl-1 marker:font-semibold marker:text-cyan-700", className)} {...props} />
+  ),
+  a: ({ className, ...props }: React.ComponentProps<"a">) => (
+    <a
+      className={cn(
+        "font-medium text-cyan-700 underline decoration-cyan-300 underline-offset-4 transition hover:text-cyan-800",
+        className,
+      )}
+      rel="noreferrer"
+      target="_blank"
+      {...props}
+    />
+  ),
+  blockquote: ({ className, ...props }: React.ComponentProps<"blockquote">) => (
+    <blockquote
+      className={cn(
+        "my-5 rounded-r-2xl border-l-4 border-cyan-500 bg-cyan-50/70 px-4 py-3 text-sm italic leading-7 text-slate-700 sm:text-[15px]",
+        className,
+      )}
+      {...props}
+    />
+  ),
+  pre: ({ className, ...props }: React.ComponentProps<"pre">) => (
+    <pre
+      className={cn(
+        "my-5 overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950 p-4 text-sm leading-6 text-slate-100",
+        className,
+      )}
+      {...props}
+    />
+  ),
+  code: ({ className, ...props }: React.ComponentProps<"code">) => {
+    const isBlockCode = Boolean(className);
+
+    return (
+      <code
+        className={cn(
+          isBlockCode
+            ? "font-mono text-[13px] text-slate-100"
+            : "rounded-md bg-slate-100 px-1.5 py-0.5 font-mono text-[0.92em] text-slate-900",
+          className,
+        )}
+        {...props}
+      />
+    );
+  },
+  strong: ({ className, ...props }: React.ComponentProps<"strong">) => (
+    <strong className={cn("font-semibold text-slate-950", className)} {...props} />
+  ),
 };
 
 type SummaryPanelProps = {
@@ -232,16 +345,52 @@ export function SummaryPanel({
             />
 
             {isOllama && (
-              <div className="md:col-span-2 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
-                <Server className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                <span>
-                  <span className="font-semibold">Uso local</span> — O Ollama precisa estar em
-                  execução na mesma máquina que o backend. Se estiver usando Docker Compose,
-                  adicione um serviço <code className="font-mono">ollama</code> e configure{" "}
-                  <code className="font-mono">OLLAMA_BASE_URL</code> no backend. Não é necessária
-                  chave de API.
-                </span>
-              </div>
+              <Dialog>
+                <div className="md:col-span-2 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-800">
+                  <Server className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <div>
+                    <p>
+                      <span className="font-semibold">Uso local</span> - O Ollama só funciona
+                      se o projeto estiver rodando localmente na sua máquina, com o Ollama
+                      aberto no mesmo computador. Baixe em{" "}
+                      <a
+                        className="font-medium underline decoration-amber-300 underline-offset-4 transition hover:text-amber-900"
+                        href="https://ollama.com/download"
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        ollama.com/download
+                      </a>
+                      . Não é necessária chave de API.
+                    </p>
+                    <DialogTrigger asChild>
+                      <button
+                        type="button"
+                        className="mt-2 font-medium underline decoration-amber-300 underline-offset-4 transition hover:text-amber-900"
+                      >
+                        Fez git clone e vai rodar tudo localmente? Clique aqui para ver o passo a passo.
+                      </button>
+                    </DialogTrigger>
+                  </div>
+                </div>
+                <DialogContent className="flex h-[min(90vh,760px)] min-h-0 flex-col overflow-hidden sm:max-w-3xl">
+                  <DialogHeader className="border-b border-slate-200/80 px-5 pb-4 pt-5 sm:px-7 sm:pb-5 sm:pt-7">
+                    <DialogTitle>Como usar Ollama localmente</DialogTitle>
+                    <DialogDescription>
+                      Resumo rápido para quem fez git clone do projeto e vai testar tudo na própria máquina.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <ScrollArea className="min-h-0 flex-1" type="always">
+                    <div className="px-5 pb-5 pt-5 sm:px-7 sm:pb-7">
+                      <article className="rounded-[26px] border border-cyan-100/80 bg-gradient-to-br from-white/95 via-cyan-50/30 to-teal-50/50 p-4 shadow-[0_14px_40px_-30px_rgba(8,145,178,0.5)] sm:p-6">
+                        <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm, remarkBreaks]}>
+                          {OLLAMA_LOCAL_SETUP_MARKDOWN}
+                        </ReactMarkdown>
+                      </article>
+                    </div>
+                  </ScrollArea>
+                </DialogContent>
+              </Dialog>
             )}
 
             {!isOllama && (
