@@ -25,6 +25,19 @@ class StorageCachedPdfResult:
 
 
 @dataclass(frozen=True)
+class StorageCurriculoHistoryResult:
+    versions: list[StorageCachedPdfResult]
+
+    @property
+    def first_version(self) -> StorageCachedPdfResult | None:
+        return self.versions[0] if self.versions else None
+
+    @property
+    def last_version(self) -> StorageCachedPdfResult | None:
+        return self.versions[-1] if self.versions else None
+
+
+@dataclass(frozen=True)
 class StorageFileResult:
     object_path: str
     filename: str
@@ -270,9 +283,38 @@ def find_fresh_curriculo_pdf(
     include_bytes: bool = False,
     now: datetime | None = None,
 ) -> StorageCachedPdfResult | None:
-    bucket, folder, is_public, signed_url_ttl = _storage_bucket_config()
     cache_max_age_days = _effective_cache_max_age_days(max_age_days)
+    now_dt = now or datetime.now(timezone.utc)
+    max_age = timedelta(days=cache_max_age_days)
 
+    versions = list_curriculo_pdf_versions(nome, include_bytes=False)
+    best_version = versions[-1] if versions else None
+    if best_version is None:
+        return None
+
+    if now_dt - best_version.last_modified > max_age:
+        return None
+
+    if not include_bytes:
+        return best_version
+
+    file_bytes = download_storage_file_bytes(best_version.object_path)
+    return StorageCachedPdfResult(
+        object_path=best_version.object_path,
+        filename=best_version.filename,
+        download_url=best_version.download_url,
+        last_modified=best_version.last_modified,
+        curriculo_date=best_version.curriculo_date,
+        file_bytes=file_bytes,
+    )
+
+
+def list_curriculo_pdf_versions(
+    nome: str,
+    *,
+    include_bytes: bool = False,
+) -> list[StorageCachedPdfResult]:
+    bucket, folder, is_public, signed_url_ttl = _storage_bucket_config()
     supabase = _create_supabase_client()
     items = _list_storage_objects(supabase, bucket=bucket, folder=folder)
 
@@ -280,12 +322,8 @@ def find_fresh_curriculo_pdf(
 
     slug = slugify_nome(nome)
     prefix = f"{slug}-"
-    now_dt = now or datetime.now(timezone.utc)
-    max_age = timedelta(days=cache_max_age_days)
 
-    best: dict[str, Any] | None = None
-    best_last_modified: datetime | None = None
-
+    versions: list[StorageCachedPdfResult] = []
     for item in items:
         filename = str(item.get("name") or "").strip()
         if not filename.lower().endswith(".pdf"):
@@ -299,44 +337,42 @@ def find_fresh_curriculo_pdf(
         if last_modified is None:
             continue
 
-        if best_last_modified is None or last_modified > best_last_modified:
-            best = item
-            best_last_modified = last_modified
+        object_path = f"{folder}/{filename}" if folder else filename
+        file_bytes = download_storage_file_bytes(object_path) if include_bytes else None
+        versions.append(
+            StorageCachedPdfResult(
+                object_path=object_path,
+                filename=filename,
+                download_url=_build_download_url(
+                    supabase,
+                    bucket=bucket,
+                    object_path=object_path,
+                    is_public=is_public,
+                    signed_url_ttl=signed_url_ttl,
+                ),
+                last_modified=last_modified,
+                curriculo_date=_extract_curriculo_date_from_filename(filename),
+                file_bytes=file_bytes,
+            )
+        )
 
-    if best is None or best_last_modified is None:
-        return None
-
-    if now_dt - best_last_modified > max_age:
-        return None
-
-    filename = str(best.get("name") or "").strip()
-    object_path = f"{folder}/{filename}" if folder else filename
-    download_url = _build_download_url(
-        supabase,
-        bucket=bucket,
-        object_path=object_path,
-        is_public=is_public,
-        signed_url_ttl=signed_url_ttl,
+    versions.sort(
+        key=lambda version: (
+            version.curriculo_date or date.min,
+            version.last_modified,
+            version.filename,
+        )
     )
+    return versions
 
-    file_bytes: bytes | None = None
-    if include_bytes:
-        downloaded = supabase.storage.from_(bucket).download(object_path)
-        if isinstance(downloaded, bytes):
-            file_bytes = downloaded
-        elif hasattr(downloaded, "content"):
-            file_bytes = downloaded.content
-        elif hasattr(downloaded, "data"):
-            file_bytes = downloaded.data
 
-    return StorageCachedPdfResult(
-        object_path=object_path,
-        filename=filename,
-        download_url=download_url,
-        last_modified=best_last_modified,
-        curriculo_date=_extract_curriculo_date_from_filename(filename),
-        file_bytes=file_bytes,
-    )
+def get_curriculo_pdf_history(
+    nome: str,
+    *,
+    include_bytes: bool = False,
+) -> StorageCurriculoHistoryResult:
+    versions = list_curriculo_pdf_versions(nome, include_bytes=include_bytes)
+    return StorageCurriculoHistoryResult(versions=versions)
 
 
 def upload_file_bytes(

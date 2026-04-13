@@ -619,6 +619,29 @@ async def scrape_lattes_text(nome: str) -> str:
             await browser.close()
 
 
+async def scrape_lattes_ultima_atualizacao(nome: str, href: str | None = None) -> date:
+    """Consulta apenas a data de última atualização do currículo no Lattes."""
+    browser_name = os.environ.get("PLAYWRIGHT_BROWSER", "chromium").lower()
+    headless = _is_true(os.environ.get("PLAYWRIGHT_HEADLESS", "true"))
+
+    async with async_playwright() as p:
+        browser_type = getattr(p, browser_name, p.chromium)
+        browser = await browser_type.launch(
+            headless=headless,
+            args=["--no-sandbox", "--disable-dev-shm-usage"],
+        )
+
+        try:
+            context = await browser.new_context(locale="pt-BR")
+            page = await context.new_page()
+            cv_page = await _abrir_curriculo(page, nome, href_alvo=href)
+            await cv_page.wait_for_load_state("domcontentloaded")
+            texto_cv = await cv_page.locator("body").inner_text(timeout=12000)
+            return _extrair_ultima_atualizacao(texto_cv)
+        finally:
+            await browser.close()
+
+
 async def scrape_lattes_summary_source(nome: str) -> LattesSummarySourceResult:
     """Coleta texto priorizando o PDF do currículo e usa HTML como fallback."""
     browser_name = os.environ.get("PLAYWRIGHT_BROWSER", "chromium").lower()

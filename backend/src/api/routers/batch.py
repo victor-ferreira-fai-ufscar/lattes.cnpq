@@ -6,6 +6,7 @@ from typing import Any, Callable, Optional
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 
+from ...core.curriculo_diff import build_curriculo_text_diff
 from ...core.exporter import (
     artifacts_to_payload,
     create_batch_storage_target,
@@ -15,9 +16,11 @@ from ...core.exporter import (
     normalize_output_format,
     upload_batch_zip,
 )
-from ...core.scraper import scrape_lattes
+from ...core.scraper import scrape_lattes, scrape_lattes_ultima_atualizacao
 from ...core.storage import (
+    download_storage_file_bytes,
     find_fresh_curriculo_pdf,
+    get_curriculo_pdf_history,
     upload_curriculo_pdf,
 )
 from ...libs.csv_utils import parse_csv_names
@@ -37,6 +40,60 @@ router = APIRouter()
 
 def _sse_event(event: str, payload: Any) -> str:
     return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+def _serialize_cache_version(version) -> dict | None:  # noqa: ANN001
+    if version is None:
+        return None
+    return {
+        "arquivo_pdf": version.filename,
+        "storage_path": version.object_path,
+        "download_pdf_url": version.download_url,
+        "ultima_atualizacao_curriculo": (
+            version.curriculo_date.isoformat() if version.curriculo_date else None
+        ),
+        "cache_last_modified": version.last_modified.isoformat(),
+    }
+
+
+def _build_curriculo_history_payload(nome: str) -> dict:
+    history = get_curriculo_pdf_history(nome)
+    first_version = history.first_version
+    last_version = history.last_version
+
+    payload = {
+        "cache_historico_total_versoes": len(history.versions),
+        "cache_historico_primeira_versao": _serialize_cache_version(first_version),
+        "cache_historico_ultima_versao": _serialize_cache_version(last_version),
+    }
+
+    if first_version is None or last_version is None:
+        payload["cache_historico_diff"] = None
+        return payload
+
+    if first_version.object_path == last_version.object_path:
+        payload["cache_historico_diff"] = {
+            "has_changes": False,
+            "added_lines": 0,
+            "removed_lines": 0,
+            "diff_preview": "",
+        }
+        return payload
+
+    first_bytes = download_storage_file_bytes(first_version.object_path)
+    last_bytes = download_storage_file_bytes(last_version.object_path)
+    if not first_bytes or not last_bytes:
+        payload["cache_historico_diff"] = None
+        return payload
+
+    diff = build_curriculo_text_diff(first_bytes, last_bytes)
+    payload["cache_historico_diff"] = {
+        "has_changes": diff.has_changes,
+        "added_lines": diff.added_lines,
+        "removed_lines": diff.removed_lines,
+        "diff_preview": diff.diff_preview,
+    }
+    return payload
 
 
 async def _prepare_batch_input(
@@ -159,50 +216,71 @@ async def _process_batch(
                 )
 
             if cache_hit is not None:
-                artifacts = ensure_curriculo_artifacts(
-                    nome=nome,
-                    ultima_atualizacao=(
-                        cache_hit.curriculo_date or cache_hit.last_modified.date()
-                    ),
-                    pdf_filename=cache_hit.filename,
-                    pdf_storage_path=cache_hit.object_path,
-                    pdf_download_url=cache_hit.download_url,
-                    pdf_bytes=cache_hit.file_bytes or b"",
-                    output_format=output_format,
-                    cache_status="hit",
-                )
-                item = {
-                    "nome": nome,
-                    "status": "sucesso",
-                    "cache_status": "hit",
-                    "cache_last_modified": cache_hit.last_modified.isoformat(),
-                    "ultima_atualizacao_curriculo": (
-                        cache_hit.curriculo_date or cache_hit.last_modified.date()
-                    ).isoformat(),
-                    "arquivo_pdf": cache_hit.filename,
-                    "storage_path": cache_hit.object_path,
-                    "download_pdf_url": cache_hit.download_url,
-                    "duracao_segundos": round(perf_counter() - t_item, 2),
-                    **artifacts_to_payload(artifacts),
-                }
-                resultados.append(item)
-                ok_count += 1
-                cache_hits += 1
-                for artifact in artifacts.generated_files:
-                    artifact_bytes = download_artifact_bytes(artifact)
-                    if artifact_bytes is None:
-                        continue
-                    batch_zip_entries.append(
-                        (
-                            f"{artifacts.output_label}/{artifact.filename}",
-                            artifact_bytes,
-                        )
+                cache_hit_ativo = True
+                try:
+                    remote_ultima_atualizacao = await scrape_lattes_ultima_atualizacao(
+                        nome
                     )
-                add_log(
-                    f"[{idx}/{len(nomes)}] Cache HIT para '{nome}' "
-                    f"em {item['duracao_segundos']}s. Artefatos={artifacts.artifacts_cache_status}."
-                )
-                continue
+                    cache_hit_ativo = (
+                        cache_hit.curriculo_date == remote_ultima_atualizacao
+                    )
+                    if not cache_hit_ativo:
+                        add_log(
+                            f"[{idx}/{len(nomes)}] Cache desatualizado para '{nome}'. "
+                            f"Storage={cache_hit.curriculo_date}, Lattes={remote_ultima_atualizacao}."
+                        )
+                except Exception as exc:
+                    add_log(
+                        f"[{idx}/{len(nomes)}] Falha ao validar atualização de '{nome}' "
+                        f"(usando cache existente): {exc}"
+                    )
+
+                if cache_hit_ativo:
+                    artifacts = ensure_curriculo_artifacts(
+                        nome=nome,
+                        ultima_atualizacao=(
+                            cache_hit.curriculo_date or cache_hit.last_modified.date()
+                        ),
+                        pdf_filename=cache_hit.filename,
+                        pdf_storage_path=cache_hit.object_path,
+                        pdf_download_url=cache_hit.download_url,
+                        pdf_bytes=cache_hit.file_bytes or b"",
+                        output_format=output_format,
+                        cache_status="hit",
+                    )
+                    item = {
+                        "nome": nome,
+                        "status": "sucesso",
+                        "cache_status": "hit",
+                        "cache_last_modified": cache_hit.last_modified.isoformat(),
+                        "ultima_atualizacao_curriculo": (
+                            cache_hit.curriculo_date or cache_hit.last_modified.date()
+                        ).isoformat(),
+                        "arquivo_pdf": cache_hit.filename,
+                        "storage_path": cache_hit.object_path,
+                        "download_pdf_url": cache_hit.download_url,
+                        "duracao_segundos": round(perf_counter() - t_item, 2),
+                        **artifacts_to_payload(artifacts),
+                        **_build_curriculo_history_payload(nome),
+                    }
+                    resultados.append(item)
+                    ok_count += 1
+                    cache_hits += 1
+                    for artifact in artifacts.generated_files:
+                        artifact_bytes = download_artifact_bytes(artifact)
+                        if artifact_bytes is None:
+                            continue
+                        batch_zip_entries.append(
+                            (
+                                f"{artifacts.output_label}/{artifact.filename}",
+                                artifact_bytes,
+                            )
+                        )
+                    add_log(
+                        f"[{idx}/{len(nomes)}] Cache HIT para '{nome}' "
+                        f"em {item['duracao_segundos']}s. Artefatos={artifacts.artifacts_cache_status}."
+                    )
+                    continue
 
             cache_misses += 1
             scrape_result = await scrape_lattes(nome)
@@ -233,6 +311,7 @@ async def _process_batch(
                 "download_pdf_url": upload_result.download_url,
                 "duracao_segundos": round(perf_counter() - t_item, 2),
                 **artifacts_to_payload(artifacts),
+                **_build_curriculo_history_payload(nome),
             }
             resultados.append(item)
             ok_count += 1
