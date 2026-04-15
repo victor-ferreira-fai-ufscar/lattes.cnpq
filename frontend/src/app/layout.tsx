@@ -22,8 +22,47 @@ const monoFont = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Lattes CNPq",
-  description: "Ferramenta simples para buscar curriculos Lattes, preparar PDFs e gerar resumos opcionais.",
+  applicationName: "Lattes CNPq",
+  title: {
+    template: "%s | Lattes CNPq",
+    default: "Lattes CNPq — Extrator de Currículos",
+  },
+  description:
+    "Busca e extração automática de currículos Lattes do CNPq, com geração opcional de resumos via IA.",
+  keywords: [
+    "Lattes",
+    "CNPq",
+    "currículo lattes",
+    "pesquisador",
+    "resumo acadêmico",
+    "FAI",
+    "UFSCar",
+    "IA",
+  ],
+  authors: [{ name: "FAI UFSCar" }],
+  creator: "FAI UFSCar",
+  publisher: "FAI UFSCar",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
+  ),
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    title: "Lattes CNPq — Extrator de Currículos",
+    description:
+      "Busca e extração automática de currículos Lattes do CNPq, com geração opcional de resumos via IA.",
+    siteName: "Lattes CNPq",
+  },
+  twitter: {
+    card: "summary",
+    title: "Lattes CNPq — Extrator de Currículos",
+    description:
+      "Busca e extração automática de currículos Lattes do CNPq, com geração opcional de resumos via IA.",
+  },
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 export default function RootLayout({
