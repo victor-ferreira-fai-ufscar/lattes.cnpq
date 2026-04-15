@@ -198,3 +198,84 @@ def test_download_storage_file_bytes_returns_none_when_object_is_missing(monkeyp
     assert bucket_ref.download_calls == [
         "structured/outputs/v2/curriculos/neocles-alves-pereira/2020-09-11/manifest.json"
     ]
+
+
+def test_get_curriculo_pdf_history_victor_ferreira_dois_cvs_versionados(monkeypatch):
+    """
+    Cenário: primeiro acesso em 2026-03-10 salvou 'victor-ferreira-2026-03-10.pdf'.
+    O CV foi atualizado e um novo scraping em 2026-04-13 salvou
+    'victor-ferreira-2026-04-13.pdf'.  Ambas as versões devem aparecer no
+    histórico, ordenadas por curriculo_date (mais antiga primeiro).
+    """
+    bucket_ref = _DummyBucketRef(
+        [
+            {
+                "name": "victor-ferreira-2026-03-10.pdf",
+                "updated_at": "2026-03-10T10:00:00+00:00",
+            },
+            {
+                "name": "victor-ferreira-2026-04-13.pdf",
+                "updated_at": "2026-04-13T15:30:00+00:00",
+            },
+            {
+                "name": "outra-pessoa-2026-04-01.pdf",
+                "updated_at": "2026-04-01T08:00:00+00:00",
+            },
+        ]
+    )
+
+    monkeypatch.setattr(
+        storage, "_create_supabase_client", lambda: _DummyClient(bucket_ref)
+    )
+    monkeypatch.setenv("SUPABASE_STORAGE_BUCKET", "lattes-cvs")
+    monkeypatch.setenv("SUPABASE_STORAGE_FOLDER", "raw")
+    monkeypatch.setenv("SUPABASE_STORAGE_PUBLIC", "true")
+
+    history = storage.get_curriculo_pdf_history("Victor Ferreira")
+
+    assert len(history.versions) == 2
+
+    first = history.first_version
+    last = history.last_version
+
+    assert first is not None
+    assert first.filename == "victor-ferreira-2026-03-10.pdf"
+    assert first.curriculo_date is not None
+    assert first.curriculo_date.isoformat() == "2026-03-10"
+
+    assert last is not None
+    assert last.filename == "victor-ferreira-2026-04-13.pdf"
+    assert last.curriculo_date is not None
+    assert last.curriculo_date.isoformat() == "2026-04-13"
+
+
+def test_list_curriculo_pdf_versions_ordena_por_curriculo_date(monkeypatch):
+    """
+    Garante que versões são ordenadas pela data extraída do nome do arquivo,
+    independente da ordem retornada pelo Supabase Storage.
+    """
+    bucket_ref = _DummyBucketRef(
+        [
+            # Supabase retorna fora de ordem
+            {
+                "name": "victor-ferreira-2026-04-13.pdf",
+                "updated_at": "2026-04-13T15:30:00+00:00",
+            },
+            {
+                "name": "victor-ferreira-2026-03-10.pdf",
+                "updated_at": "2026-03-10T10:00:00+00:00",
+            },
+        ]
+    )
+
+    monkeypatch.setattr(
+        storage, "_create_supabase_client", lambda: _DummyClient(bucket_ref)
+    )
+    monkeypatch.setenv("SUPABASE_STORAGE_BUCKET", "lattes-cvs")
+    monkeypatch.setenv("SUPABASE_STORAGE_FOLDER", "raw")
+
+    versions = storage.list_curriculo_pdf_versions("Victor Ferreira")
+
+    assert len(versions) == 2
+    assert versions[0].curriculo_date.isoformat() == "2026-03-10"
+    assert versions[1].curriculo_date.isoformat() == "2026-04-13"
