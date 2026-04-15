@@ -12,6 +12,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { CurriculoDiffCard } from "@/features/lattes/components/curriculo-diff-card";
 import { OUTPUT_FORMAT_LABELS } from "@/features/lattes/lib/output-format";
 import type { ScrapeResponse } from "@/features/lattes/services/lattes.service";
 
@@ -124,9 +125,17 @@ export function ScrapeResultCard({ result }: ScrapeResultCardProps) {
           </div>
         </div>
 
+        {result.cache_historico_total_versoes !== undefined && (
+          <CurriculoDiffCard
+            totalVersoes={result.cache_historico_total_versoes}
+            primeiraVersao={result.cache_historico_primeira_versao}
+            ultimaVersao={result.cache_historico_ultima_versao}
+            diff={result.cache_historico_diff}
+          />
+        )}
+
         <details className="group rounded-2xl border border-white/70 bg-white/75 p-4">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-slate-900">
-            <span className="flex items-center gap-2">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-slate-900">            <span className="flex items-center gap-2">
               <FileText className="h-4 w-4 text-emerald-700" />
               Ver detalhes do pacote
             </span>

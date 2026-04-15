@@ -12,6 +12,21 @@ export type GeneratedFile = {
   content_type: string;
 };
 
+export type CurriculoHistoricoVersao = {
+  arquivo_pdf: string;
+  storage_path: string;
+  download_pdf_url: string;
+  ultima_atualizacao_curriculo: string | null;
+  cache_last_modified: string;
+};
+
+export type CurriculoHistoricoDiff = {
+  has_changes: boolean;
+  added_lines: number;
+  removed_lines: number;
+  diff_preview: string;
+};
+
 export type SearchCandidate = {
   nome: string;
   href: string;
@@ -44,6 +59,10 @@ export type ScrapeResponse = {
   zip_arquivo?: string | null;
   zip_storage_path?: string | null;
   zip_download_url?: string | null;
+  cache_historico_total_versoes?: number;
+  cache_historico_primeira_versao?: CurriculoHistoricoVersao | null;
+  cache_historico_ultima_versao?: CurriculoHistoricoVersao | null;
+  cache_historico_diff?: CurriculoHistoricoDiff | null;
   logs?: string[];
   duracao_segundos?: number;
 };
