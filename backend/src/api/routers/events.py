@@ -1,16 +1,12 @@
 import asyncio
-import json
 
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
 from ...libs.request_monitor import request_monitor
+from ._helpers import sse_event
 
 router = APIRouter()
-
-
-def _sse_event(event: str, payload: dict[str, object]) -> str:
-    return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
 @router.get("/events/requests/{request_id}")
@@ -30,11 +26,11 @@ async def stream_request_events(request_id: str, request: Request):
                     continue
 
                 if item is None:
-                    yield _sse_event("end", {"request_id": request_id})
+                    yield sse_event("end", {"request_id": request_id})
                     break
 
                 event, payload = item
-                yield _sse_event(event, payload)
+                yield sse_event(event, payload)
         finally:
             request_monitor.unsubscribe(request_id, queue)
 

@@ -2,7 +2,6 @@ from time import perf_counter
 
 from fastapi import APIRouter, HTTPException, Request
 
-from ...core.curriculo_diff import build_curriculo_text_diff
 from ...core.exporter import (
     artifacts_to_payload,
     ensure_curriculo_artifacts,
@@ -14,9 +13,7 @@ from ...core.scraper import (
     scrape_lattes_ultima_atualizacao,
 )
 from ...core.storage import (
-    download_storage_file_bytes,
     find_fresh_curriculo_pdf,
-    get_curriculo_pdf_history,
     upload_curriculo_pdf,
 )
 from ...libs.filename import build_curriculo_filename
@@ -28,69 +25,18 @@ from ...libs.request_monitor import (
     request_monitor,
 )
 from ...models import ScrapeRequest
+from .._limiter import limiter
+from ._helpers import build_curriculo_history_payload, serialize_cache_version
 
 router = APIRouter()
 
 
-def _serialize_cache_version(version) -> dict | None:  # noqa: ANN001
-    if version is None:
-        return None
-    return {
-        "arquivo_pdf": version.filename,
-        "storage_path": version.object_path,
-        "download_pdf_url": version.download_url,
-        "ultima_atualizacao_curriculo": (
-            version.curriculo_date.isoformat() if version.curriculo_date else None
-        ),
-        "cache_last_modified": version.last_modified.isoformat(),
-    }
-
-
-def _build_curriculo_history_payload(nome: str) -> dict:
-    history = get_curriculo_pdf_history(nome)
-    first_version = history.first_version
-    last_version = history.last_version
-
-    payload = {
-        "cache_historico_total_versoes": len(history.versions),
-        "cache_historico_primeira_versao": _serialize_cache_version(first_version),
-        "cache_historico_ultima_versao": _serialize_cache_version(last_version),
-    }
-
-    if first_version is None or last_version is None:
-        payload["cache_historico_diff"] = None
-        return payload
-
-    if first_version.object_path == last_version.object_path:
-        payload["cache_historico_diff"] = {
-            "has_changes": False,
-            "added_lines": 0,
-            "removed_lines": 0,
-            "diff_preview": "",
-        }
-        return payload
-
-    first_bytes = download_storage_file_bytes(first_version.object_path)
-    last_bytes = download_storage_file_bytes(last_version.object_path)
-    if not first_bytes or not last_bytes:
-        payload["cache_historico_diff"] = None
-        return payload
-
-    diff = build_curriculo_text_diff(first_bytes, last_bytes)
-    payload["cache_historico_diff"] = {
-        "has_changes": diff.has_changes,
-        "added_lines": diff.added_lines,
-        "removed_lines": diff.removed_lines,
-        "diff_preview": diff.diff_preview,
-    }
-    return payload
-
-
 @router.post("/scrape")
-async def scrape(request: ScrapeRequest, http_request: Request):
+@limiter.limit("20/minute")
+async def scrape(request: Request, body: ScrapeRequest):
     t_total = perf_counter()
     logs: list[str] = []
-    request_id = http_request.headers.get(REQUEST_ID_HEADER)
+    request_id = request.headers.get(REQUEST_ID_HEADER)
     publish_request_start(
         request_id,
         operation="scrape",
@@ -102,16 +48,16 @@ async def scrape(request: ScrapeRequest, http_request: Request):
     )
 
     try:
-        nome = request.nome.strip()
-        output_format = request.output_format
+        nome = body.nome.strip()
+        output_format = body.output_format
         add_log("Request /scrape recebida.")
         if not nome:
             raise HTTPException(status_code=400, detail="Informe o nome do docente.")
 
-        if request.href:
+        if body.href:
             add_log(
                 "Iniciando scraping do currículo selecionado "
-                f"(nome='{nome}', href='{request.href}')."
+                f"(nome='{nome}', href='{body.href}')."
             )
         else:
             add_log(f"Iniciando scraping do currículo de '{nome}'.")
@@ -132,13 +78,15 @@ async def scrape(request: ScrapeRequest, http_request: Request):
         remote_ultima_atualizacao = None
         if cache_hit is not None:
             try:
-                if request.href:
+                if body.href:
                     profile_assets = await scrape_lattes_profile_assets_by_href(
-                        nome, request.href
+                        nome, body.href
                     )
                     remote_ultima_atualizacao = profile_assets.ultima_atualizacao
                 else:
-                    remote_ultima_atualizacao = await scrape_lattes_ultima_atualizacao(nome)
+                    remote_ultima_atualizacao = await scrape_lattes_ultima_atualizacao(
+                        nome
+                    )
             except Exception as exc:
                 cache_validation_error = str(exc)
                 add_log(
@@ -156,13 +104,13 @@ async def scrape(request: ScrapeRequest, http_request: Request):
                 )
 
         if cache_hit is not None and cache_hit_ativo:
-            if request.href and profile_assets is None:
+            if body.href and profile_assets is None:
                 try:
                     add_log(
                         "Cache HIT de PDF; buscando HTML e foto do currículo selecionado para enriquecer o perfil vitrine."
                     )
                     profile_assets = await scrape_lattes_profile_assets_by_href(
-                        nome, request.href
+                        nome, body.href
                     )
                 except Exception as exc:
                     add_log(
@@ -211,7 +159,7 @@ async def scrape(request: ScrapeRequest, http_request: Request):
                 "logs": logs,
                 "duracao_segundos": round(perf_counter() - t_total, 2),
                 **artifacts_to_payload(artifacts),
-                **_build_curriculo_history_payload(nome),
+                **build_curriculo_history_payload(nome),
             }
 
         add_log(
@@ -221,8 +169,8 @@ async def scrape(request: ScrapeRequest, http_request: Request):
 
         t_scrape = perf_counter()
         try:
-            if request.href:
-                scrape_result = await scrape_lattes_by_href(nome, request.href)
+            if body.href:
+                scrape_result = await scrape_lattes_by_href(nome, body.href)
             else:
                 scrape_result = await scrape_lattes(nome)
         except ValueError as exc:
@@ -284,7 +232,7 @@ async def scrape(request: ScrapeRequest, http_request: Request):
             "logs": logs,
             "duracao_segundos": round(perf_counter() - t_total, 2),
             **artifacts_to_payload(artifacts),
-            **_build_curriculo_history_payload(nome),
+            **build_curriculo_history_payload(nome),
         }
     except HTTPException as exc:
         publish_request_error(request_id, str(exc.detail))

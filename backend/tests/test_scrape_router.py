@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 
 from src.api.main import app
 from src.api.routers import scrape as scrape_module
+from src.api.routers import _helpers as helpers_module
 from src.core.curriculo_diff import CurriculoDiffResult
 from src.core.exporter import GeneratedArtifact, GeneratedArtifactBundle
 from src.core.storage import (
@@ -77,12 +78,12 @@ FAKE_BUNDLE = GeneratedArtifactBundle(
 
 
 def test_serialize_cache_version_retorna_none_para_none():
-    assert scrape_module._serialize_cache_version(None) is None
+    assert helpers_module.serialize_cache_version(None) is None
 
 
 def test_serialize_cache_version_serializa_todos_os_campos():
     version = _make_cached_pdf("2026-03-10")
-    result = scrape_module._serialize_cache_version(version)
+    result = helpers_module.serialize_cache_version(version)
 
     assert result is not None
     assert result["arquivo_pdf"] == "victor-ferreira-2026-03-10.pdf"
@@ -104,7 +105,7 @@ def test_serialize_cache_version_sem_curriculo_date():
         last_modified=datetime(2026, 3, 10, 10, 0, tzinfo=timezone.utc),
         curriculo_date=None,
     )
-    result = scrape_module._serialize_cache_version(version)
+    result = helpers_module.serialize_cache_version(version)
     assert result is not None
     assert result["ultima_atualizacao_curriculo"] is None
 
@@ -116,12 +117,12 @@ def test_serialize_cache_version_sem_curriculo_date():
 
 def test_build_history_payload_sem_versoes(monkeypatch):
     monkeypatch.setattr(
-        scrape_module,
+        helpers_module,
         "get_curriculo_pdf_history",
         lambda nome: StorageCurriculoHistoryResult(versions=[]),
     )
 
-    payload = scrape_module._build_curriculo_history_payload("Victor Ferreira")
+    payload = helpers_module.build_curriculo_history_payload("Victor Ferreira")
 
     assert payload["cache_historico_total_versoes"] == 0
     assert payload["cache_historico_primeira_versao"] is None
@@ -132,12 +133,12 @@ def test_build_history_payload_sem_versoes(monkeypatch):
 def test_build_history_payload_versao_unica_retorna_diff_vazio(monkeypatch):
     v = _make_cached_pdf("2026-03-10")
     monkeypatch.setattr(
-        scrape_module,
+        helpers_module,
         "get_curriculo_pdf_history",
         lambda nome: StorageCurriculoHistoryResult(versions=[v]),
     )
 
-    payload = scrape_module._build_curriculo_history_payload("Victor Ferreira")
+    payload = helpers_module.build_curriculo_history_payload("Victor Ferreira")
 
     assert payload["cache_historico_total_versoes"] == 1
     assert payload["cache_historico_diff"] == {
@@ -153,17 +154,17 @@ def test_build_history_payload_duas_versoes_com_diff(monkeypatch):
     v2 = _make_cached_pdf("2026-04-13")
 
     monkeypatch.setattr(
-        scrape_module,
+        helpers_module,
         "get_curriculo_pdf_history",
         lambda nome: StorageCurriculoHistoryResult(versions=[v1, v2]),
     )
     monkeypatch.setattr(
-        scrape_module,
+        helpers_module,
         "download_storage_file_bytes",
         lambda path: b"pdf-v1" if "2026-03-10" in path else b"pdf-v2",
     )
     monkeypatch.setattr(
-        scrape_module,
+        helpers_module,
         "build_curriculo_text_diff",
         lambda old, new: CurriculoDiffResult(
             has_changes=True,
@@ -173,7 +174,7 @@ def test_build_history_payload_duas_versoes_com_diff(monkeypatch):
         ),
     )
 
-    payload = scrape_module._build_curriculo_history_payload("Victor Ferreira")
+    payload = helpers_module.build_curriculo_history_payload("Victor Ferreira")
 
     assert payload["cache_historico_total_versoes"] == 2
     assert payload["cache_historico_primeira_versao"]["archive_pdf"] if False else True
@@ -191,17 +192,17 @@ def test_build_history_payload_diff_none_quando_bytes_nao_encontrados(monkeypatc
     v2 = _make_cached_pdf("2026-04-13")
 
     monkeypatch.setattr(
-        scrape_module,
+        helpers_module,
         "get_curriculo_pdf_history",
         lambda nome: StorageCurriculoHistoryResult(versions=[v1, v2]),
     )
     monkeypatch.setattr(
-        scrape_module,
+        helpers_module,
         "download_storage_file_bytes",
         lambda path: None,
     )
 
-    payload = scrape_module._build_curriculo_history_payload("Victor Ferreira")
+    payload = helpers_module.build_curriculo_history_payload("Victor Ferreira")
 
     assert payload["cache_historico_diff"] is None
 
@@ -211,17 +212,17 @@ def test_build_history_payload_versoes_serializadas_corretamente(monkeypatch):
     v2 = _make_cached_pdf("2026-04-13")
 
     monkeypatch.setattr(
-        scrape_module,
+        helpers_module,
         "get_curriculo_pdf_history",
         lambda nome: StorageCurriculoHistoryResult(versions=[v1, v2]),
     )
     monkeypatch.setattr(
-        scrape_module,
+        helpers_module,
         "download_storage_file_bytes",
         lambda path: None,
     )
 
-    payload = scrape_module._build_curriculo_history_payload("Victor Ferreira")
+    payload = helpers_module.build_curriculo_history_payload("Victor Ferreira")
 
     primeira = payload["cache_historico_primeira_versao"]
     ultima = payload["cache_historico_ultima_versao"]
@@ -283,17 +284,17 @@ def test_scrape_cache_hit_retorna_payload_completo_com_historico(client, monkeyp
 
     # Histórico com 2 versões
     monkeypatch.setattr(
-        scrape_module,
+        helpers_module,
         "get_curriculo_pdf_history",
         lambda nome: StorageCurriculoHistoryResult(versions=[v1, v2]),
     )
     monkeypatch.setattr(
-        scrape_module,
+        helpers_module,
         "download_storage_file_bytes",
         lambda path: b"pdf-v1" if "2026-03-10" in path else b"pdf-v2",
     )
     monkeypatch.setattr(
-        scrape_module,
+        helpers_module,
         "build_curriculo_text_diff",
         lambda old, new: CurriculoDiffResult(
             has_changes=True,

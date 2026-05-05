@@ -1,12 +1,10 @@
 import asyncio
-import json
 from time import perf_counter
 from typing import Any, Callable, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
 
-from ...core.curriculo_diff import build_curriculo_text_diff
 from ...core.exporter import (
     artifacts_to_payload,
     create_batch_storage_target,
@@ -18,9 +16,7 @@ from ...core.exporter import (
 )
 from ...core.scraper import scrape_lattes, scrape_lattes_ultima_atualizacao
 from ...core.storage import (
-    download_storage_file_bytes,
     find_fresh_curriculo_pdf,
-    get_curriculo_pdf_history,
     upload_curriculo_pdf,
 )
 from ...libs.csv_utils import parse_csv_names
@@ -34,66 +30,14 @@ from ...libs.request_monitor import (
     request_monitor,
 )
 from ...models import OutputFormat
+from .._limiter import limiter
+from ._helpers import (
+    build_curriculo_history_payload,
+    serialize_cache_version,
+    sse_event,
+)
 
 router = APIRouter()
-
-
-def _sse_event(event: str, payload: Any) -> str:
-    return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
-
-
-def _serialize_cache_version(version) -> dict | None:  # noqa: ANN001
-    if version is None:
-        return None
-    return {
-        "arquivo_pdf": version.filename,
-        "storage_path": version.object_path,
-        "download_pdf_url": version.download_url,
-        "ultima_atualizacao_curriculo": (
-            version.curriculo_date.isoformat() if version.curriculo_date else None
-        ),
-        "cache_last_modified": version.last_modified.isoformat(),
-    }
-
-
-def _build_curriculo_history_payload(nome: str) -> dict:
-    history = get_curriculo_pdf_history(nome)
-    first_version = history.first_version
-    last_version = history.last_version
-
-    payload = {
-        "cache_historico_total_versoes": len(history.versions),
-        "cache_historico_primeira_versao": _serialize_cache_version(first_version),
-        "cache_historico_ultima_versao": _serialize_cache_version(last_version),
-    }
-
-    if first_version is None or last_version is None:
-        payload["cache_historico_diff"] = None
-        return payload
-
-    if first_version.object_path == last_version.object_path:
-        payload["cache_historico_diff"] = {
-            "has_changes": False,
-            "added_lines": 0,
-            "removed_lines": 0,
-            "diff_preview": "",
-        }
-        return payload
-
-    first_bytes = download_storage_file_bytes(first_version.object_path)
-    last_bytes = download_storage_file_bytes(last_version.object_path)
-    if not first_bytes or not last_bytes:
-        payload["cache_historico_diff"] = None
-        return payload
-
-    diff = build_curriculo_text_diff(first_bytes, last_bytes)
-    payload["cache_historico_diff"] = {
-        "has_changes": diff.has_changes,
-        "added_lines": diff.added_lines,
-        "removed_lines": diff.removed_lines,
-        "diff_preview": diff.diff_preview,
-    }
-    return payload
 
 
 async def _prepare_batch_input(
@@ -261,7 +205,7 @@ async def _process_batch(
                         "download_pdf_url": cache_hit.download_url,
                         "duracao_segundos": round(perf_counter() - t_item, 2),
                         **artifacts_to_payload(artifacts),
-                        **_build_curriculo_history_payload(nome),
+                        **build_curriculo_history_payload(nome),
                     }
                     resultados.append(item)
                     ok_count += 1
@@ -311,7 +255,7 @@ async def _process_batch(
                 "download_pdf_url": upload_result.download_url,
                 "duracao_segundos": round(perf_counter() - t_item, 2),
                 **artifacts_to_payload(artifacts),
-                **_build_curriculo_history_payload(nome),
+                **build_curriculo_history_payload(nome),
             }
             resultados.append(item)
             ok_count += 1
@@ -405,6 +349,7 @@ async def _process_batch(
 
 
 @router.post("/scrape/batch")
+@limiter.limit("10/minute")
 async def scrape_batch(
     request: Request,
     arquivo: Optional[UploadFile] = File(None),
@@ -455,7 +400,9 @@ async def scrape_batch(
 
 
 @router.post("/scrape/batch/stream")
+@limiter.limit("10/minute")
 async def scrape_batch_stream(
+    request: Request,
     arquivo: Optional[UploadFile] = File(None),
     file: Optional[UploadFile] = File(None),
     skip: str = Form("0"),
@@ -491,7 +438,7 @@ async def scrape_batch_stream(
     )
 
     async def event_stream():
-        yield _sse_event(
+        yield sse_event(
             "start",
             {
                 "arquivo": arquivo_nome,
@@ -510,19 +457,19 @@ async def scrape_batch_stream(
                 except asyncio.TimeoutError:
                     continue
 
-                yield _sse_event("log", {"message": line})
+                yield sse_event("log", {"message": line})
 
             result = await process_task
-            yield _sse_event("result", result)
+            yield sse_event("result", result)
         except Exception as exc:
             if not process_task.done():
                 process_task.cancel()
-            yield _sse_event(
+            yield sse_event(
                 "error",
                 {"detail": str(exc) or "Falha ao processar lote em tempo real."},
             )
         finally:
-            yield _sse_event("end", {})
+            yield sse_event("end", {})
 
     return StreamingResponse(
         event_stream(),

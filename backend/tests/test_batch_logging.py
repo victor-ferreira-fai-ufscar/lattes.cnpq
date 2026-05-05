@@ -1,5 +1,3 @@
-import asyncio
-
 from src.api.routers import batch as batch_router
 from src.libs.logging import summarize_exception
 
@@ -23,7 +21,9 @@ def test_summarize_exception_extracts_timeout_and_locator() -> None:
     assert "Locator.click: Timeout 30000ms exceeded." in info["detalhe"]
 
 
-def test_process_batch_keeps_logs_clean_and_adds_debug_fields(monkeypatch) -> None:
+async def test_process_batch_keeps_logs_clean_and_adds_debug_fields(
+    monkeypatch,
+) -> None:
     async def fake_scrape_lattes(_: str):
         raise RuntimeError(
             "Locator.click: Timeout 30000ms exceeded. Call log: "
@@ -36,14 +36,12 @@ def test_process_batch_keeps_logs_clean_and_adds_debug_fields(monkeypatch) -> No
     )
     monkeypatch.setattr(batch_router, "scrape_lattes", fake_scrape_lattes)
 
-    result = asyncio.run(
-        batch_router._process_batch(
-            arquivo_nome="docentes.csv",
-            nomes_all=["Cecilia Malvezzi"],
-            nomes=["Cecilia Malvezzi"],
-            skip_value=0,
-            limit_value=1,
-        )
+    result = await batch_router._process_batch(
+        arquivo_nome="docentes.csv",
+        nomes_all=["Cecilia Malvezzi"],
+        nomes=["Cecilia Malvezzi"],
+        skip_value=0,
+        limit_value=1,
     )
 
     assert result["sucesso"] == 0
