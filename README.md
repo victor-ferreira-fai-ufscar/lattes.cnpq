@@ -20,7 +20,7 @@ lattes.cnpq/
 ├── frontend/            # Interface Next.js (feature-based)
 ├── docs/                # Documentação de fluxo e materiais de apoio
 ├── supabase/            # Notas e informações de suporte
-├── exemplo/             # Arquivos de exemplo
+├── exemplos/            # Arquivos de exemplo
 └── docker-compose.yml   # Orquestração de desenvolvimento local
 ```
 
@@ -47,10 +47,10 @@ Esse é o modo indicado para professor, apresentação e validação rápida:
 
 URLs padrão:
 
-- Frontend: http://localhost:3000
-- Backend: http://localhost:8000
-- Health: http://localhost:8000/health
-- Docs (Scalar): http://localhost:8000/docs
+- Frontend: <http://localhost:3000>
+- Backend: <http://localhost:8000>
+- Health: <http://localhost:8000/health>
+- Docs (Scalar): <http://localhost:8000/docs>
 
 Verificação rápida após subir:
 
@@ -175,17 +175,25 @@ docker compose up -d --force-recreate backend frontend
 
 ## Testes
 
-Frontend (E2E com Playwright):
+Fluxo recomendado (reprodutível entre máquinas) via Docker Compose:
 
 ```bash
-cd frontend
-pnpm test
+# Backend
+docker compose --profile test run --rm backend-test
+
+# Frontend (E2E)
+docker compose --profile test run --rm frontend-e2e
 ```
 
-Backend (integração de storage):
+Alternativa local (quando necessário):
 
 ```bash
-cd backend
+# Frontend (E2E com Playwright)
+cd frontend
+pnpm test
+
+# Backend (integração de storage)
+cd ../backend
 uv run pytest
 ```
 
