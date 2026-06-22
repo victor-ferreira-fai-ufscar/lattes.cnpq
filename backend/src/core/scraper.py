@@ -5,6 +5,7 @@ from asyncio import to_thread
 from dataclasses import dataclass
 from datetime import date, datetime
 from io import BytesIO
+from urllib.parse import urljoin
 
 try:
     from dotenv import load_dotenv
@@ -221,7 +222,69 @@ async def _tenta_abrir_cv_final(page, botao):
     return None
 
 
+def _detectar_content_type(body: bytes, fallback: str | None = None) -> str:
+    """Detecta o MIME real pela assinatura dos bytes.
+
+    O endpoint de foto do CNPQ costuma responder 'image/gif' mesmo quando a
+    imagem é JPEG, então não dá para confiar no header da resposta.
+    """
+    if body[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if body[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if body[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    if body[:4] == b"RIFF" and body[8:12] == b"WEBP":
+        return "image/webp"
+    return fallback or "image/jpeg"
+
+
+async def _baixar_foto_canonica(cv_page) -> tuple[bytes | None, str | None]:
+    """Captura a foto oficial do currículo Lattes pela sua assinatura conhecida.
+
+    No Lattes a foto do docente tem class="foto" e é servida pelo endpoint
+    'servletrecuperafoto'. Quando presente, baixamos os bytes originais (que têm
+    resolução cheia, melhor que um screenshot do elemento renderizado).
+    """
+    foto_loc = cv_page.locator(
+        "img.foto, img[src*='servletrecuperafoto']"
+    ).first
+    try:
+        if await foto_loc.count() == 0:
+            return None, None
+
+        src = await foto_loc.get_attribute("src")
+        if src:
+            full_src = urljoin(cv_page.url, src)
+            try:
+                resp = await cv_page.context.request.get(full_src, timeout=15000)
+                if resp.ok:
+                    body = await resp.body()
+                    if body:
+                        content_type = _detectar_content_type(
+                            body, resp.headers.get("content-type")
+                        )
+                        return body, content_type
+            except Exception:
+                pass
+
+        # Fallback: screenshot do próprio elemento da foto.
+        await foto_loc.scroll_into_view_if_needed(timeout=5000)
+        shot = await foto_loc.screenshot(type="png")
+        if shot:
+            return shot, "image/png"
+    except Exception:
+        return None, None
+
+    return None, None
+
+
 async def _capturar_foto_perfil(cv_page) -> tuple[bytes | None, str | None]:
+    # Caminho preferencial: foto canônica do Lattes.
+    foto_bytes, content_type = await _baixar_foto_canonica(cv_page)
+    if foto_bytes:
+        return foto_bytes, content_type
+
     imagens = cv_page.locator("img")
     total_imagens = await imagens.count()
     if total_imagens == 0:
@@ -256,9 +319,6 @@ async def _capturar_foto_perfil(cv_page) -> tuple[bytes | None, str | None]:
     except Exception:
         return None, None
 
-    melhor_indice: int | None = None
-    melhor_score = float("-inf")
-
     for candidato in candidatos:
         if not candidato.get("visible"):
             continue
@@ -278,6 +338,8 @@ async def _capturar_foto_perfil(cv_page) -> tuple[bytes | None, str | None]:
         )
 
         penalidades = 0.0
+        # NÃO penalizar por "cnpq"/"lattes": a própria foto do docente é servida
+        # de servicosweb.cnpq.br. Penalizamos apenas elementos decorativos.
         if any(
             token in contexto
             for token in [
@@ -287,35 +349,44 @@ async def _capturar_foto_perfil(cv_page) -> tuple[bytes | None, str | None]:
                 "captcha",
                 "icon",
                 "icone",
-                "lattes",
-                "cnpq",
             ]
         ):
             penalidades += 12000
 
+        # Sinal forte: foto oficial do currículo (class="foto" / servletrecuperafoto).
+        bonus_foto = (
+            1_000_000
+            if ("foto" in contexto or "servletrecuperafoto" in contexto)
+            else 0
+        )
+
         razao_retrato = altura / largura if largura else 0
         bonus_retrato = 3000 if 0.9 <= razao_retrato <= 1.6 else 0
         bonus_topo = max(0.0, 800.0 - abs(float(candidato.get("top") or 0) - 220.0))
-        score = (largura * altura) + bonus_retrato + bonus_topo - penalidades
+        score = (
+            (largura * altura) + bonus_foto + bonus_retrato + bonus_topo - penalidades
+        )
 
-        if score > melhor_score:
-            melhor_score = score
-            melhor_indice = int(candidato.get("index") or 0)
+        candidato["_score"] = score
 
-    if melhor_indice is None:
-        return None, None
+    # Tenta capturar do melhor para o pior, caindo para o próximo se o screenshot falhar.
+    ordenados = sorted(
+        (c for c in candidatos if c.get("visible") and "_score" in c),
+        key=lambda c: c["_score"],
+        reverse=True,
+    )
 
-    try:
-        alvo = imagens.nth(melhor_indice)
-        await alvo.scroll_into_view_if_needed(timeout=5000)
-        foto_bytes = await alvo.screenshot(type="png")
-    except Exception:
-        return None, None
+    for candidato in ordenados:
+        try:
+            alvo = imagens.nth(int(candidato.get("index") or 0))
+            await alvo.scroll_into_view_if_needed(timeout=5000)
+            foto_bytes = await alvo.screenshot(type="png")
+        except Exception:
+            continue
+        if foto_bytes:
+            return foto_bytes, "image/png"
 
-    if not foto_bytes:
-        return None, None
-
-    return foto_bytes, "image/png"
+    return None, None
 
 
 async def _coletar_assets_curriculo(cv_page) -> LattesProfileAssetsResult:

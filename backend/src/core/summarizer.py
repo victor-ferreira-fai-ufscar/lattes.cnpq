@@ -4,11 +4,100 @@ import os
 from asyncio import to_thread
 from importlib import import_module
 from typing import Any, Callable
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from openai import AsyncOpenAI
 
 LogFn = Callable[[str], None]
+
+# Endpoints padrão tentados quando o Ollama roda fora de container nesta máquina.
+# host.docker.internal cobre o caso em container; localhost/127.0.0.1 cobrem o
+# caso do Ollama rodando direto no host (não containerizado).
+_OLLAMA_DEFAULT_CANDIDATES = (
+    "http://host.docker.internal:11434",
+    "http://localhost:11434",
+    "http://127.0.0.1:11434",
+)
+
+# Lembra o último endpoint que respondeu para evitar re-sondar a cada chamada.
+_ollama_base_url_cache: str | None = None
+
+
+def _ollama_base_url_candidates() -> list[str]:
+    """Monta a lista ordenada de endpoints do Ollama a tentar.
+
+    Prioridade: OLLAMA_BASE_URLS (lista separada por vírgula) > OLLAMA_BASE_URL
+    (URL única) > endpoints padrão (host.docker.internal, localhost, 127.0.0.1).
+    """
+    candidates: list[str] = []
+
+    for item in os.environ.get("OLLAMA_BASE_URLS", "").split(","):
+        url = item.strip().rstrip("/")
+        if url:
+            candidates.append(url)
+
+    single = os.environ.get("OLLAMA_BASE_URL", "").strip().rstrip("/")
+    if single:
+        candidates.append(single)
+
+    candidates.extend(_OLLAMA_DEFAULT_CANDIDATES)
+
+    seen: set[str] = set()
+    unique: list[str] = []
+    for url in candidates:
+        if url not in seen:
+            seen.add(url)
+            unique.append(url)
+    return unique
+
+
+def _ollama_endpoint_acessivel(
+    base_url: str, api_key: str | None, timeout: float = 2.5
+) -> bool:
+    """Verifica se há um Ollama respondendo em base_url (via /api/version)."""
+    request = Request(f"{base_url}/api/version")
+    if api_key:
+        request.add_header("Authorization", f"Bearer {api_key}")
+    try:
+        with urlopen(request, timeout=timeout):
+            return True
+    except HTTPError:
+        # O servidor respondeu (ainda que com erro HTTP): está acessível.
+        return True
+    except Exception:
+        return False
+
+
+async def _resolver_base_url_ollama(
+    api_key: str | None, log: LogFn | None = None
+) -> str:
+    """Resolve o primeiro endpoint do Ollama acessível dentre os candidatos."""
+    global _ollama_base_url_cache
+
+    candidates = _ollama_base_url_candidates()
+
+    # Tenta primeiro o último endpoint que funcionou.
+    if _ollama_base_url_cache and _ollama_base_url_cache in candidates:
+        candidates = [_ollama_base_url_cache] + [
+            url for url in candidates if url != _ollama_base_url_cache
+        ]
+
+    for base_url in candidates:
+        if await to_thread(_ollama_endpoint_acessivel, base_url, api_key):
+            if log and base_url != _ollama_base_url_cache:
+                log(f"Ollama acessível em '{base_url}'.")
+            _ollama_base_url_cache = base_url
+            return base_url
+
+    # Nenhum respondeu: usa o primeiro candidato para que o erro real apareça depois.
+    fallback = candidates[0]
+    if log:
+        log(
+            "Nenhum endpoint do Ollama respondeu "
+            f"(tentados: {', '.join(candidates)}). Usando '{fallback}'."
+        )
+    return fallback
 
 _PROMPT_SISTEMA = """\
 Você é um assistente especializado em análise de currículos acadêmicos brasileiros (Lattes/CNPq).
@@ -197,7 +286,7 @@ async def _resumir_ollama(
     modelo: str,
     log: LogFn | None = None,
 ) -> str:
-    base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+    base_url = await _resolver_base_url_ollama(api_key, log=log)
 
     async def emit_ollama_progress() -> None:
         elapsed = 0
@@ -402,7 +491,7 @@ async def _listar_modelos_gemini(
 async def _listar_modelos_ollama(
     api_key: str | None, log: LogFn | None = None
 ) -> list[str]:
-    base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+    base_url = await _resolver_base_url_ollama(api_key, log=log)
     if log:
         log(f"Consultando modelos do Ollama em '{base_url}/api/tags'.")
 

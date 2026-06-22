@@ -1,11 +1,14 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { FileSpreadsheet } from "lucide-react";
+import { ClipboardList, FileSpreadsheet } from "lucide-react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import {
   Card,
   CardContent,
@@ -37,9 +40,12 @@ import {
 } from "@/features/lattes/lib/output-format";
 import {
   BatchUploadSchema,
+  parseBatchNamesText,
   type BatchUploadFormData,
   type BatchUploadFormInput,
 } from "@/features/lattes/schemas/lattes.schemas";
+
+type BatchInputMode = "texto" | "csv";
 
 type BatchUploadPanelProps = {
   disabled: boolean;
@@ -57,22 +63,45 @@ export function BatchUploadPanel({
   isSubmitting,
   onSubmitBatch,
 }: BatchUploadPanelProps) {
+  const [mode, setMode] = useState<BatchInputMode>("texto");
+
   const form = useForm<BatchUploadFormInput, unknown, BatchUploadFormData>({
     resolver: zodResolver(BatchUploadSchema),
     defaultValues: {
+      namesText: "",
       skip: 0,
       limit: "",
       outputFormat: DEFAULT_OUTPUT_FORMAT,
     },
   });
 
+  const switchMode = (next: BatchInputMode) => {
+    if (next === mode) {
+      return;
+    }
+    // Limpa a fonte do modo anterior para não enviar dados antigos.
+    if (next === "texto") {
+      form.setValue("csvFile", undefined, { shouldValidate: false });
+    } else {
+      form.setValue("namesText", "", { shouldValidate: false });
+    }
+    form.clearErrors(["namesText", "csvFile"]);
+    setMode(next);
+  };
+
   const handleSubmit = form.handleSubmit(async (values) => {
-    await onSubmitBatch(
-      values.csvFile,
-      values.skip,
-      values.limit,
-      values.outputFormat,
-    );
+    let file: File;
+    if (mode === "texto") {
+      const names = parseBatchNamesText(values.namesText);
+      // Um nome por linha: parse_csv_names (backend) usa a 1ª célula de cada linha.
+      file = new File([names.join("\n")], "nomes-colados.csv", {
+        type: "text/csv",
+      });
+    } else {
+      file = values.csvFile as File;
+    }
+
+    await onSubmitBatch(file, values.skip, values.limit, values.outputFormat);
   });
 
   return (
@@ -80,40 +109,114 @@ export function BatchUploadPanel({
       <CardHeader className="space-y-3">
         <div className="inline-flex w-fit items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800">
           <FileSpreadsheet className="h-3.5 w-3.5" />
-          Lista em CSV
+          Busca em lote
         </div>
         <div>
           <CardTitle className="text-xl text-slate-950">
             Processe várias pessoas de uma vez
           </CardTitle>
           <CardDescription>
-            Envie um arquivo CSV com um nome por linha. Ao final, você poderá
-            baixar os currículos encontrados em um único arquivo.
+            Cole os nomes separados por ponto e vírgula (;) ou envie um arquivo
+            CSV com um nome por linha. Ao final, você poderá baixar os currículos
+            encontrados em um único arquivo.
           </CardDescription>
         </div>
       </CardHeader>
       <CardContent>
         <Form {...form}>
           <form className="grid gap-4 sm:grid-cols-2" onSubmit={handleSubmit}>
-            <FormField
-              control={form.control}
-              name="csvFile"
-              render={({ field, fieldState }) => (
-                <FormItem className="sm:col-span-2">
-                  <FormLabel>Arquivo com os nomes</FormLabel>
-                  <FormControl>
-                    <FileDropzone
-                      accept=".csv,text/csv"
-                      disabled={disabled}
-                      error={!!fieldState.error}
-                      value={field.value as File | undefined}
-                      onChange={(file) => field.onChange(file)}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+            <div className="sm:col-span-2 space-y-3">
+              <div
+                className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1"
+                role="tablist"
+                aria-label="Como informar os nomes"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === "texto"}
+                  disabled={disabled}
+                  onClick={() => switchMode("texto")}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50",
+                    mode === "texto"
+                      ? "bg-white text-slate-950 shadow-sm"
+                      : "text-slate-600 hover:text-slate-900",
+                  )}
+                >
+                  <ClipboardList className="h-4 w-4" />
+                  Colar nomes
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={mode === "csv"}
+                  disabled={disabled}
+                  onClick={() => switchMode("csv")}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50",
+                    mode === "csv"
+                      ? "bg-white text-slate-950 shadow-sm"
+                      : "text-slate-600 hover:text-slate-900",
+                  )}
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Enviar CSV
+                </button>
+              </div>
+
+              {mode === "texto" ? (
+                <FormField
+                  control={form.control}
+                  name="namesText"
+                  render={({ field }) => {
+                    const total = parseBatchNamesText(field.value).length;
+                    return (
+                      <FormItem>
+                        <FormLabel>Nomes dos perfis</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            disabled={disabled}
+                            rows={5}
+                            placeholder="Ex.: Maria Silva; João Souza; Ana Costa"
+                            {...field}
+                            value={field.value ?? ""}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Separe os nomes por ponto e vírgula (;) ou por quebra de
+                          linha.
+                          {total > 0
+                            ? ` ${total} nome(s) identificado(s).`
+                            : ""}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    );
+                  }}
+                />
+              ) : (
+                <FormField
+                  control={form.control}
+                  name="csvFile"
+                  render={({ field, fieldState }) => (
+                    <FormItem>
+                      <FormLabel>Arquivo com os nomes</FormLabel>
+                      <FormControl>
+                        <FileDropzone
+                          accept=".csv,text/csv"
+                          disabled={disabled}
+                          error={!!fieldState.error}
+                          value={field.value as File | undefined}
+                          onChange={(file) => field.onChange(file)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               )}
-            />
+            </div>
 
             <FormField
               control={form.control}

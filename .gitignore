@@ -1,2 +1,5 @@
 exemplo
 exemplos
+
+# Variáveis de ambiente locais (não versionar)
+.env

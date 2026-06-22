@@ -265,7 +265,7 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
             <FileArchive className="h-4 w-4 text-amber-700" />
             Resultado por pessoa
           </div>
-          <ScrollArea className="max-h-80 rounded-2xl">
+          <ScrollArea className="rounded-2xl" viewportClassName="max-h-80">
             <div className="space-y-2 pr-3">
               {result.resultados.map((item, index) => (
               <details

@@ -5,8 +5,28 @@ type ApiErrorPayload = {
   [key: string]: unknown;
 };
 
+// Resolve a URL base da API. A porta/esquema vêm da configuração de build
+// (NEXT_PUBLIC_API_URL), mas no navegador o host segue o mesmo endereço pelo
+// qual o usuário abriu o frontend — assim funciona por localhost, IP da LAN ou
+// IP público sem precisar recompilar para cada endereço de acesso.
+function computeApiBaseUrl(): string {
+  const configured = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+  if (typeof window === "undefined") {
+    return configured;
+  }
+
+  try {
+    const apiUrl = new URL(configured);
+    apiUrl.hostname = window.location.hostname;
+    return apiUrl.origin;
+  } catch {
+    return configured;
+  }
+}
+
 export const http = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000",
+  baseURL: computeApiBaseUrl(),
   timeout: 120000,
 });
 

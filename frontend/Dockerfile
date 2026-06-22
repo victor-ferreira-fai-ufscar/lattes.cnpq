@@ -34,6 +34,11 @@ FROM deps AS builder
 
 ENV NODE_ENV=production
 
+# URL da API embutida no bundle do cliente em build time (NEXT_PUBLIC_*).
+# Recebida do docker-compose para acompanhar a porta configurada do backend.
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+
 COPY . .
 RUN pnpm build
 
