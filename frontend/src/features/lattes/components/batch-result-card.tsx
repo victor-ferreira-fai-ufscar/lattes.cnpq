@@ -29,6 +29,7 @@ import type {
   BatchItemError,
   BatchScrapeResponse,
 } from "@/features/lattes/services/lattes.service";
+import { copyTextToClipboard } from "@/lib/utils";
 
 type BatchResultCardProps = {
   result: BatchScrapeResponse;
@@ -164,13 +165,13 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
   const hasErrors = result.erro > 0;
 
   const handleCopyDebug = async (key: string, payload: Record<string, unknown>) => {
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+    const success = await copyTextToClipboard(JSON.stringify(payload, null, 2));
+    if (success) {
       setCopiedKey(key);
       setTimeout(() => {
         setCopiedKey((current) => (current === key ? null : current));
       }, 1500);
-    } catch {
+    } else {
       setCopiedKey(null);
     }
   };

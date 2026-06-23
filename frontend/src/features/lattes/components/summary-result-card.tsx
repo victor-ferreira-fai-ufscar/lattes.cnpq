@@ -34,7 +34,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { SummarizeResponse } from "@/features/lattes/services/lattes.service";
-import { cn } from "@/lib/utils";
+import { cn, copyTextToClipboard } from "@/lib/utils";
 
 type SummaryResultCardProps = {
   result: SummarizeResponse;
@@ -67,11 +67,11 @@ export function SummaryResultCard({ result }: SummaryResultCardProps) {
   );
 
   const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(cleanedMarkdown);
+    const success = await copyTextToClipboard(cleanedMarkdown);
+    if (success) {
       setCopied(true);
       window.setTimeout(() => setCopied(false), 1800);
-    } catch {
+    } else {
       setCopied(false);
     }
   };
