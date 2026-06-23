@@ -9,8 +9,8 @@ import type { AIProvider } from "@/features/lattes/services/lattes.service";
 export type StoredApiKeys = Record<AIProvider, string>;
 
 const defaultSummaryConfig: SummaryFormData = {
-  provedor: "openai",
-  modelo: "gpt-4o-mini",
+  provedor: "ollama",
+  modelo: "gemma4:12b",
   apiKey: "",
 };
 

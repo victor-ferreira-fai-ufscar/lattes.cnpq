@@ -69,7 +69,7 @@ export function useLattesSummary({
     ],
     queryFn: ({ signal }) =>
       listarModelosPorProvedor(
-        modelsRequest?.provedor ?? "openai",
+        modelsRequest?.provedor ?? "ollama",
         modelsRequest?.apiKey || undefined,
         {
           signal,

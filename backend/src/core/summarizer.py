@@ -399,11 +399,11 @@ async def resumir_curriculo(
     texto_pdf: str | None = None,
     texto_html: str | None = None,
     api_key: str | None = None,
-    modelo: str = "gpt-4o-mini",
-    provedor: str = "openai",
+    modelo: str = "gemma4:12b",
+    provedor: str = "ollama",
     log: LogFn | None = None,
 ) -> str:
-    provedor_normalizado = (provedor or "openai").strip().lower()
+    provedor_normalizado = (provedor or "ollama").strip().lower()
 
     if provedor_normalizado == "openai":
         return await _resumir_openai(
@@ -521,11 +521,11 @@ async def _listar_modelos_ollama(
 
 async def listar_modelos(
     *,
-    provedor: str = "openai",
+    provedor: str = "ollama",
     api_key: str | None = None,
     log: LogFn | None = None,
 ) -> list[str]:
-    provedor_normalizado = (provedor or "openai").strip().lower()
+    provedor_normalizado = (provedor or "ollama").strip().lower()
 
     if provedor_normalizado == "openai":
         return await _listar_modelos_openai(api_key, log=log)

@@ -108,7 +108,7 @@ async def summarize(request: SummarizeRequest, http_request: Request):
 async def models(request: ModelsRequest, http_request: Request):
     t_total = perf_counter()
     logs: list[str] = []
-    provedor = (request.provedor or "openai").strip().lower()
+    provedor = (request.provedor or "ollama").strip().lower()
     request_id = http_request.headers.get(REQUEST_ID_HEADER)
     publish_request_start(
         request_id,

@@ -6,10 +6,10 @@ from pydantic import BaseModel
 class SummarizeRequest(BaseModel):
     nome: str
     api_key: Optional[str] = None
-    modelo: str = "gpt-4o-mini"
-    provedor: str = "openai"
+    modelo: str = "gemma4:12b"
+    provedor: str = "ollama"
 
 
 class ModelsRequest(BaseModel):
-    provedor: str = "openai"
+    provedor: str = "ollama"
     api_key: Optional[str] = None
