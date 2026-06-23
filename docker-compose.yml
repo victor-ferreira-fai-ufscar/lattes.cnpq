@@ -5,9 +5,20 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: lattes-backend
-    ports:
-      # Porta host configurável -> porta interna fixa (uvicorn escuta sempre na 8000)
-      - "${BACKEND_PORT:-8000}:8000"
+    # Rede host: necessária para alcançar o Ollama do host (em 127.0.0.1:11434),
+    # já que o firewall (ufw) bloqueia containers em bridge de acessarem o host.
+    # Nesse modo o uvicorn escuta direto na porta do host (BACKEND_PORT) e o
+    # mapeamento "ports" é dispensado.
+    network_mode: host
+    command:
+      - uv
+      - run
+      - uvicorn
+      - src.api.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "${BACKEND_PORT:-8001}"
     environment:
       # Evita buffering e arquivos .pyc durante desenvolvimento
       - PYTHONUNBUFFERED=1
@@ -19,14 +30,9 @@ services:
       # Mantido como opcional para o primeiro boot funcionar sem backend/.env
       - path: ./backend/.env
         required: false
-    # Permite acessar serviços no host (ex.: Ollama local)
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    networks:
-      - lattes-network
     healthcheck:
       # Faz checagens no startup e depois reduz drasticamente a frequência
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:${BACKEND_PORT:-8001}/health"]
       start_interval: 10s
       start_period: 30s
       interval: 24h
