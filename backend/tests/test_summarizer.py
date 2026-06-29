@@ -1,4 +1,8 @@
-from src.core.summarizer import _PROMPT_SISTEMA, _build_user_prompt
+from src.core.summarizer import (
+    _PROMPT_SISTEMA,
+    _build_system_prompt,
+    _build_user_prompt,
+)
 
 
 def test_system_prompt_includes_academic_hierarchy_rules_for_ai_summary():
@@ -41,3 +45,34 @@ def test_build_user_prompt_marks_missing_pdf_and_uses_html_when_available():
 
     assert "PDF não disponível ou sem texto utilizável." in prompt
     assert "Instituicao atual: Exemplo via HTML" in prompt
+
+
+def test_build_system_prompt_sem_secao_usa_prompt_completo():
+    assert _build_system_prompt(None) == _PROMPT_SISTEMA
+
+
+def test_build_system_prompt_secao_conhecida_foca_na_secao():
+    prompt = _build_system_prompt("atuacao")
+
+    assert prompt != _PROMPT_SISTEMA
+    assert "Atuação profissional" in prompt
+    assert "vínculos institucionais" in prompt
+    # Mantém a regra obrigatória de saída em bloco markdown.
+    assert "```markdown" in prompt
+    # Não deve listar a estrutura completa de 6 seções.
+    assert "Resumo Executivo" not in prompt
+
+
+def test_build_system_prompt_secao_desconhecida_cai_para_completo():
+    assert _build_system_prompt("inexistente") == _PROMPT_SISTEMA
+
+
+def test_build_user_prompt_menciona_secao_quando_informada():
+    prompt = _build_user_prompt(
+        "texto consolidado",
+        texto_pdf="Universidade X, Professor",
+        texto_html="",
+        secao_label="Atuação profissional",
+    )
+
+    assert "seção 'Atuação profissional'" in prompt

@@ -134,6 +134,7 @@ export function useLattesWorkbench() {
     provedor?: typeof summaryFlow.summaryConfig.provedor;
     modelo?: string;
     apiKey?: string;
+    secao?: typeof summaryFlow.summaryConfig.secao;
   }) => {
     setRetryActionLabel("Gerar resumo novamente");
     lastRetryActionRef.current = async () => {

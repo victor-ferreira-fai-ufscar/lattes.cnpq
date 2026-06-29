@@ -1,6 +1,7 @@
 import * as z from "zod";
 
 import { DEFAULT_OUTPUT_FORMAT } from "@/features/lattes/lib/output-format";
+import { SUMMARY_SECTION_VALUES } from "@/features/lattes/lib/summary-section";
 
 const isFile = (value: unknown): value is File =>
   typeof File !== "undefined" && value instanceof File;
@@ -105,6 +106,7 @@ export const SummarySchema = z.object({
   provedor: z.enum(["openai", "gemini", "ollama"]),
   modelo: z.string().trim().min(1, "Escolha ou informe uma opção."),
   apiKey: z.string().trim().optional(),
+  secao: z.enum(SUMMARY_SECTION_VALUES),
 });
 
 export type SummaryFormData = z.infer<typeof SummarySchema>;

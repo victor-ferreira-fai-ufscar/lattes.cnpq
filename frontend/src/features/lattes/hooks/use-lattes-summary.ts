@@ -5,6 +5,10 @@ import { useEffect, useRef, useState } from "react";
 
 import type { SummaryFormData } from "@/features/lattes/schemas/lattes.schemas";
 import {
+  DEFAULT_SUMMARY_SECTION,
+  SUMMARY_SECTION_LABELS,
+} from "@/features/lattes/lib/summary-section";
+import {
   listarModelosPorProvedor,
   summarizeCurriculo,
   type ScrapeResponse,
@@ -81,7 +85,7 @@ export function useLattesSummary({
   });
 
   const summaryMutation = useMutation<SummarizeResponse, unknown, SummaryPayload>({
-    mutationFn: async ({ nome, provedor, modelo, apiKey }) => {
+    mutationFn: async ({ nome, provedor, modelo, apiKey, secao }) => {
       const controller = new AbortController();
       summaryAbortRef.current = controller;
 
@@ -91,6 +95,7 @@ export function useLattesSummary({
           provedor,
           modelo,
           apiKey || undefined,
+          secao,
           {
             signal: controller.signal,
             onLog: appendLiveExecutionLog,
@@ -111,8 +116,14 @@ export function useLattesSummary({
         provedor: variables.provedor,
         modelo: variables.modelo,
         apiKey: variables.apiKey,
+        secao: variables.secao,
       });
-      notifySuccess("Resumo gerado com sucesso.");
+      const secao = variables.secao ?? DEFAULT_SUMMARY_SECTION;
+      notifySuccess(
+        secao === "completo"
+          ? "Resumo gerado com sucesso."
+          : `Resumo de "${SUMMARY_SECTION_LABELS[secao]}" gerado com sucesso.`,
+      );
     },
     onError: (error) => {
       if (!isRequestCancelledError(error)) {
@@ -202,6 +213,7 @@ export function useLattesSummary({
       provedor: config?.provedor ?? summaryConfig.provedor,
       modelo: config?.modelo ?? summaryConfig.modelo,
       apiKey: config?.apiKey ?? summaryConfig.apiKey,
+      secao: config?.secao ?? summaryConfig.secao ?? DEFAULT_SUMMARY_SECTION,
     };
 
     await summaryMutation.mutateAsync({

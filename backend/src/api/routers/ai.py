@@ -2,8 +2,9 @@ from time import perf_counter
 
 from fastapi import APIRouter, HTTPException, Request
 
-from ...core.scraper import scrape_lattes_summary_source
+from ...core.sections import SECOES_VALIDAS, extrair_secao, label_da_secao
 from ...core.summarizer import listar_modelos, resumir_curriculo
+from ...core.summary_source_cache import get_summary_source
 from ...libs.logging import build_logger
 from ...libs.request_monitor import (
     REQUEST_ID_HEADER,
@@ -37,14 +38,27 @@ async def summarize(request: SummarizeRequest, http_request: Request):
         if not nome:
             raise HTTPException(status_code=400, detail="Informe o nome do docente.")
 
+        # Seção solicitada (None/desconhecida = currículo completo).
+        secao = (request.secao or "").strip().lower() or None
+        if secao and secao not in SECOES_VALIDAS:
+            add_log(
+                f"Seção '{secao}' não reconhecida; gerando resumo do currículo completo."
+            )
+            secao = None
+        secao_label = label_da_secao(secao)
+        if secao_label:
+            add_log(f"Resumo restrito à seção '{secao_label}'.")
+
         add_log(f"Coletando texto do currículo de '{nome}' com prioridade para PDF.")
         t_scrape = perf_counter()
         try:
-            source_result = await scrape_lattes_summary_source(nome)
+            source_result = await get_summary_source(nome, log=add_log)
         except ValueError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
         texto = source_result.texto
+        texto_pdf = source_result.texto_pdf
+        texto_html = source_result.texto_html
 
         if source_result.fonte == "pdf":
             add_log(
@@ -62,6 +76,30 @@ async def summarize(request: SummarizeRequest, http_request: Request):
             f"{(perf_counter() - t_scrape):.1f}s ({len(texto)} caracteres)."
         )
 
+        # Recorte da seção (estratégia híbrida): tenta isolar o trecho da seção
+        # para enviar só ele à IA; se não conseguir, mantém o currículo inteiro e
+        # o prompt instrui o modelo a focar apenas na seção.
+        if secao:
+            recorte = extrair_secao(
+                texto_pdf,
+                texto_html,
+                secao,
+                fonte_preferida=source_result.fonte,
+            )
+            if recorte is not None:
+                texto = recorte.texto
+                texto_pdf = recorte.texto_pdf
+                texto_html = recorte.texto_html
+                add_log(
+                    f"Seção '{secao_label}' isolada do currículo "
+                    f"({len(recorte.texto)} caracteres); enviando apenas ela à IA."
+                )
+            else:
+                add_log(
+                    f"Não foi possível isolar a seção '{secao_label}' no texto; "
+                    "enviando o currículo inteiro e pedindo foco nessa seção."
+                )
+
         add_log(
             f"Enviando texto para IA (provedor='{request.provedor}', modelo='{request.modelo}')."
         )
@@ -69,11 +107,12 @@ async def summarize(request: SummarizeRequest, http_request: Request):
         try:
             resumo = await resumir_curriculo(
                 texto,
-                texto_pdf=source_result.texto_pdf,
-                texto_html=source_result.texto_html,
+                texto_pdf=texto_pdf,
+                texto_html=texto_html,
                 api_key=request.api_key,
                 modelo=request.modelo,
                 provedor=request.provedor,
+                secao=secao,
                 log=add_log,
             )
         except ValueError as exc:
@@ -90,6 +129,8 @@ async def summarize(request: SummarizeRequest, http_request: Request):
         return {
             "nome": nome,
             "resumo": resumo,
+            "secao": secao,
+            "secao_label": secao_label,
             "fonte_resumo": source_result.fonte,
             "logs": logs,
             "duracao_segundos": round(perf_counter() - t_total, 2),
