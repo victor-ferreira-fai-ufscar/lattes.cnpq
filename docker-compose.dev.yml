@@ -1,12 +1,41 @@
+# Ambiente de DESENVOLVIMENTO — isolado da produção.
+#
+# Sobe num projeto Compose próprio (`lattescnpq-dev`), com nomes de container e
+# portas distintos, então coexiste com a produção (projeto `lattescnpq`) na mesma
+# máquina sem derrubá-la.
+#
+# Uso recomendado (via Makefile, que já passa --env-file e os -f corretos):
+#   make dev          # sobe dev em foreground
+#   make dev-build    # rebuild + sobe
+#   make dev-down     # derruba só o dev
+#
+# Equivalente manual:
+#   docker compose --env-file .env.dev -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# IMPORTANTE: nunca rode `docker compose up` puro neste diretório enquanto
+# desenvolve — sem -f, o Compose auto-carrega docker-compose.override.yml (PROD).
+
+# Projeto próprio: isola containers, rede e volumes da produção (`lattescnpq`).
+name: lattescnpq-dev
+
 services:
   backend:
+    container_name: lattes-backend-dev
     volumes:
       # Bind mount apenas do código-fonte do backend para hot-reload rápido
       - ./backend/src:/app/src
-    # Uvicorn em modo reload para refletir alterações sem reiniciar container
-    command: uv run uvicorn src.api.main:app --host 0.0.0.0 --port ${BACKEND_PORT:-8000} --reload
+    environment:
+      # CORS para a porta do frontend de DEV (sobrescreve o valor de .env.docker,
+      # que lista apenas as origens de produção na 3001).
+      # Inclui localhost (acesso na própria máquina) + IPs LAN/público, pois o
+      # navegador pode abrir o dev por qualquer um deles na porta do frontend.
+      - BACKEND_CORS_ORIGINS=http://localhost:${FRONTEND_PORT:-3002},http://127.0.0.1:${FRONTEND_PORT:-3002},http://10.10.10.5:${FRONTEND_PORT:-3002},http://200.136.209.229:${FRONTEND_PORT:-3002}
+    # Uvicorn em modo reload para refletir alterações sem reiniciar container.
+    # Em network_mode: host (herdado do base), escuta direto na porta do host.
+    command: uv run uvicorn src.api.main:app --host 0.0.0.0 --port ${BACKEND_PORT:-8002} --reload
 
   frontend:
+    container_name: lattes-frontend-dev
     build:
       target: dev
     volumes:
