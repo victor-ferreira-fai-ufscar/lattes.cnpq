@@ -6,6 +6,7 @@ import {
   Clock3,
   Copy,
   FileText,
+  Layers,
   Maximize2,
   Sparkles,
 } from "lucide-react";
@@ -111,6 +112,13 @@ export function SummaryResultCard({ result }: SummaryResultCardProps) {
         <CardContent className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-3">
             <SummaryMetaCard icon={<FileText className="h-4 w-4" />} label="Pessoa" value={result.nome} />
+            {result.secao_label ? (
+              <SummaryMetaCard
+                icon={<Layers className="h-4 w-4" />}
+                label="Seção"
+                value={result.secao_label}
+              />
+            ) : null}
             {result.fonte_resumo ? (
               <SummaryMetaCard
                 icon={<Check className="h-4 w-4" />}
@@ -202,6 +210,13 @@ export function SummaryResultCard({ result }: SummaryResultCardProps) {
           <div className="px-5 pb-5 pt-5 sm:px-7 sm:pb-7">
             <div className="grid gap-3 sm:grid-cols-3">
               <SummaryMetaCard icon={<FileText className="h-4 w-4" />} label="Pessoa" value={result.nome} />
+              {result.secao_label ? (
+                <SummaryMetaCard
+                  icon={<Layers className="h-4 w-4" />}
+                  label="Seção"
+                  value={result.secao_label}
+                />
+              ) : null}
               {result.fonte_resumo ? (
                 <SummaryMetaCard
                   icon={<Check className="h-4 w-4" />}

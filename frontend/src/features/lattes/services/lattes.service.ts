@@ -1,8 +1,10 @@
 import { http, runMonitoredRequest } from "@/lib/http";
 import type { OutputFormat } from "@/features/lattes/lib/output-format";
+import type { SummarySection } from "@/features/lattes/lib/summary-section";
 
 export type AIProvider = "openai" | "gemini" | "ollama";
 export type { OutputFormat } from "@/features/lattes/lib/output-format";
+export type { SummarySection } from "@/features/lattes/lib/summary-section";
 
 export type GeneratedFile = {
   format: string;
@@ -70,6 +72,8 @@ export type ScrapeResponse = {
 export type SummarizeResponse = {
   nome: string;
   resumo: string;
+  secao?: string | null;
+  secao_label?: string | null;
   fonte_resumo?: "pdf" | "html";
   logs?: string[];
   duracao_segundos?: number;
@@ -207,11 +211,15 @@ export async function summarizeCurriculo(
   provedor: AIProvider,
   modelo: string,
   apiKey?: string,
+  secao?: SummarySection,
   options?: RequestOptions,
 ): Promise<SummarizeResponse> {
   const timeout =
     options?.timeoutMs ??
     (provedor === "ollama" ? SUMMARY_TIMEOUT_OLLAMA_MS : SUMMARY_TIMEOUT_DEFAULT_MS);
+
+  // "completo" é o padrão do backend quando a seção é omitida.
+  const secaoPayload = secao && secao !== "completo" ? secao : undefined;
 
   return runMonitoredRequest({
     signal: options?.signal,
@@ -224,6 +232,7 @@ export async function summarizeCurriculo(
           provedor,
           modelo,
           api_key: apiKey || undefined,
+          secao: secaoPayload,
         },
         {
           signal: options?.signal,

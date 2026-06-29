@@ -9,6 +9,8 @@ from urllib.request import Request, urlopen
 
 from openai import AsyncOpenAI
 
+from .sections import label_da_secao
+
 LogFn = Callable[[str], None]
 
 # Endpoints padrão tentados quando o Ollama roda fora de container nesta máquina.
@@ -149,6 +151,82 @@ Regras obrigatórias de saída:
 - Preserve quebras de linha e espaçamento para facilitar leitura e renderização.\
 """
 
+# Instrução de saída específica de cada seção do resumo. A key bate com as do
+# seletor (ver core.sections.SECOES_RESUMO).
+_INSTRUCOES_SECAO: dict[str, str] = {
+    "resumo": (
+        "Resuma o 'Resumo informado pelo autor' do currículo: a apresentação que "
+        "o próprio docente faz de si, seus interesses e foco de atuação. Sintetize "
+        "em poucas linhas, sem copiar literalmente."
+    ),
+    "formacao": (
+        "Resuma a Formação Acadêmica/Titulação: graduação, mestrado, doutorado, "
+        "pós-doutorado, especializações e distinções (com ano e instituição quando "
+        "disponíveis).\n"
+        "Aplique a hierarquia acadêmica: doutorado é o maior grau formal; "
+        "pós-doutorado é experiência posterior ao doutorado, não um título acima "
+        "dele; livre-docência e professor emérito são distinções de carreira, não "
+        "graus formais. Indique explicitamente a maior titulação formal concluída "
+        "e diferencie formação complementar de distinção de carreira.\n"
+        "Quando possível, use uma tabela curta com colunas: Nível | Instituição | Ano."
+    ),
+    "atuacao": (
+        "Resuma a Atuação Profissional: vínculos institucionais, cargos/funções, "
+        "regime de trabalho e períodos. Destaque o vínculo atual."
+    ),
+    "producao": (
+        "Resuma a Produção Bibliográfica: principais publicações (artigos, livros, "
+        "capítulos, trabalhos em eventos), com quantidades aproximadas por tipo e os "
+        "temas predominantes."
+    ),
+    "orientacoes": (
+        "Resuma as Orientações: orientações concluídas e em andamento, por nível "
+        "(iniciação científica, mestrado, doutorado), com quantidades aproximadas."
+    ),
+    "projetos": (
+        "Resuma os Projetos de Pesquisa (e linhas de pesquisa, se houver): projetos "
+        "em andamento e concluídos, temas e financiadores quando informados."
+    ),
+}
+
+# Prompt de sistema usado quando o usuário pede apenas UMA seção do currículo.
+_PROMPT_SISTEMA_SECAO = """\
+Você é um assistente especializado em análise de currículos acadêmicos brasileiros (Lattes/CNPq).
+Sua tarefa é produzir, em português, o resumo de UMA seção específica do currículo: "{secao_label}".
+
+{instrucao}
+
+Fontes e veracidade:
+- A fonte principal é o texto extraído do PDF; pode haver um texto auxiliar extraído do HTML.
+- Para cada informação, procure primeiro no PDF; se não estiver lá, consulte o HTML.
+- Não invente dados. Se a seção não tiver informações, escreva explicitamente que não foram encontradas no PDF nem no HTML.
+- Você receberá preferencialmente apenas o trecho desta seção. Se receber o currículo inteiro, considere SOMENTE o que pertence a "{secao_label}" e ignore as demais seções.
+
+Estilo de Markdown (obrigatório):
+- Inicie com um título de seção usando "## {secao_label}".
+- Use listas com marcadores para os itens principais.
+- Destaque dados-chave com negrito, sem exagero.
+
+Regras obrigatórias de saída:
+- Responda APENAS com UM bloco de código Markdown cercado por ```markdown e ```.
+- Não inclua texto fora do bloco de código.
+- Preserve quebras de linha e espaçamento para facilitar leitura e renderização.\
+"""
+
+
+def _build_system_prompt(secao: str | None) -> str:
+    """Prompt de sistema: completo (None) ou focado em uma seção específica."""
+    if not secao:
+        return _PROMPT_SISTEMA
+
+    instrucao = _INSTRUCOES_SECAO.get(secao)
+    secao_label = label_da_secao(secao)
+    if not instrucao or not secao_label:
+        return _PROMPT_SISTEMA
+
+    return _PROMPT_SISTEMA_SECAO.format(secao_label=secao_label, instrucao=instrucao)
+
+
 # Limite de caracteres enviados ao modelo (~30 k tokens de contexto já é amplo para CVs)
 _MAX_TEXTO_CHARS = 80_000
 
@@ -162,17 +240,21 @@ def _build_user_prompt(
     *,
     texto_pdf: str | None = None,
     texto_html: str | None = None,
+    secao_label: str | None = None,
 ) -> str:
     pdf_limpo = (texto_pdf or "").strip()
     html_limpo = (texto_html or "").strip()
 
+    if secao_label:
+        intro = f"Analise e resuma a seção '{secao_label}' do currículo Lattes abaixo."
+    else:
+        intro = "Analise e resuma o currículo Lattes abaixo."
+
     if not pdf_limpo and not html_limpo:
-        return "Analise e resuma o currículo Lattes abaixo.\n\n" + _truncate_text(
-            texto, max_chars=_MAX_TEXTO_CHARS
-        )
+        return intro + "\n\n" + _truncate_text(texto, max_chars=_MAX_TEXTO_CHARS)
 
     prompt_parts = [
-        "Analise e resuma o currículo Lattes abaixo.",
+        intro,
         "Use o PDF como fonte principal para cada campo e consulte o HTML apenas quando a informação não estiver presente no PDF.",
     ]
 
@@ -206,6 +288,7 @@ async def _resumir_openai(
     texto_html: str | None,
     api_key: str | None,
     modelo: str,
+    secao: str | None = None,
     log: LogFn | None = None,
 ) -> str:
     chave = api_key or os.environ.get("OPENAI_API_KEY")
@@ -219,13 +302,14 @@ async def _resumir_openai(
     response = await client.chat.completions.create(
         model=modelo,
         messages=[
-            {"role": "system", "content": _PROMPT_SISTEMA},
+            {"role": "system", "content": _build_system_prompt(secao)},
             {
                 "role": "user",
                 "content": _build_user_prompt(
                     texto,
                     texto_pdf=texto_pdf,
                     texto_html=texto_html,
+                    secao_label=label_da_secao(secao),
                 ),
             },
         ],
@@ -241,6 +325,7 @@ async def _resumir_gemini(
     texto_html: str | None,
     api_key: str | None,
     modelo: str,
+    secao: str | None = None,
     log: LogFn | None = None,
 ) -> str:
     chave = api_key or os.environ.get("GEMINI_API_KEY")
@@ -257,11 +342,12 @@ async def _resumir_gemini(
         model = genai.GenerativeModel(model_name=modelo)
         response = model.generate_content(
             [
-                _PROMPT_SISTEMA,
+                _build_system_prompt(secao),
                 _build_user_prompt(
                     texto,
                     texto_pdf=texto_pdf,
                     texto_html=texto_html,
+                    secao_label=label_da_secao(secao),
                 ),
             ],
             generation_config={"temperature": 0.3},
@@ -284,6 +370,7 @@ async def _resumir_ollama(
     texto_html: str | None,
     api_key: str | None,
     modelo: str,
+    secao: str | None = None,
     log: LogFn | None = None,
 ) -> str:
     base_url = await _resolver_base_url_ollama(api_key, log=log)
@@ -327,13 +414,14 @@ async def _resumir_ollama(
         response = await client.chat.completions.create(
             model=modelo,
             messages=[
-                {"role": "system", "content": _PROMPT_SISTEMA},
+                {"role": "system", "content": _build_system_prompt(secao)},
                 {
                     "role": "user",
                     "content": _build_user_prompt(
                         texto,
                         texto_pdf=texto_pdf,
                         texto_html=texto_html,
+                        secao_label=label_da_secao(secao),
                     ),
                 },
             ],
@@ -401,6 +489,7 @@ async def resumir_curriculo(
     api_key: str | None = None,
     modelo: str = "gemma4:12b",
     provedor: str = "ollama",
+    secao: str | None = None,
     log: LogFn | None = None,
 ) -> str:
     provedor_normalizado = (provedor or "ollama").strip().lower()
@@ -412,6 +501,7 @@ async def resumir_curriculo(
             texto_html=texto_html,
             api_key=api_key,
             modelo=modelo,
+            secao=secao,
             log=log,
         )
 
@@ -422,6 +512,7 @@ async def resumir_curriculo(
             texto_html=texto_html,
             api_key=api_key,
             modelo=modelo,
+            secao=secao,
             log=log,
         )
 
@@ -432,6 +523,7 @@ async def resumir_curriculo(
             texto_html=texto_html,
             api_key=api_key,
             modelo=modelo,
+            secao=secao,
             log=log,
         )
 

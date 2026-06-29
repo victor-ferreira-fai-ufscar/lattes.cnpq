@@ -46,6 +46,7 @@ import {
   SummarySchema,
   type SummaryFormData,
 } from "@/features/lattes/schemas/lattes.schemas";
+import { SUMMARY_SECTION_OPTIONS } from "@/features/lattes/lib/summary-section";
 import type { AIProvider } from "@/features/lattes/services/lattes.service";
 import type { StoredApiKeys } from "@/features/lattes/stores/lattes-summary-store";
 import { cn } from "@/lib/utils";
@@ -207,7 +208,8 @@ export function SummaryPanel({
     if (
       currentValues.provedor === defaultValues.provedor &&
       currentValues.modelo === defaultValues.modelo &&
-      currentValues.apiKey === defaultValues.apiKey
+      currentValues.apiKey === defaultValues.apiKey &&
+      currentValues.secao === defaultValues.secao
     ) {
       return;
     }
@@ -299,6 +301,42 @@ export function SummaryPanel({
             <div className="rounded-2xl border border-cyan-200 bg-cyan-50/70 px-4 py-3 text-sm text-cyan-900 md:col-span-2">
               Use este recurso apenas se quiser um resumo pronto para leitura. O currículo original e os arquivos gerados continuam disponíveis mesmo sem IA.
             </div>
+            <FormField
+              control={form.control}
+              name="secao"
+              render={({ field }) => (
+                <FormItem className="md:col-span-2">
+                  <FormLabel>Seção do currículo</FormLabel>
+                  <Select
+                    disabled={disabled}
+                    value={field.value}
+                    onValueChange={(value) => {
+                      const nextSecao = value as SummaryFormData["secao"];
+                      field.onChange(nextSecao);
+                      onConfigChange({ secao: nextSecao });
+                    }}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a seção" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {SUMMARY_SECTION_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-slate-500">
+                    Resuma o currículo inteiro ou apenas uma seção específica (ex.: Atuação profissional).
+                  </p>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <FormField
               control={form.control}
               name="provedor"
