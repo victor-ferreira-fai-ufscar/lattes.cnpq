@@ -1,0 +1,23 @@
+# Deploy desta maquina. Acesso pelo Caddy central (HTTPS):
+#   front -> https://lattes.sup.fai.ufscar.br
+#   API   -> https://lattes-api.sup.fai.ufscar.br
+# Auto-carregado por `docker compose up` (NAO no fluxo dev com -f explicito).
+# ponytail: front segue publicado em 200.136.209.229:3001 durante a transicao
+# (coexiste com grafana em 127.0.0.1:3001); o Caddy faz proxy pra esse bind.
+# Depois de validar o dominio, da pra trocar por "127.0.0.1:3001:3000" e fechar
+# o acesso HTTP direto (lembrar que 127.0.0.1:3001 e do grafana -> use outra porta).
+services:
+  backend:
+    restart: unless-stopped
+  frontend:
+    restart: unless-stopped
+    build:
+      args:
+        # NEXT_PUBLIC_* e embutido no bundle do navegador em build time:
+        # aponta para a API via Caddy (HTTPS), senao o navegador bloqueia
+        # mixed-content quando o front e servido em https://lattes.sup.
+        NEXT_PUBLIC_API_URL: https://lattes-api.sup.fai.ufscar.br
+    environment:
+      - NEXT_PUBLIC_API_URL=https://lattes-api.sup.fai.ufscar.br
+    ports: !override
+      - "200.136.209.229:3001:3000"
