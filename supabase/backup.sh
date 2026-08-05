@@ -33,10 +33,16 @@ docker exec supabase-db pg_dump -U postgres -d postgres --clean --if-exists \
 
 # Rodado dentro do container: o diretório é de propriedade do usuário da imagem
 # e não é legível pelo usuário do host.
+#
+# --xattrs é obrigatório, não detalhe: o storage-api guarda content-type e
+# cache-control de cada objeto em extended attributes do arquivo. Um tar sem
+# isso restaura os bytes e devolve HTTP 500 na leitura. Por isso debian (GNU
+# tar) em vez de alpine — o tar do busybox ignora xattrs em silêncio.
 docker run --rm \
     --volumes-from supabase-storage \
     -v "$DEST:/backup" \
-    alpine:3 tar czf "/backup/storage-$STAMP.tar.gz" -C /var/lib/storage .
+    debian:12-slim \
+    tar --xattrs --xattrs-include='*' --acls -czf "/backup/storage-$STAMP.tar.gz" -C /var/lib/storage .
 
 # ponytail: retenção por contagem, não por tamanho. Se o bucket crescer a ponto
 # de encher o disco, trocar por política de tamanho ou mandar pra fora da máquina.

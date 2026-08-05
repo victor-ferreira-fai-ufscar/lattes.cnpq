@@ -6,15 +6,24 @@ tabelas, migrations, RLS nem autenticação — o backend só chama `storage.fro
 
 O projeto antigo na nuvem (`*.supabase.co`) foi desativado.
 
-## Estrutura
+## Onde a stack mora
+
+**Fora deste repo**, em `/srv/docker/lattes-supabase/`, junto das outras stacks
+de infra da máquina (caddy, forgejo, ollama, open-webui) e versionada no repo
+`/srv/docker`.
+
+O motivo é o deploy automático: ele faz `git reset --hard origin/main` no
+checkout da aplicação, então este repo precisa ser descartável. Serviço com
+estado — banco e arquivos dos currículos — não pode viver dentro dele.
 
 ```text
-supabase/
-├── docker/                        # stack oficial vendorizada, sem edições
-│   ├── docker-compose.yml         # upstream — não editar (ver .upstream-commit)
-│   ├── docker-compose.lattes.yml  # nossos ajustes (porta, limite de arquivo)
-│   ├── .env                       # segredos, gitignored
-│   └── volumes/                   # dados: banco + arquivos, gitignored
+/srv/docker/lattes-supabase/       # a stack (repo /srv/docker)
+├── docker-compose.yml             # oficial, vendorizado sem editar (.upstream-commit)
+├── docker-compose.lattes.yml      # nossos ajustes (porta 5100, limite de arquivo)
+├── .env                           # segredos, gitignored
+└── volumes/                       # dados: banco + arquivos, gitignored
+
+supabase/                          # neste repo, só apoio
 ├── backup.sh                      # backup do par banco+arquivos
 ├── caddy-lattes-storage.conf      # cópia do bloco que vive no Caddy central
 └── README.md
@@ -62,12 +71,12 @@ em `caddy-lattes-storage.conf` existe só como referência.
 
 ## Variáveis usadas pelo backend
 
-Em `backend/.env` (chaves vêm de `supabase/docker/.env`):
+Em `backend/.env` (chaves vêm de `/srv/docker/lattes-supabase/.env`):
 
 ```env
 SUPABASE_URL=https://lattes-storage.sup.fai.ufscar.br
-SUPABASE_SERVICE_ROLE_KEY=<SERVICE_ROLE_KEY do supabase/docker/.env>
-SUPABASE_ANON_KEY=<ANON_KEY do supabase/docker/.env>
+SUPABASE_SERVICE_ROLE_KEY=<SERVICE_ROLE_KEY do /srv/docker/lattes-supabase/.env>
+SUPABASE_ANON_KEY=<ANON_KEY do /srv/docker/lattes-supabase/.env>
 
 SUPABASE_STORAGE_BUCKET=lattes-cvs
 SUPABASE_STORAGE_FOLDER=raw
@@ -87,15 +96,25 @@ Postgres sabe qual UUID é a versão atual de qual arquivo. Banco sem arquivos s
 metadados apontando pro vazio; arquivos sem banco são pastas de UUIDs ilegíveis.
 `backup.sh` sempre gera o par, e restaurar exige o par do mesmo instante.
 
-Cron sugerido:
+**Copiar os arquivos exige preservar extended attributes.** O storage-api guarda
+o `content-type` e o `cache-control` de cada objeto em xattrs (`user.supabase.*`),
+não no banco. Cópia sem eles restaura os bytes e devolve HTTP 500 na leitura —
+com uma listagem de bucket perfeitamente saudável, o que torna a falha confusa.
+Na prática: use GNU tar com `--xattrs --xattrs-include='*'`. O `cp -a` e o `tar`
+do busybox (alpine) descartam xattrs em silêncio.
+
+Cron ativo (`crontab -l`), diário às 3h, retenção de 14, em `~/backups/lattes-supabase`:
 
 ```cron
-0 3 * * * cd /srv/projects/lattes.cnpq && sh supabase/backup.sh >> /var/log/lattes-backup.log 2>&1
+0 3 * * * cd /srv/projects/lattes.cnpq && sh supabase/backup.sh >> /home/v1cferr/backups/lattes-supabase/backup.log 2>&1
 ```
+
+Fica na mesma máquina: protege contra erro de operação e corrupção do banco,
+não contra perda do disco.
 
 ## Atualizar a stack
 
-`docker/` é cópia fiel do upstream (`supabase/supabase`, commit em
-`.upstream-commit`). Para atualizar, troque o diretório por uma cópia nova do
-upstream e preserve `docker-compose.lattes.yml`, `.env` e `volumes/`. Faça
-backup antes.
+`/srv/docker/lattes-supabase/docker-compose.yml` é cópia fiel do upstream
+(`supabase/supabase`, commit em `.upstream-commit`). Para atualizar, troque os
+arquivos por uma cópia nova do upstream preservando `docker-compose.lattes.yml`,
+`.env` e `volumes/`. Rode `make supabase-backup` antes.

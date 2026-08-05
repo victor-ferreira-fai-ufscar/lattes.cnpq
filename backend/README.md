@@ -118,7 +118,7 @@ OLLAMA_MODEL=llama3.1
 OLLAMA_API_KEY=ollama
 ```
 
-Observação: para upload no Storage, o backend exige `SUPABASE_URL` e pelo menos uma chave (`SUPABASE_SERVICE_ROLE_KEY` ou `SUPABASE_ANON_KEY`). O Supabase é self-hosted nesta máquina — suba com `make supabase-up` e copie as chaves de `supabase/docker/.env`. Ver `supabase/README.md`.
+Observação: para upload no Storage, o backend exige `SUPABASE_URL` e pelo menos uma chave (`SUPABASE_SERVICE_ROLE_KEY` ou `SUPABASE_ANON_KEY`). O Supabase é self-hosted nesta máquina — suba com `make supabase-up` e copie as chaves de `/srv/docker/lattes-supabase/.env`. Ver `supabase/README.md`.
 
 ## Rotas disponíveis
 

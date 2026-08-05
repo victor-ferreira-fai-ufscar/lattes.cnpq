@@ -9,11 +9,14 @@
 DEV  := docker compose --env-file .env.dev -f docker-compose.yml -f docker-compose.dev.yml
 PROD := docker compose -f docker-compose.yml -f docker-compose.override.yml
 
-# Supabase self-hosted: projeto Compose próprio ("supabase"), independente de
-# dev e prod — os dois gravam nele (em buckets diferentes). Só o caminho de
-# storage sobe; ver supabase/docker/docker-compose.lattes.yml.
-SUPA := docker compose --project-directory supabase/docker --env-file supabase/docker/.env \
-        -f supabase/docker/docker-compose.yml -f supabase/docker/docker-compose.lattes.yml
+# Supabase self-hosted. Mora FORA deste repo, em /srv/docker/lattes-supabase,
+# junto das outras stacks de infra da máquina (caddy, forgejo, ollama...) e
+# versionado no repo /srv/docker. Motivo: é um serviço com estado, e este repo
+# precisa ser descartável para o deploy automático poder dar `git reset --hard`.
+# Só o caminho de storage sobe; ver o docker-compose.lattes.yml de lá.
+SUPA_DIR := /srv/docker/lattes-supabase
+SUPA := docker compose --project-directory $(SUPA_DIR) --env-file $(SUPA_DIR)/.env \
+        -f $(SUPA_DIR)/docker-compose.yml -f $(SUPA_DIR)/docker-compose.lattes.yml
 SUPA_SERVICES := db rest storage
 
 .PHONY: dev dev-build dev-down dev-logs dev-ps prod-up prod-build prod-down prod-logs ps \
@@ -44,7 +47,7 @@ prod-logs:  ## Logs da produção
 ## --- Supabase self-hosted (storage) -----------------------------------------
 supabase-up:     ## Sobe o Supabase local (só db, rest, storage e imgproxy)
 	$(SUPA) up -d $(SUPA_SERVICES)
-supabase-down:   ## Derruba o Supabase local (dados ficam em supabase/docker/volumes)
+supabase-down:   ## Derruba o Supabase local (dados ficam em /srv/docker/lattes-supabase/volumes)
 	$(SUPA) down
 supabase-logs:   ## Logs do Supabase local
 	$(SUPA) logs -f $(SUPA_SERVICES)
