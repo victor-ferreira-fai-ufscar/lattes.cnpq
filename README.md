@@ -19,7 +19,7 @@ lattes.cnpq/
 ├── backend/             # API FastAPI, Playwright, Supabase, IA
 ├── frontend/            # Interface Next.js (feature-based)
 ├── docs/                # Documentação de fluxo e materiais de apoio
-├── supabase/            # Notas e informações de suporte
+├── supabase/            # Supabase self-hosted (storage dos currículos)
 ├── exemplos/            # Arquivos de exemplo
 └── docker-compose.yml   # Orquestração de desenvolvimento local
 ```
@@ -28,6 +28,7 @@ lattes.cnpq/
 
 - Backend: Python 3.11+, FastAPI, Playwright, Supabase SDK, uv
 - Frontend: Next.js 16, React 19, TypeScript, React Query, Zustand, Playwright
+- Storage: Supabase self-hosted nesta máquina (`make supabase-up`, ver `supabase/README.md`)
 - Infra local: Docker Compose
 
 ## Executar com Docker Compose (recomendado)

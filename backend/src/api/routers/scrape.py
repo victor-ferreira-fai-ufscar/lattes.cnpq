@@ -26,7 +26,14 @@ from ...libs.request_monitor import (
 )
 from ...models import ScrapeRequest
 from .._limiter import limiter
-from ._helpers import build_curriculo_history_payload, serialize_cache_version
+from ._helpers import (
+    build_curriculo_history_payload,
+    descartar_perfil_externo,
+    iniciar_perfil_externo,
+    perfil_externo_payload_fields,
+    resolver_perfil_externo,
+    serialize_cache_version,
+)
 
 router = APIRouter()
 
@@ -46,6 +53,7 @@ async def scrape(request: Request, body: ScrapeRequest):
         logs,
         sink=lambda line: request_monitor.publish(request_id, "log", {"message": line}),
     )
+    perfil_task = None
 
     try:
         nome = body.nome.strip()
@@ -53,6 +61,9 @@ async def scrape(request: Request, body: ScrapeRequest):
         add_log("Request /scrape recebida.")
         if not nome:
             raise HTTPException(status_code=400, detail="Informe o nome do docente.")
+
+        # Roda em paralelo ao scraping; resolvido só na montagem da resposta.
+        perfil_task = iniciar_perfil_externo(nome, add_log)
 
         if body.href:
             add_log(
@@ -117,6 +128,15 @@ async def scrape(request: Request, body: ScrapeRequest):
                         f"Falha ao extrair HTML/foto do currículo selecionado (seguindo sem foto): {exc}"
                     )
 
+            perfil_externo = await resolver_perfil_externo(
+                perfil_task,
+                nome=nome,
+                add_log=add_log,
+                pdf_bytes=cache_hit.file_bytes,
+                html_text=profile_assets.html_text if profile_assets else None,
+                html_source=profile_assets.html_source if profile_assets else None,
+            )
+
             artifacts = ensure_curriculo_artifacts(
                 nome=nome,
                 ultima_atualizacao=(
@@ -134,6 +154,7 @@ async def scrape(request: Request, body: ScrapeRequest):
                 photo_content_type=(
                     profile_assets.photo_content_type if profile_assets else None
                 ),
+                perfil_externo=perfil_externo,
             )
             add_log(
                 "Cache HIT no Storage em "
@@ -160,6 +181,7 @@ async def scrape(request: Request, body: ScrapeRequest):
                 "duracao_segundos": round(perf_counter() - t_total, 2),
                 **artifacts_to_payload(artifacts),
                 **build_curriculo_history_payload(nome),
+                **perfil_externo_payload_fields(perfil_externo),
             }
 
         add_log(
@@ -200,6 +222,15 @@ async def scrape(request: Request, body: ScrapeRequest):
             "Upload concluído em "
             f"{(perf_counter() - t_upload):.1f}s para '{upload_result.object_path}'."
         )
+        perfil_externo = await resolver_perfil_externo(
+            perfil_task,
+            nome=nome,
+            add_log=add_log,
+            pdf_bytes=scrape_result.pdf_bytes,
+            html_text=scrape_result.html_text,
+            html_source=scrape_result.html_source,
+        )
+
         artifacts = ensure_curriculo_artifacts(
             nome=nome,
             ultima_atualizacao=scrape_result.ultima_atualizacao,
@@ -213,6 +244,7 @@ async def scrape(request: Request, body: ScrapeRequest):
             html_source=scrape_result.html_source,
             photo_bytes=scrape_result.photo_bytes,
             photo_content_type=scrape_result.photo_content_type,
+            perfil_externo=perfil_externo,
         )
         add_log(
             f"Artefatos estruturados resolvidos em '{artifacts.output_directory}' "
@@ -233,6 +265,7 @@ async def scrape(request: Request, body: ScrapeRequest):
             "duracao_segundos": round(perf_counter() - t_total, 2),
             **artifacts_to_payload(artifacts),
             **build_curriculo_history_payload(nome),
+            **perfil_externo_payload_fields(perfil_externo),
         }
     except HTTPException as exc:
         publish_request_error(request_id, str(exc.detail))
@@ -241,4 +274,7 @@ async def scrape(request: Request, body: ScrapeRequest):
         publish_request_error(request_id, str(exc) or "Falha ao preparar currículo.")
         raise
     finally:
+        # Se o scraping falhou (ex.: currículo não encontrado), a coleta externa
+        # fica pendente; cancelar evita "task exception was never retrieved".
+        descartar_perfil_externo(perfil_task)
         request_monitor.complete(request_id)

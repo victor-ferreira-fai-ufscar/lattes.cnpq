@@ -11,10 +11,12 @@ from ...core.exporter import (
     download_artifact_bytes,
     DEFAULT_OUTPUT_FORMAT,
     ensure_curriculo_artifacts,
+    extrair_textos_curriculo,
     normalize_output_format,
     upload_batch_zip,
 )
 from ...core.scraper import scrape_lattes, scrape_lattes_ultima_atualizacao
+from ...core.summarizer import resumir_curriculo
 from ...core.storage import (
     find_fresh_curriculo_pdf,
     upload_curriculo_pdf,
@@ -33,11 +35,62 @@ from ...models import OutputFormat
 from .._limiter import limiter
 from ._helpers import (
     build_curriculo_history_payload,
+    descartar_perfil_externo,
+    iniciar_perfil_externo,
+    perfil_externo_payload_fields,
+    resolver_perfil_externo,
     serialize_cache_version,
     sse_event,
 )
 
 router = APIRouter()
+
+
+async def _gerar_resumo_lote(
+    *,
+    nome: str,
+    pdf_bytes: bytes,
+    html_text: Optional[str],
+    html_source: Optional[str],
+    add_log: Callable[[str], None],
+    idx: int,
+    total: int,
+) -> dict[str, Any]:
+    """Gera resumo por IA (currículo completo, Ollama default) reusando os bytes
+    já scrapeados. Erros são isolados: nunca derrubam o item do lote."""
+    t_ia = perf_counter()
+    try:
+        texto, texto_pdf, texto_html = extrair_textos_curriculo(
+            pdf_bytes, html_text, html_source
+        )
+        if not texto.strip():
+            raise ValueError("Texto-base vazio; não há conteúdo para resumir.")
+        resumo = await resumir_curriculo(
+            texto,
+            texto_pdf=texto_pdf,
+            texto_html=texto_html,
+            secao=None,
+            log=add_log,
+        )
+        duracao = round(perf_counter() - t_ia, 2)
+        add_log(f"[{idx}/{total}] Resumo por IA gerado para '{nome}' em {duracao}s.")
+        return {
+            "resumo": resumo,
+            "resumo_status": "ok",
+            "resumo_duracao_segundos": duracao,
+        }
+    except Exception as exc:
+        info = summarize_exception(exc)
+        add_log(
+            f"[{idx}/{total}] Falha ao gerar resumo por IA para '{nome}' "
+            f"(item segue como sucesso): {info['resumo']}"
+        )
+        return {
+            "resumo": None,
+            "resumo_status": "erro",
+            "resumo_erro": info["resumo"],
+            "resumo_duracao_segundos": round(perf_counter() - t_ia, 2),
+        }
 
 
 async def _prepare_batch_input(
@@ -114,6 +167,7 @@ async def _process_batch(
     skip_value: int,
     limit_value: Optional[int],
     output_format: OutputFormat = DEFAULT_OUTPUT_FORMAT,
+    gerar_resumo: bool = False,
     on_log: Optional[Callable[[str], None]] = None,
 ) -> dict[str, Any]:
     t_total = perf_counter()
@@ -139,15 +193,30 @@ async def _process_batch(
     cache_hits = 0
     cache_misses = 0
     cache_lookup_errors = 0
+    resumos_gerados = 0
+    resumos_erros = 0
+    perfis_externos_ok = 0
+    perfis_externos_erros = 0
 
     add_log(
         f"ZIP deste lote será salvo em '{batch_output_dir}' "
         f"com formato solicitado '{output_format}'."
     )
+    if gerar_resumo:
+        add_log(
+            "Resumo por IA habilitado para este lote (currículo completo, "
+            "provedor Ollama); será embutido nos formatos DOCX e HTML."
+        )
+
+    add_log(
+        "Enriquecimento externo (OpenAlex + notícias) roda em paralelo ao "
+        "scraping de cada item; só entra no resultado com confiança alta."
+    )
 
     for idx, nome in enumerate(nomes, 1):
         add_log(f"[{idx}/{len(nomes)}] Iniciando scraping de '{nome}'.")
         t_item = perf_counter()
+        perfil_task = iniciar_perfil_externo(nome, add_log)
         try:
             try:
                 cache_hit = find_fresh_curriculo_pdf(nome, include_bytes=True)
@@ -180,6 +249,32 @@ async def _process_batch(
                     )
 
                 if cache_hit_ativo:
+                    resumo_payload: dict[str, Any] = {}
+                    if gerar_resumo:
+                        resumo_payload = await _gerar_resumo_lote(
+                            nome=nome,
+                            pdf_bytes=cache_hit.file_bytes or b"",
+                            html_text=None,
+                            html_source=None,
+                            add_log=add_log,
+                            idx=idx,
+                            total=len(nomes),
+                        )
+                        if resumo_payload.get("resumo_status") == "ok":
+                            resumos_gerados += 1
+                        else:
+                            resumos_erros += 1
+                    perfil_externo = await resolver_perfil_externo(
+                        perfil_task,
+                        nome=nome,
+                        add_log=add_log,
+                        pdf_bytes=cache_hit.file_bytes,
+                    )
+                    if perfil_externo is not None and perfil_externo.publicavel:
+                        perfis_externos_ok += 1
+                    elif perfil_externo is not None and perfil_externo.erros:
+                        perfis_externos_erros += 1
+
                     artifacts = ensure_curriculo_artifacts(
                         nome=nome,
                         ultima_atualizacao=(
@@ -191,6 +286,8 @@ async def _process_batch(
                         pdf_bytes=cache_hit.file_bytes or b"",
                         output_format=output_format,
                         cache_status="hit",
+                        resumo_ia=resumo_payload.get("resumo"),
+                        perfil_externo=perfil_externo,
                     )
                     item = {
                         "nome": nome,
@@ -206,6 +303,8 @@ async def _process_batch(
                         "duracao_segundos": round(perf_counter() - t_item, 2),
                         **artifacts_to_payload(artifacts),
                         **build_curriculo_history_payload(nome),
+                        **resumo_payload,
+                        **perfil_externo_payload_fields(perfil_externo),
                     }
                     resultados.append(item)
                     ok_count += 1
@@ -230,6 +329,34 @@ async def _process_batch(
             scrape_result = await scrape_lattes(nome)
             filename = build_curriculo_filename(nome, scrape_result.ultima_atualizacao)
             upload_result = upload_curriculo_pdf(filename, scrape_result.pdf_bytes)
+            resumo_payload = {}
+            if gerar_resumo:
+                resumo_payload = await _gerar_resumo_lote(
+                    nome=nome,
+                    pdf_bytes=scrape_result.pdf_bytes,
+                    html_text=scrape_result.html_text,
+                    html_source=scrape_result.html_source,
+                    add_log=add_log,
+                    idx=idx,
+                    total=len(nomes),
+                )
+                if resumo_payload.get("resumo_status") == "ok":
+                    resumos_gerados += 1
+                else:
+                    resumos_erros += 1
+            perfil_externo = await resolver_perfil_externo(
+                perfil_task,
+                nome=nome,
+                add_log=add_log,
+                pdf_bytes=scrape_result.pdf_bytes,
+                html_text=scrape_result.html_text,
+                html_source=scrape_result.html_source,
+            )
+            if perfil_externo is not None and perfil_externo.publicavel:
+                perfis_externos_ok += 1
+            elif perfil_externo is not None and perfil_externo.erros:
+                perfis_externos_erros += 1
+
             artifacts = ensure_curriculo_artifacts(
                 nome=nome,
                 ultima_atualizacao=scrape_result.ultima_atualizacao,
@@ -243,6 +370,8 @@ async def _process_batch(
                 html_source=scrape_result.html_source,
                 photo_bytes=scrape_result.photo_bytes,
                 photo_content_type=scrape_result.photo_content_type,
+                resumo_ia=resumo_payload.get("resumo"),
+                perfil_externo=perfil_externo,
             )
 
             item = {
@@ -256,6 +385,8 @@ async def _process_batch(
                 "duracao_segundos": round(perf_counter() - t_item, 2),
                 **artifacts_to_payload(artifacts),
                 **build_curriculo_history_payload(nome),
+                **resumo_payload,
+                **perfil_externo_payload_fields(perfil_externo),
             }
             resultados.append(item)
             ok_count += 1
@@ -285,6 +416,9 @@ async def _process_batch(
                     "duracao_segundos": round(perf_counter() - t_item, 2),
                 }
             )
+            # Item falhou antes de consumir a coleta externa: descarta a task
+            # pendente para não deixar exceção sem dono no event loop.
+            descartar_perfil_externo(perfil_task)
             add_log(f"[{idx}/{len(nomes)}] Erro para '{nome}': {error_info['resumo']}")
 
             debug_parts = [f"tipo={error_info['tipo']}"]
@@ -302,6 +436,14 @@ async def _process_batch(
     add_log(
         "Resumo de cache: "
         f"hits={cache_hits}, misses={cache_misses}, erros_consulta={cache_lookup_errors}."
+    )
+    if gerar_resumo:
+        add_log(
+            f"Resumos por IA: gerados={resumos_gerados}, falhas={resumos_erros}."
+        )
+    add_log(
+        "Perfis externos: com confiança alta="
+        f"{perfis_externos_ok}, com falha em alguma fonte={perfis_externos_erros}."
     )
 
     zip_filename = None
@@ -338,6 +480,10 @@ async def _process_batch(
         "cache_hits": cache_hits,
         "cache_misses": cache_misses,
         "cache_lookup_errors": cache_lookup_errors,
+        "resumos_gerados": resumos_gerados,
+        "resumos_erros": resumos_erros,
+        "perfis_externos_ok": perfis_externos_ok,
+        "perfis_externos_erros": perfis_externos_erros,
         "resultados": resultados,
         "zip_arquivo": zip_filename,
         "zip_storage_path": zip_storage_path,
@@ -357,6 +503,7 @@ async def scrape_batch(
     skip: str = Form("0"),
     limit: Optional[str] = Form(None),
     output_format: str = Form("docx"),
+    gerar_resumo: bool = Form(False),
 ):
     request_id = request.headers.get(REQUEST_ID_HEADER)
     publish_request_start(
@@ -387,6 +534,7 @@ async def scrape_batch(
             skip_value=skip_value,
             limit_value=limit_value,
             output_format=normalized_output_format,
+            gerar_resumo=gerar_resumo,
             on_log=lambda line: publish_request_log(request_id, line),
         )
     except HTTPException as exc:
@@ -408,6 +556,7 @@ async def scrape_batch_stream(
     skip: str = Form("0"),
     limit: Optional[str] = Form(None),
     output_format: str = Form("docx"),
+    gerar_resumo: bool = Form(False),
 ):
     (
         arquivo_nome,
@@ -433,6 +582,7 @@ async def scrape_batch_stream(
             skip_value=skip_value,
             limit_value=limit_value,
             output_format=normalized_output_format,
+            gerar_resumo=gerar_resumo,
             on_log=queue.put_nowait,
         )
     )

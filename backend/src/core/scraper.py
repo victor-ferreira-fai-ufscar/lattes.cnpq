@@ -1,6 +1,5 @@
 import os
 import re
-import unicodedata
 from asyncio import to_thread
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -16,6 +15,12 @@ except ImportError:
 
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 from playwright.async_api import async_playwright
+
+from ..libs.nomes import (
+    gerar_variacoes_nome_busca,
+    normalizar,
+    remover_acentos,
+)
 
 FIRST_URL = "https://lattes.cnpq.br/"
 _BASE_URL = "https://buscatextual.cnpq.br/buscatextual/busca.do?metodo=apresentar"
@@ -60,44 +65,12 @@ def _is_true(value: str) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _normalizar(texto: str) -> str:
-    return " ".join(texto.lower().split())
-
-
-def _remover_acentos(texto: str) -> str:
-    texto_norm = unicodedata.normalize("NFD", texto)
-    return "".join(ch for ch in texto_norm if unicodedata.category(ch) != "Mn")
-
-
-def _gerar_variacoes_nome_busca(nome: str) -> list[str]:
-    nome_limpo = " ".join(nome.split())
-    if not nome_limpo:
-        return []
-
-    partes = nome_limpo.split()
-    variacoes = [
-        nome_limpo,
-        _remover_acentos(nome_limpo),
-        nome_limpo.lower(),
-        _remover_acentos(nome_limpo).lower(),
-        nome_limpo.title(),
-    ]
-
-    if len(partes) >= 2:
-        variacoes.append(f"{partes[0]} {partes[-1]}")
-        variacoes.append(partes[0])
-
-    unicos: list[str] = []
-    vistos: set[str] = set()
-    for variacao in variacoes:
-        texto = " ".join(variacao.split())
-        chave = _normalizar(texto)
-        if not texto or chave in vistos:
-            continue
-        vistos.add(chave)
-        unicos.append(texto)
-
-    return unicos
+# Aliases dos helpers de nome, hoje em libs/nomes.py para serem compartilhados
+# com o enriquecimento externo. Mantidos com o nome antigo porque são usados em
+# todo o módulo (e nos testes) como parte do vocabulário do scraper.
+_normalizar = normalizar
+_remover_acentos = remover_acentos
+_gerar_variacoes_nome_busca = gerar_variacoes_nome_busca
 
 
 def _parece_sem_resultado(texto: str) -> bool:

@@ -1,11 +1,93 @@
+import asyncio
 import json
+from typing import Any, Callable, Optional
 
 from ...core.curriculo_diff import build_curriculo_text_diff
+from ...core.exporter import extrair_textos_curriculo
+from ...core.perfil_externo import PerfilExterno, perfil_to_payload
+from ...core.perfil_externo_cache import get_perfil_externo
 from ...core.storage import download_storage_file_bytes, get_curriculo_pdf_history
 
 
 def sse_event(event: str, payload: object) -> str:
     return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+def iniciar_perfil_externo(
+    nome: str, add_log: Callable[[str], None]
+) -> "asyncio.Task[Optional[PerfilExterno]]":
+    """Dispara o enriquecimento externo em paralelo ao scraping do Lattes.
+
+    O nome já é conhecido no início da requisição, então as chamadas HTTP
+    (OpenAlex + Google News, ~1-2s) correm junto com o Playwright (~30s) e o
+    custo em tempo de resposta fica próximo de zero.
+    """
+    return asyncio.create_task(get_perfil_externo(nome, log=add_log))
+
+
+def descartar_perfil_externo(
+    task: "Optional[asyncio.Task[Optional[PerfilExterno]]]",
+) -> None:
+    """Cancela a coleta externa que ficou pendente após uma falha no fluxo."""
+    if task is not None and not task.done():
+        task.cancel()
+
+
+async def resolver_perfil_externo(
+    task: "Optional[asyncio.Task[Optional[PerfilExterno]]]",
+    *,
+    nome: str,
+    add_log: Callable[[str], None],
+    pdf_bytes: Optional[bytes] = None,
+    html_text: Optional[str] = None,
+    html_source: Optional[str] = None,
+) -> Optional[PerfilExterno]:
+    """Aguarda a coleta externa e, se preciso, tenta de novo usando o currículo.
+
+    A primeira tentativa roda sem o texto do CV (ela começa antes do scraping
+    terminar). Quando o resultado não atinge confiança alta e o currículo está
+    disponível, vale uma segunda tentativa: casar títulos de obras com o que o
+    docente declarou no Lattes desempata casos em que a afiliação no OpenAlex
+    está desatualizada.
+    """
+    if task is None:
+        return None
+
+    try:
+        perfil = await task
+    except Exception as exc:
+        add_log(f"Falha no enriquecimento externo de '{nome}' (seguindo sem ele): {exc}")
+        return None
+
+    if perfil is None or perfil.publicavel or not pdf_bytes:
+        return perfil
+
+    try:
+        texto_curriculo, _, _ = extrair_textos_curriculo(
+            pdf_bytes, html_text, html_source
+        )
+        if not texto_curriculo.strip():
+            return perfil
+
+        add_log(
+            f"Confiança insuficiente no perfil externo de '{nome}'; "
+            "tentando desambiguar com o texto do currículo."
+        )
+        segunda = await get_perfil_externo(
+            nome, texto_curriculo=texto_curriculo, log=add_log
+        )
+    except Exception as exc:
+        add_log(
+            f"Falha ao desambiguar o perfil externo de '{nome}' com o currículo: {exc}"
+        )
+        return perfil
+
+    return segunda if segunda is not None else perfil
+
+
+def perfil_externo_payload_fields(perfil: Optional[PerfilExterno]) -> dict[str, Any]:
+    """Campos do perfil externo prontos para espalhar (`**`) na resposta."""
+    return {"perfil_externo": perfil_to_payload(perfil)}
 
 
 def serialize_cache_version(version) -> dict | None:  # noqa: ANN001

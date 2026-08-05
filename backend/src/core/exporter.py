@@ -10,6 +10,7 @@ from html import escape, unescape
 from io import BytesIO, StringIO
 from typing import Literal
 
+from .perfil_externo import PerfilExterno, perfil_to_payload
 from .scraper import _extrair_texto_pdf_bytes
 from .storage import (
     download_storage_file_bytes,
@@ -435,6 +436,7 @@ def _write_json_bytes(
     pdf_download_url: str,
     texto_extraido: str,
     context: ExportSummaryContext,
+    perfil_externo: PerfilExterno | None = None,
 ) -> bytes:
     payload = {
         "nome": nome,
@@ -447,6 +449,7 @@ def _write_json_bytes(
         "gerado_em": datetime.now().isoformat(),
         "resumo_contextual": asdict(context),
         "foto_extraida": context.has_profile_photo,
+        "perfil_externo": perfil_to_payload(perfil_externo),
         "texto_extraido": texto_extraido,
     }
     return json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
@@ -461,9 +464,22 @@ def _write_html_bytes(
     photo_bytes: bytes | None,
     photo_content_type: str | None,
     source_html: str | None = None,
+    resumo_ia: str | None = None,
+    perfil_externo: PerfilExterno | None = None,
 ) -> bytes:
+    perfil_publicavel = perfil_externo if _perfil_publicavel(perfil_externo) else None
+
     if source_html and source_html.strip():
-        return source_html.encode("utf-8")
+        html_doc = source_html
+        # Ordem invertida na injeção: cada bloco entra logo após <body>, então
+        # injetar o perfil primeiro e o resumo depois deixa o resumo no topo.
+        if perfil_publicavel is not None:
+            html_doc = _inject_after_body(
+                html_doc, _perfil_externo_html_banner(perfil_publicavel)
+            )
+        if resumo_ia:
+            html_doc = _inject_after_body(html_doc, _resumo_ia_html_banner(resumo_ia))
+        return html_doc.encode("utf-8")
 
     social_html = "".join(f"<li>{link}</li>" for link in context.social_links)
     if not social_html:
@@ -471,6 +487,18 @@ def _write_html_bytes(
     ods_html = "".join(f"<li>{item}</li>" for item in context.ods)
     if not ods_html:
         ods_html = "<li>Não inferido automaticamente.</li>"
+    resumo_html = ""
+    if resumo_ia:
+        resumo_html = (
+            '<section class="card"><h2>'
+            f"{escape(_RESUMO_IA_HEADING)}</h2>"
+            f"{_render_markdown_html(resumo_ia)}</section>"
+        )
+    perfil_html = ""
+    if perfil_publicavel is not None:
+        perfil_html = (
+            f'<section class="card">{_perfil_externo_html(perfil_publicavel)}</section>'
+        )
     photo_html = ""
     if photo_bytes:
         content_type = photo_content_type or "image/png"
@@ -521,6 +549,8 @@ def _write_html_bytes(
                     <div class=\"card\"><h2>Parágrafo síntese</h2><p>{escape(context.summary_paragraph)}</p></div>
                 </div>
             </div>
+      {resumo_html}
+      {perfil_html}
       <div class=\"grid\">
                 <section class=\"card\"><h2>Palavras-chave</h2><p>{escape(context.keywords)}</p></section>
         <section class=\"card\"><h2>ODS</h2><ul>{ods_html}</ul></section>
@@ -544,7 +574,10 @@ def _write_csv_bytes(
     pdf_storage_path: str,
     pdf_download_url: str,
     context: ExportSummaryContext,
+    perfil_externo: PerfilExterno | None = None,
 ) -> bytes:
+    perfil = perfil_externo if _perfil_publicavel(perfil_externo) else None
+
     buffer = StringIO()
     writer = csv.DictWriter(
         buffer,
@@ -560,6 +593,11 @@ def _write_csv_bytes(
             "paragrafo_sintese",
             "ods",
             "redes_sociais",
+            "externo_total_obras",
+            "externo_total_citacoes",
+            "externo_h_index",
+            "externo_qtd_noticias",
+            "externo_afiliacao",
         ],
     )
     writer.writeheader()
@@ -576,6 +614,13 @@ def _write_csv_bytes(
             "paragrafo_sintese": context.summary_paragraph,
             "ods": " | ".join(context.ods),
             "redes_sociais": " | ".join(context.social_links),
+            "externo_total_obras": perfil.total_obras if perfil else "",
+            "externo_total_citacoes": perfil.total_citacoes if perfil else "",
+            "externo_h_index": (
+                perfil.h_index if perfil and perfil.h_index is not None else ""
+            ),
+            "externo_qtd_noticias": len(perfil.noticias) if perfil else "",
+            "externo_afiliacao": (perfil.afiliacao or "") if perfil else "",
         }
     )
     return buffer.getvalue().encode("utf-8")
@@ -588,7 +633,11 @@ def _write_docx_bytes(
     cache_status: str | None,
     context: ExportSummaryContext,
     photo_bytes: bytes | None,
+    resumo_ia: str | None = None,
+    perfil_externo: PerfilExterno | None = None,
 ) -> bytes:
+    perfil = perfil_externo if _perfil_publicavel(perfil_externo) else None
+
     try:
         from docx import Document
         from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
@@ -693,6 +742,42 @@ def _write_docx_bytes(
     synthesis.paragraph_format.line_spacing = 1.25
     synthesis.paragraph_format.space_after = Pt(0)
 
+    if resumo_ia:
+        add_heading(_RESUMO_IA_HEADING)
+        for kind, payload in _markdown_blocks(resumo_ia):
+            if kind == "heading":
+                add_heading(_strip_inline_md(str(payload)))
+            elif kind == "bullets":
+                add_list([_strip_inline_md(item) for item in payload], "")
+            else:
+                add_body(_strip_inline_md(str(payload)))
+
+    if perfil is not None:
+        add_heading(_PERFIL_EXTERNO_HEADING)
+        if perfil.afiliacao:
+            add_body(f"Afiliação: {perfil.afiliacao}")
+        add_body(
+            f"Obras registradas: {perfil.total_obras} | "
+            f"Citações: {perfil.total_citacoes} | "
+            f"h-index: {perfil.h_index if perfil.h_index is not None else '—'}"
+        )
+        add_heading("Obras mais citadas")
+        add_list(
+            [_formatar_obra(obra) for obra in perfil.obras],
+            "Nenhuma obra recuperada nas fontes externas.",
+        )
+        add_heading("Notícias e menções")
+        add_list(
+            [_formatar_noticia(noticia) for noticia in perfil.noticias],
+            "Nenhuma notícia identificada com confiança.",
+        )
+        nota = document.add_paragraph()
+        nota.paragraph_format.space_after = Pt(6)
+        nota_run = nota.add_run(_perfil_externo_fonte_nota(perfil))
+        nota_run.italic = True
+        nota_run.font.size = Pt(8.5)
+        nota_run.font.color.rgb = muted
+
     add_heading("Palavras-chave")
     add_body(context.keywords)
 
@@ -742,6 +827,233 @@ def _merge_source_texts(pdf_text: str, html_text: str | None) -> str:
     return "\n".join(merged_lines)
 
 
+def extrair_textos_curriculo(
+    pdf_bytes: bytes,
+    html_text: str | None = None,
+    html_source: str | None = None,
+) -> tuple[str, str, str]:
+    """Extrai (texto, texto_pdf, texto_html) a partir dos bytes já em mãos.
+
+    Mesma lógica usada na geração de artefatos; exposta para que o lote possa
+    gerar resumo por IA sem refazer scraping.
+    """
+    texto_pdf = _extrair_texto_pdf_bytes(pdf_bytes).strip()
+    texto_html = (html_text or _extract_text_from_html(html_source or "")).strip()
+    texto = _merge_source_texts(texto_pdf, texto_html).strip()
+    return texto, texto_pdf, texto_html
+
+
+_RESUMO_IA_HEADING = "Resumo gerado por IA"
+_PERFIL_EXTERNO_HEADING = "Produção e presença pública (fontes externas)"
+
+
+def _strip_inline_md(text: str) -> str:
+    text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
+    text = re.sub(r"__(.+?)__", r"\1", text)
+    text = re.sub(r"`(.+?)`", r"\1", text)
+    text = re.sub(r"(?<!\*)\*(?!\*)(.+?)\*(?!\*)", r"\1", text)
+    return text.strip()
+
+
+def _md_inline_to_html(text: str) -> str:
+    safe = escape(text)
+    safe = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", safe)
+    safe = re.sub(r"`(.+?)`", r"<code>\1</code>", safe)
+    return safe
+
+
+def _markdown_blocks(md: str) -> list[tuple[str, object]]:
+    """Quebra um markdown simples em blocos (heading | bullets | para)."""
+    blocks: list[tuple[str, object]] = []
+    bullets: list[str] = []
+    para: list[str] = []
+
+    def flush_para() -> None:
+        if para:
+            blocks.append(("para", " ".join(para).strip()))
+            para.clear()
+
+    def flush_bullets() -> None:
+        if bullets:
+            blocks.append(("bullets", list(bullets)))
+            bullets.clear()
+
+    for raw in md.splitlines():
+        stripped = raw.strip()
+        if not stripped:
+            flush_para()
+            flush_bullets()
+            continue
+        # Ignora cercas de código (```), comuns quando o modelo embrulha a saída.
+        if stripped.startswith("```"):
+            flush_para()
+            flush_bullets()
+            continue
+        # Citações: remove o marcador '>' e trata como parágrafo normal.
+        if stripped.startswith(">"):
+            stripped = stripped.lstrip(">").strip()
+            if not stripped:
+                continue
+        heading = re.match(r"^(#{1,6})\s+(.*)$", stripped)
+        if heading:
+            flush_para()
+            flush_bullets()
+            blocks.append(("heading", heading.group(2).strip()))
+            continue
+        bullet = re.match(r"^[-*+]\s+(.*)$", stripped) or re.match(
+            r"^\d+[.)]\s+(.*)$", stripped
+        )
+        if bullet:
+            flush_para()
+            bullets.append(bullet.group(1).strip())
+            continue
+        flush_bullets()
+        para.append(stripped)
+
+    flush_para()
+    flush_bullets()
+    return blocks
+
+
+def _render_markdown_html(resumo: str) -> str:
+    parts: list[str] = []
+    for kind, payload in _markdown_blocks(resumo):
+        if kind == "heading":
+            parts.append(f"<h3>{_md_inline_to_html(str(payload))}</h3>")
+        elif kind == "bullets":
+            items = "".join(
+                f"<li>{_md_inline_to_html(item)}</li>" for item in payload  # type: ignore[union-attr]
+            )
+            parts.append(f"<ul>{items}</ul>")
+        else:
+            parts.append(f"<p>{_md_inline_to_html(str(payload))}</p>")
+    return "".join(parts)
+
+
+def _inject_after_body(html: str, block: str) -> str:
+    match = re.search(r"<body[^>]*>", html, flags=re.IGNORECASE)
+    if match:
+        idx = match.end()
+        return html[:idx] + block + html[idx:]
+    return block + html
+
+
+def _resumo_ia_html_banner(resumo: str) -> str:
+    inner = _render_markdown_html(resumo)
+    return (
+        '<section style="margin:16px;padding:16px 20px;border:1px solid #decfb6;'
+        "border-radius:16px;background:#fffdf9;font-family:Georgia,serif;"
+        'color:#1f2a37;line-height:1.6;">'
+        f'<h2 style="margin-top:0;color:#9a3412;">{escape(_RESUMO_IA_HEADING)}</h2>'
+        f"{inner}</section>"
+    )
+
+
+def _perfil_publicavel(perfil: PerfilExterno | None) -> bool:
+    """Só entra no artefato o perfil com identificação de confiança alta.
+
+    Um artefato circula fora do sistema; atribuir a produção ou a notícia de um
+    homônimo ao docente é pior do que não trazer nada.
+    """
+    return perfil is not None and perfil.publicavel
+
+
+def _formatar_obra(obra) -> str:  # noqa: ANN001 - ObraExterna, evita import circular
+    partes = [obra.titulo]
+    if obra.ano:
+        partes.append(f"({obra.ano})")
+    if obra.veiculo:
+        partes.append(f"— {obra.veiculo}")
+    if obra.citacoes:
+        partes.append(f"[{obra.citacoes} citações]")
+    return " ".join(partes)
+
+
+def _formatar_noticia(noticia) -> str:  # noqa: ANN001 - NoticiaExterna
+    partes = [noticia.titulo]
+    detalhes = [item for item in (noticia.veiculo, _data_br(noticia.data)) if item]
+    if detalhes:
+        partes.append(f"({', '.join(detalhes)})")
+    return " ".join(partes)
+
+
+def _data_br(valor: date | None) -> str:
+    return valor.strftime("%d/%m/%Y") if valor else ""
+
+
+def _perfil_externo_fonte_nota(perfil: PerfilExterno) -> str:
+    fontes = {"openalex": "OpenAlex", "google-news": "Google News"}
+    rotulos = [fontes.get(item, item) for item in perfil.fontes]
+    origem = ", ".join(rotulos) if rotulos else "não informada"
+    return (
+        f"Dados coletados automaticamente em: {origem}. "
+        f"Confiança da identificação: {perfil.confianca} "
+        f"({'; '.join(perfil.criterios) if perfil.criterios else 'sem critérios registrados'}). "
+        "Confira antes de divulgar."
+    )
+
+
+def _perfil_externo_html(perfil: PerfilExterno) -> str:
+    """Bloco HTML com métricas, obras e notícias do enriquecimento externo."""
+    metricas = [
+        ("Obras registradas", str(perfil.total_obras)),
+        ("Citações", str(perfil.total_citacoes)),
+        ("h-index", str(perfil.h_index) if perfil.h_index is not None else "—"),
+    ]
+    metricas_html = "".join(
+        f"<li><strong>{escape(rotulo)}:</strong> {escape(valor)}</li>"
+        for rotulo, valor in metricas
+    )
+
+    if perfil.obras:
+        obras_html = "".join(
+            f"<li>{escape(_formatar_obra(obra))}</li>" for obra in perfil.obras
+        )
+    else:
+        obras_html = "<li>Nenhuma obra recuperada.</li>"
+
+    if perfil.noticias:
+        noticias_html = "".join(
+            f'<li><a href="{escape(noticia.url)}">{escape(noticia.titulo)}</a>'
+            + (
+                f' <span class="muted">({escape(", ".join(item for item in (noticia.veiculo, _data_br(noticia.data)) if item))})</span>'
+                if (noticia.veiculo or noticia.data)
+                else ""
+            )
+            + "</li>"
+            for noticia in perfil.noticias
+        )
+    else:
+        noticias_html = "<li>Nenhuma notícia identificada com confiança.</li>"
+
+    afiliacao = (
+        f"<p><strong>Afiliação:</strong> {escape(perfil.afiliacao)}</p>"
+        if perfil.afiliacao
+        else ""
+    )
+
+    return (
+        f"<h2>{escape(_PERFIL_EXTERNO_HEADING)}</h2>"
+        f"{afiliacao}"
+        f"<ul>{metricas_html}</ul>"
+        "<h3>Obras mais citadas</h3>"
+        f"<ul>{obras_html}</ul>"
+        "<h3>Notícias e menções</h3>"
+        f"<ul>{noticias_html}</ul>"
+        f'<p class="muted"><small>{escape(_perfil_externo_fonte_nota(perfil))}</small></p>'
+    )
+
+
+def _perfil_externo_html_banner(perfil: PerfilExterno) -> str:
+    return (
+        '<section style="margin:16px;padding:16px 20px;border:1px solid #decfb6;'
+        "border-radius:16px;background:#fffdf9;font-family:Georgia,serif;"
+        'color:#1f2a37;line-height:1.6;">'
+        + _perfil_externo_html(perfil).replace("<h2>", '<h2 style="margin-top:0;color:#9a3412;">', 1)
+        + "</section>"
+    )
+
+
 def _build_artifact_contents(
     *,
     nome: str,
@@ -756,10 +1068,12 @@ def _build_artifact_contents(
     html_source: str | None = None,
     photo_bytes: bytes | None = None,
     photo_content_type: str | None = None,
+    resumo_ia: str | None = None,
+    perfil_externo: PerfilExterno | None = None,
 ) -> tuple[dict[str, tuple[str, bytes, str]], ExportSummaryContext, int]:
-    texto_pdf = _extrair_texto_pdf_bytes(pdf_bytes).strip()
-    texto_html = (html_text or _extract_text_from_html(html_source or "")).strip()
-    texto_extraido = _merge_source_texts(texto_pdf, texto_html).strip()
+    texto_extraido, _texto_pdf, _texto_html = extrair_textos_curriculo(
+        pdf_bytes, html_text, html_source
+    )
     context = build_export_summary_context(
         texto_extraido,
         nome,
@@ -784,6 +1098,7 @@ def _build_artifact_contents(
                     pdf_download_url=pdf_download_url,
                     texto_extraido=texto_extraido,
                     context=context,
+                    perfil_externo=perfil_externo,
                 ),
                 content_type,
             )
@@ -798,6 +1113,8 @@ def _build_artifact_contents(
                     photo_bytes=photo_bytes,
                     photo_content_type=photo_content_type,
                     source_html=html_source,
+                    resumo_ia=resumo_ia,
+                    perfil_externo=perfil_externo,
                 ),
                 content_type,
             )
@@ -812,6 +1129,7 @@ def _build_artifact_contents(
                     pdf_storage_path=pdf_storage_path,
                     pdf_download_url=pdf_download_url,
                     context=context,
+                    perfil_externo=perfil_externo,
                 ),
                 content_type,
             )
@@ -824,6 +1142,8 @@ def _build_artifact_contents(
                     cache_status=cache_status,
                     context=context,
                     photo_bytes=photo_bytes,
+                    resumo_ia=resumo_ia,
+                    perfil_externo=perfil_externo,
                 ),
                 content_type,
             )
@@ -1021,6 +1341,8 @@ def ensure_curriculo_artifacts(
     html_source: str | None = None,
     photo_bytes: bytes | None = None,
     photo_content_type: str | None = None,
+    resumo_ia: str | None = None,
+    perfil_externo: PerfilExterno | None = None,
 ) -> GeneratedArtifactBundle:
     folder = build_curriculo_storage_folder(nome, ultima_atualizacao)
     output_label = build_curriculo_output_label(nome, ultima_atualizacao)
@@ -1034,6 +1356,24 @@ def ensure_curriculo_artifacts(
         for file_format in requested_formats
         if specs[file_format][0] not in existing
     ]
+
+    # Quando há resumo por IA, força a regeneração de DOCX/HTML mesmo que já
+    # existam em storage: um artefato em cache não contém o resumo recém-gerado.
+    if resumo_ia is not None:
+        for file_format in requested_formats:
+            if file_format in ("docx", "html") and file_format not in missing_formats:
+                missing_formats.append(file_format)
+
+    # Mesma lógica para o enriquecimento externo, que também muda o conteúdo dos
+    # artefatos. Aqui entram JSON e CSV além de DOCX/HTML, pois os quatro
+    # carregam campos do perfil.
+    if _perfil_publicavel(perfil_externo):
+        for file_format in requested_formats:
+            if (
+                file_format in ("docx", "html", "json", "csv")
+                and file_format not in missing_formats
+            ):
+                missing_formats.append(file_format)
 
     extracted_text_length = _coerce_int(manifest.get("extracted_text_length"), 0)
 
@@ -1051,6 +1391,8 @@ def ensure_curriculo_artifacts(
             html_source=html_source,
             photo_bytes=photo_bytes,
             photo_content_type=photo_content_type,
+            resumo_ia=resumo_ia,
+            perfil_externo=perfil_externo,
         )
         for _, (filename, file_bytes, content_type) in contents.items():
             upload_file_bytes(

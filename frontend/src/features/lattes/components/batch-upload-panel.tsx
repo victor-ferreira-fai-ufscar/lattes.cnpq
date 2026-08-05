@@ -55,6 +55,7 @@ type BatchUploadPanelProps = {
     skip: number,
     limit: number | undefined,
     outputFormat: import("@/features/lattes/lib/output-format").OutputFormat,
+    gerarResumo: boolean,
   ) => Promise<void>;
 };
 
@@ -72,6 +73,7 @@ export function BatchUploadPanel({
       skip: 0,
       limit: "",
       outputFormat: DEFAULT_OUTPUT_FORMAT,
+      gerarResumo: false,
     },
   });
 
@@ -101,7 +103,13 @@ export function BatchUploadPanel({
       file = values.csvFile as File;
     }
 
-    await onSubmitBatch(file, values.skip, values.limit, values.outputFormat);
+    await onSubmitBatch(
+      file,
+      values.skip,
+      values.limit,
+      values.outputFormat,
+      values.gerarResumo,
+    );
   });
 
   return (
@@ -294,6 +302,37 @@ export function BatchUploadPanel({
                       )?.description
                     }
                   </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="gerarResumo"
+              render={({ field }) => (
+                <FormItem className="sm:col-span-2">
+                  <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                    <FormControl>
+                      <input
+                        type="checkbox"
+                        disabled={disabled}
+                        checked={!!field.value}
+                        onChange={(e) => field.onChange(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 cursor-pointer rounded border-slate-300 text-amber-600 focus:ring-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                    </FormControl>
+                    <div className="space-y-1">
+                      <FormLabel className="cursor-pointer">
+                        Gerar resumo com IA para cada currículo
+                      </FormLabel>
+                      <FormDescription>
+                        Resume o currículo completo de cada pessoa (provedor Ollama).
+                        O resumo é embutido nos formatos DOCX e HTML e o lote leva
+                        mais tempo.
+                      </FormDescription>
+                    </div>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}

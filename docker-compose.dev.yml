@@ -30,6 +30,9 @@ services:
       # Inclui localhost (acesso na própria máquina) + IPs LAN/público, pois o
       # navegador pode abrir o dev por qualquer um deles na porta do frontend.
       - BACKEND_CORS_ORIGINS=http://localhost:${FRONTEND_PORT:-3002},http://127.0.0.1:${FRONTEND_PORT:-3002},http://10.10.10.5:${FRONTEND_PORT:-3002},http://200.136.209.229:${FRONTEND_PORT:-3002}
+      # Bucket próprio do dev na mesma instância Supabase self-hosted: sem isso
+      # dev e produção escreveriam nos mesmos currículos (sobrescreve backend/.env).
+      - SUPABASE_STORAGE_BUCKET=lattes-cvs-dev
     # Uvicorn em modo reload para refletir alterações sem reiniciar container.
     # Em network_mode: host (herdado do base), escuta direto na porta do host.
     command: uv run uvicorn src.api.main:app --host 0.0.0.0 --port ${BACKEND_PORT:-8002} --reload

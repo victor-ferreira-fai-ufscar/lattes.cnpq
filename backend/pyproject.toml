@@ -3,6 +3,10 @@ name = "lattes-scraper"
 version = "0.1.0"
 dependencies = [
     "fastapi[standard]>=0.104.0",
+    # Já vem via fastapi[standard], mas o enriquecimento externo o usa
+    # diretamente (core/perfil_externo.py) — declarado para não depender de
+    # dependência transitiva.
+    "httpx>=0.27.0",
     "playwright>=1.55.0",
     "uvicorn[standard]>=0.24.0",
     "python-dotenv>=1.0.0",

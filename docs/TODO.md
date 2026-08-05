@@ -16,8 +16,10 @@ Checklist consolidado para acompanhar a evolucao do projeto.
 ### Backend e infraestrutura
 
 - [ ] Revisar/garantir docker-compose para subir backend e frontend juntos.
-- [ ] Implementar cache no Supabase Storage para reutilizar PDF quando estiver atualizado.
-- [ ] Adicionar suporte completo de storage no Supabase.
+- [x] Implementar cache no Supabase Storage para reutilizar PDF quando estiver atualizado.
+- [x] Adicionar suporte completo de storage no Supabase.
+- [x] Tirar o Supabase da nuvem e rodar self-hosted (ver `supabase/README.md`).
+- [ ] Agendar o cron diário de `supabase/backup.sh` (banco + arquivos).
 - [ ] Implementar entrada de lista de docentes via .csv ou .txt.
 
 ### Saida e organizacao de arquivos

@@ -50,6 +50,7 @@ export const BatchUploadSchema = z
     outputFormat: z
       .enum(["pdf", "docx", "json", "html", "csv", "all"])
       .default(DEFAULT_OUTPUT_FORMAT),
+    gerarResumo: z.boolean().default(false),
   })
   .superRefine((data, ctx) => {
     const hasFile = isFile(data.csvFile);

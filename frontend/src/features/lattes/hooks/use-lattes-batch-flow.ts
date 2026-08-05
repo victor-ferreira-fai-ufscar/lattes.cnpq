@@ -17,6 +17,7 @@ type BatchPayload = {
   limit?: number;
   totalNamesInCsv: number;
   outputFormat: OutputFormat;
+  gerarResumo: boolean;
 };
 
 type BatchFlowFeedback = {
@@ -42,14 +43,21 @@ export function useLattesBatchFlow({
   const setBatchResult = useLattesWorkbenchStore((state) => state.setBatchResult);
 
   const batchMutation = useMutation<BatchScrapeResponse, unknown, BatchPayload>({
-    mutationFn: async ({ file, skip, limit, totalNamesInCsv, outputFormat }) => {
+    mutationFn: async ({
+      file,
+      skip,
+      limit,
+      totalNamesInCsv,
+      outputFormat,
+      gerarResumo,
+    }) => {
       const controller = new AbortController();
       batchAbortRef.current = controller;
 
       try {
         return await scrapeCurriculosLote(
           file,
-          { skip, limit, outputFormat },
+          { skip, limit, outputFormat, gerarResumo },
           totalNamesInCsv,
           {
             onLog: (line) => {
@@ -85,6 +93,7 @@ export function useLattesBatchFlow({
     skip: number,
     limit: number | undefined,
     outputFormat: OutputFormat,
+    gerarResumo: boolean,
   ) => {
     batchMutation.reset();
     setBatchResult(null);
@@ -102,6 +111,7 @@ export function useLattesBatchFlow({
       limit,
       totalNamesInCsv,
       outputFormat,
+      gerarResumo,
     });
   };
 

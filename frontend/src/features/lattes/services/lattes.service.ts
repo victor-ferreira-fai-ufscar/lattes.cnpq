@@ -34,6 +34,44 @@ export type SearchCandidate = {
   href: string;
 };
 
+export type ObraExterna = {
+  titulo: string;
+  ano: number | null;
+  veiculo: string | null;
+  doi: string | null;
+  url: string | null;
+  citacoes: number;
+};
+
+export type NoticiaExterna = {
+  titulo: string;
+  url: string;
+  veiculo: string | null;
+  data: string | null;
+};
+
+/**
+ * Dados de fontes externas ao Lattes (OpenAlex + Google News).
+ * A API só envia este bloco quando a identificação do docente atinge
+ * confiança alta; caso contrário vem `null`.
+ */
+export type PerfilExterno = {
+  nome_busca: string;
+  confianca: "alta" | "media" | "baixa";
+  score: number;
+  openalex_author_id: string | null;
+  openalex_url: string | null;
+  orcid: string | null;
+  afiliacao: string | null;
+  total_obras: number;
+  total_citacoes: number;
+  h_index: number | null;
+  criterios: string[];
+  fontes: string[];
+  obras: ObraExterna[];
+  noticias: NoticiaExterna[];
+};
+
 export type SearchResponse = {
   nome_busca: string;
   total: number;
@@ -65,6 +103,7 @@ export type ScrapeResponse = {
   cache_historico_primeira_versao?: CurriculoHistoricoVersao | null;
   cache_historico_ultima_versao?: CurriculoHistoricoVersao | null;
   cache_historico_diff?: CurriculoHistoricoDiff | null;
+  perfil_externo?: PerfilExterno | null;
   logs?: string[];
   duracao_segundos?: number;
 };
@@ -104,6 +143,11 @@ export type BatchItemSuccess = {
   extracted_text_length?: number;
   template_name?: string | null;
   duracao_segundos: number;
+  resumo?: string | null;
+  resumo_status?: "ok" | "erro";
+  resumo_erro?: string;
+  resumo_duracao_segundos?: number;
+  perfil_externo?: PerfilExterno | null;
 };
 
 export type BatchItemError = {
@@ -129,6 +173,8 @@ export type BatchScrapeResponse = {
   cache_hits?: number;
   cache_misses?: number;
   cache_lookup_errors?: number;
+  perfis_externos_ok?: number;
+  perfis_externos_erros?: number;
   resultados: Array<BatchItemSuccess | BatchItemError>;
   zip_arquivo?: string | null;
   zip_storage_path?: string | null;
@@ -142,6 +188,7 @@ type BatchOptions = {
   skip?: number;
   limit?: number;
   outputFormat?: OutputFormat;
+  gerarResumo?: boolean;
 };
 
 type BatchStreamCallbacks = {
@@ -270,8 +317,10 @@ export async function listarModelosPorProvedor(
   });
 }
 
-// Tempo estimado por item (segundos) + margem de segurança
+// Tempo estimado por item (segundos) + margem de segurança.
 const BATCH_SECONDS_PER_ITEM = 30;
+// Resumo por IA (Ollama, sequencial) adiciona ~10-30s por currículo.
+const BATCH_SECONDS_PER_ITEM_WITH_RESUMO = 90;
 const BATCH_TIMEOUT_MIN_MS = 120_000;
 
 function buildBatchFormData(file: File, options?: BatchOptions): FormData {
@@ -282,6 +331,10 @@ function buildBatchFormData(file: File, options?: BatchOptions): FormData {
 
   if (options?.limit && options.limit > 0) {
     formData.append("limit", String(options.limit));
+  }
+
+  if (options?.gerarResumo) {
+    formData.append("gerar_resumo", "true");
   }
 
   return formData;
@@ -300,14 +353,18 @@ export async function scrapeCurriculosLote(
     lastModified: file.lastModified,
   });
 
-  // Calcula timeout dinamicamente: 30s por item processado, mínimo 2 minutos
+  // Calcula timeout dinamicamente por item processado, mínimo 2 minutos.
+  // Com resumo por IA, o orçamento por item é maior (chamada ao Ollama).
   const itemCount =
     options?.limit && options.limit > 0
       ? options.limit
       : (totalNamesInCsv ?? 50);
+  const secondsPerItem = options?.gerarResumo
+    ? BATCH_SECONDS_PER_ITEM_WITH_RESUMO
+    : BATCH_SECONDS_PER_ITEM;
   const dynamicTimeout = Math.max(
     BATCH_TIMEOUT_MIN_MS,
-    itemCount * BATCH_SECONDS_PER_ITEM * 1000,
+    itemCount * secondsPerItem * 1000,
   );
 
   return runMonitoredRequest({

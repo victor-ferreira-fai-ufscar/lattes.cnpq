@@ -104,7 +104,7 @@ PLAYWRIGHT_BROWSER=chromium
 PLAYWRIGHT_HEADLESS=true
 BACKEND_PORT=8000
 FRONTEND_PORT=3000
-SUPABASE_URL=https://<project>.supabase.co
+SUPABASE_URL=https://lattes-storage.sup.fai.ufscar.br
 SUPABASE_SERVICE_ROLE_KEY=<service_role_key>
 SUPABASE_ANON_KEY=<anon_key_opcional>
 SUPABASE_STORAGE_BUCKET=lattes-cvs
@@ -118,7 +118,7 @@ OLLAMA_MODEL=llama3.1
 OLLAMA_API_KEY=ollama
 ```
 
-Observação: para upload no Storage, o backend exige `SUPABASE_URL` e pelo menos uma chave (`SUPABASE_SERVICE_ROLE_KEY` ou `SUPABASE_ANON_KEY`).
+Observação: para upload no Storage, o backend exige `SUPABASE_URL` e pelo menos uma chave (`SUPABASE_SERVICE_ROLE_KEY` ou `SUPABASE_ANON_KEY`). O Supabase é self-hosted nesta máquina — suba com `make supabase-up` e copie as chaves de `supabase/docker/.env`. Ver `supabase/README.md`.
 
 ## Rotas disponíveis
 
@@ -169,7 +169,7 @@ cd backend
 uv run pytest
 ```
 
-Observação: esse teste depende de credenciais válidas do Supabase no ambiente.
+Observação: esse teste é de integração real — precisa do Supabase self-hosted de pé (`make supabase-up`) e das credenciais em `backend/.env`.
 
 ### Executar testes do backend via Docker Compose
 

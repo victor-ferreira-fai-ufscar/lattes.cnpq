@@ -18,6 +18,7 @@ from src.api.routers import scrape as scrape_module
 from src.api.routers import _helpers as helpers_module
 from src.core.curriculo_diff import CurriculoDiffResult
 from src.core.exporter import GeneratedArtifact, GeneratedArtifactBundle
+from src.core.perfil_externo import ObraExterna, PerfilExterno
 from src.core.storage import (
     StorageCachedPdfResult,
     StorageCurriculoHistoryResult,
@@ -339,3 +340,88 @@ def test_scrape_cache_hit_retorna_payload_completo_com_historico(client, monkeyp
     # Campos de artefatos
     assert "generated_files" in data
     assert "output_format" in data
+
+
+def _mock_cache_hit_basico(monkeypatch):
+    """Monta o path de cache HIT do /scrape com storage e Lattes mockados."""
+    cache_version = _make_cached_pdf("2026-04-13")
+
+    monkeypatch.setattr(
+        scrape_module, "find_fresh_curriculo_pdf", lambda nome, **kwargs: cache_version
+    )
+
+    async def fake_ultima_atualizacao(nome):
+        return date(2026, 4, 13)
+
+    monkeypatch.setattr(
+        scrape_module, "scrape_lattes_ultima_atualizacao", fake_ultima_atualizacao
+    )
+    monkeypatch.setattr(
+        scrape_module, "ensure_curriculo_artifacts", lambda **kwargs: FAKE_BUNDLE
+    )
+    monkeypatch.setattr(
+        helpers_module,
+        "get_curriculo_pdf_history",
+        lambda nome: StorageCurriculoHistoryResult(versions=[]),
+    )
+
+
+def test_scrape_inclui_perfil_externo_de_confianca_alta(client, monkeypatch):
+    _mock_cache_hit_basico(monkeypatch)
+
+    perfil = PerfilExterno(
+        nome_busca="Victor Ferreira",
+        confianca="alta",
+        score=6,
+        openalex_author_id="https://openalex.org/A5001",
+        afiliacao="Universidade Federal de São Carlos",
+        total_obras=42,
+        total_citacoes=315,
+        h_index=11,
+        obras=(ObraExterna(titulo="Obra relevante", ano=2021, citacoes=30),),
+        fontes=("openalex",),
+    )
+
+    async def fake_get(nome, **kwargs):
+        return perfil
+
+    monkeypatch.setattr(helpers_module, "get_perfil_externo", fake_get)
+
+    response = client.post("/scrape", json={"nome": "Victor Ferreira"})
+
+    assert response.status_code == 200
+    payload = response.json()["perfil_externo"]
+    assert payload is not None
+    assert payload["afiliacao"] == "Universidade Federal de São Carlos"
+    assert payload["total_citacoes"] == 315
+    assert payload["obras"][0]["titulo"] == "Obra relevante"
+
+
+def test_scrape_omite_perfil_externo_de_confianca_baixa(client, monkeypatch):
+    _mock_cache_hit_basico(monkeypatch)
+
+    async def fake_get(nome, **kwargs):
+        return PerfilExterno(nome_busca="Victor Ferreira", confianca="baixa", score=1)
+
+    monkeypatch.setattr(helpers_module, "get_perfil_externo", fake_get)
+
+    response = client.post("/scrape", json={"nome": "Victor Ferreira"})
+
+    assert response.status_code == 200
+    assert response.json()["perfil_externo"] is None
+
+
+def test_scrape_segue_normalmente_quando_o_enriquecimento_falha(client, monkeypatch):
+    _mock_cache_hit_basico(monkeypatch)
+
+    async def fake_get(nome, **kwargs):
+        raise RuntimeError("OpenAlex fora do ar")
+
+    monkeypatch.setattr(helpers_module, "get_perfil_externo", fake_get)
+
+    response = client.post("/scrape", json={"nome": "Victor Ferreira"})
+
+    # A falha externa não pode derrubar a entrega do currículo.
+    assert response.status_code == 200
+    assert response.json()["perfil_externo"] is None
+    assert response.json()["arquivo_pdf"] == "victor-ferreira-2026-04-13.pdf"

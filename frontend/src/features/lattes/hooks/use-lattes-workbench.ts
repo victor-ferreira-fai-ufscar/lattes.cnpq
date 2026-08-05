@@ -105,15 +105,16 @@ export function useLattesWorkbench() {
     skip: number,
     limit: number | undefined,
     outputFormat: OutputFormat,
+    gerarResumo: boolean,
   ) => {
     setRetryActionLabel("Tentar lote novamente");
     lastRetryActionRef.current = async () => {
-      await submitBatch(file, skip, limit, outputFormat);
+      await submitBatch(file, skip, limit, outputFormat, gerarResumo);
     };
 
     resetFeedback();
     clearLiveExecutionLogs();
-    await batchFlow.submitBatch(file, skip, limit, outputFormat);
+    await batchFlow.submitBatch(file, skip, limit, outputFormat, gerarResumo);
   };
 
   const loadModels = async (provisorio?: {

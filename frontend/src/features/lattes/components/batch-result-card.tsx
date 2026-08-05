@@ -23,6 +23,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { PerfilExternoCard } from "@/features/lattes/components/perfil-externo-card";
 import { buildNameVariants } from "@/features/lattes/lib/name-variants";
 import { OUTPUT_FORMAT_LABELS } from "@/features/lattes/lib/output-format";
 import type {
@@ -358,6 +359,34 @@ export function BatchResultCard({ result }: BatchResultCardProps) {
                         ))}
                       </div>
                     </div>
+                    {item.resumo_status ? (
+                      <div
+                        className={`rounded-lg border p-3 text-xs ${
+                          item.resumo_status === "ok"
+                            ? "border-emerald-200 bg-emerald-50/70 text-emerald-900"
+                            : "border-amber-200 bg-amber-50/70 text-amber-900"
+                        }`}
+                      >
+                        <p className="font-semibold uppercase tracking-[0.12em]">
+                          Resumo por IA
+                        </p>
+                        {item.resumo_status === "ok" ? (
+                          <p className="mt-1">
+                            Resumo gerado e embutido nos arquivos DOCX e HTML
+                            {typeof item.resumo_duracao_segundos === "number"
+                              ? ` (${item.resumo_duracao_segundos}s).`
+                              : "."}
+                          </p>
+                        ) : (
+                          <p className="mt-1">
+                            Não foi possível gerar o resumo
+                            {item.resumo_erro ? `: ${item.resumo_erro}` : "."} O
+                            currículo foi processado normalmente.
+                          </p>
+                        )}
+                      </div>
+                    ) : null}
+                    <PerfilExternoCard perfil={item.perfil_externo} embedded />
                   </div>
                 ) : (
                   <div className="mt-3 space-y-2 text-sm text-red-700">

@@ -13,6 +13,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { CurriculoDiffCard } from "@/features/lattes/components/curriculo-diff-card";
+import { PerfilExternoCard } from "@/features/lattes/components/perfil-externo-card";
 import { OUTPUT_FORMAT_LABELS } from "@/features/lattes/lib/output-format";
 import type { ScrapeResponse } from "@/features/lattes/services/lattes.service";
 
@@ -133,6 +134,8 @@ export function ScrapeResultCard({ result }: ScrapeResultCardProps) {
             diff={result.cache_historico_diff}
           />
         )}
+
+        <PerfilExternoCard perfil={result.perfil_externo} embedded />
 
         <details className="group rounded-2xl border border-white/70 bg-white/75 p-4">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-slate-900">            <span className="flex items-center gap-2">
