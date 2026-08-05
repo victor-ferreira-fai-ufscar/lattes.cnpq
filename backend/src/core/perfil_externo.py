@@ -448,11 +448,10 @@ def _termos_distintivos_cv(texto_curriculo: Optional[str], limite: int = 12) -> 
     return candidatos[:limite]
 
 
-# A busca do Google News é por expressão exata, mas o feed devolve também
-# resultados aproximados que sequer citam a pessoa — daí a checagem do nome ser
-# obrigatória. Já o termo de contexto só é exigido para nomes curtos: um nome
-# completo com 3+ partes ("Aline Guerra Aquilante") já identifica bem sozinho,
-# enquanto "Ana Silva" precisa de reforço para não colher homônimos.
+# Quantas partes um nome precisa ter para a query por expressão exata bastar como
+# prova de que a matéria é sobre a pessoa. "Aline Guerra Aquilante" identifica bem
+# sozinho; "Ana Silva" não, e aí o nome também tem de aparecer no texto do item.
+# Ver _filtrar_noticias para as duas réguas que este limiar separa.
 _MIN_PARTES_NOME_DISTINTIVO = 3
 
 
@@ -463,9 +462,23 @@ def _filtrar_noticias(
     texto_curriculo: Optional[str],
     limite: int,
 ) -> list[NoticiaExterna]:
-    """Notícias que citam o nome, da mais recente para a mais antiga.
+    """Notícias sobre o docente, da mais recente para a mais antiga.
 
-    Mantém só o que cita o nome; nomes curtos exigem também contexto acadêmico.
+    O texto de um item do RSS é só `título + <a href>`: o nome do docente
+    aparece ali apenas quando está na manchete, o que é raro fora de celebridade.
+    Exigir o nome no item derrubava praticamente todo o feed — inclusive matérias
+    legítimas, como a do docente citado no corpo da reportagem.
+
+    Por isso a régua depende do tamanho do nome:
+
+    - **Nome completo (3+ partes)**: a query já é por expressão exata
+      (`q="Nome Completo"`), então o Google garante o nome no *artigo*. Aqui o
+      termo de contexto (afiliação, termo acadêmico ou termo recorrente do CV) é
+      o que faz a guarda: mantém a matéria universitária e descarta o resultado
+      aproximado que o feed devolve junto.
+    - **Nome curto (< 3 partes)**: "Ana Silva" identifica mal demais para
+      confiar na query, então continua valendo o critério duplo — nome no texto
+      do item **e** contexto.
 
     O corte por `limite` vem **depois** da ordenação, e não durante a varredura:
     o Google News devolve o feed por relevância, não por data, então cortar
@@ -474,7 +487,7 @@ def _filtrar_noticias(
     2019 no topo.
     """
     nome_chave = chave_comparacao(nome)
-    exige_contexto = len(nome.split()) < _MIN_PARTES_NOME_DISTINTIVO
+    nome_curto = len(nome.split()) < _MIN_PARTES_NOME_DISTINTIVO
     contexto = (
         [chave_comparacao(termo) for termo in _afiliacoes_alvo()]
         + list(_TERMOS_ACADEMICOS)
@@ -485,9 +498,9 @@ def _filtrar_noticias(
     vistos: set[str] = set()
     for noticia, texto_filtro in itens:
         alvo = chave_comparacao(texto_filtro)
-        if nome_chave not in alvo:
+        if nome_curto and nome_chave not in alvo:
             continue
-        if exige_contexto and not any(termo and termo in alvo for termo in contexto):
+        if not any(termo and termo in alvo for termo in contexto):
             continue
         if noticia.url in vistos:
             continue

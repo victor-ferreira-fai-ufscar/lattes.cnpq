@@ -2,6 +2,8 @@ from time import perf_counter
 
 from fastapi import APIRouter, HTTPException, Request
 
+from ...core.perfil_externo import NoticiaExterna
+from ...core.perfil_externo_cache import get_perfil_externo
 from ...core.sections import SECOES_VALIDAS, extrair_secao, label_da_secao
 from ...core.summarizer import listar_modelos, resumir_curriculo
 from ...core.summary_source_cache import get_summary_source
@@ -13,6 +15,7 @@ from ...libs.request_monitor import (
     request_monitor,
 )
 from ...models import ModelsRequest, SummarizeRequest
+from ._helpers import noticias_publicaveis
 
 router = APIRouter()
 
@@ -100,6 +103,21 @@ async def summarize(request: SummarizeRequest, http_request: Request):
                     "enviando o currículo inteiro e pedindo foco nessa seção."
                 )
 
+        # Notícias entram só no resumo do currículo inteiro. Num resumo de seção
+        # o pedido é um recorte do Lattes, e o perfil externo não pertence a ele.
+        noticias: tuple[NoticiaExterna, ...] = ()
+        if not secao:
+            perfil_externo = await get_perfil_externo(nome, log=add_log)
+            noticias = noticias_publicaveis(perfil_externo)
+            if noticias:
+                add_log(
+                    f"{len(noticias)} notícia(s) do perfil externo incluída(s) no resumo."
+                )
+            elif perfil_externo is not None and not perfil_externo.publicavel:
+                add_log(
+                    "Perfil externo sem confiança alta; notícias não entram no resumo."
+                )
+
         add_log(
             f"Enviando texto para IA (provedor='{request.provedor}', modelo='{request.modelo}')."
         )
@@ -113,6 +131,7 @@ async def summarize(request: SummarizeRequest, http_request: Request):
                 modelo=request.modelo,
                 provedor=request.provedor,
                 secao=secao,
+                noticias=noticias,
                 log=add_log,
             )
         except ValueError as exc:

@@ -291,8 +291,16 @@ async def test_falha_no_openalex_devolve_perfil_vazio_sem_excecao(cliente_mockad
     assert any("OpenAlex" in erro for erro in perfil.erros)
 
 
-async def test_noticia_que_nao_cita_o_nome_e_descartada(cliente_mockado):
-    """O feed do Google News devolve resultados aproximados, sem o nome."""
+async def test_nome_completo_aceita_noticia_sem_o_nome_no_texto_do_item(
+    cliente_mockado,
+):
+    """O item do RSS é só título + link: o nome quase nunca está lá.
+
+    Exigir o nome no item derrubava o feed inteiro de docente, inclusive matéria
+    legítima em que ele é citado no corpo da reportagem. Com nome de 3+ partes a
+    query por expressão exata já garante o nome no artigo, e o termo de contexto
+    ('UFSCar' aqui) é o que sustenta a decisão.
+    """
     cliente_mockado(
         autores=[_autor_openalex()],
         obras=[],
@@ -301,7 +309,32 @@ async def test_noticia_que_nao_cita_o_nome_e_descartada(cliente_mockado):
                 titulo="Campus da UFSCar causa impacto na região - SMETAL",
                 link="https://exemplo.com/campus",
                 veiculo="SMETAL",
-                descricao="Reportagem sobre o campus, sem citar a docente.",
+                descricao="Reportagem sobre o campus universitário.",
+            )
+        ),
+    )
+
+    perfil = await coletar_perfil_externo(NOME)
+
+    assert perfil is not None
+    assert [noticia.veiculo for noticia in perfil.noticias] == ["SMETAL"]
+
+
+async def test_noticia_sem_termo_de_contexto_e_descartada(cliente_mockado):
+    """O feed devolve resultados aproximados; sem contexto não há como situá-los.
+
+    Este é o único freio que resta para nome completo, então vale cobrá-lo: nem
+    afiliação, nem termo acadêmico, nem termo recorrente do CV no item.
+    """
+    cliente_mockado(
+        autores=[_autor_openalex()],
+        obras=[],
+        rss=_rss(
+            _item(
+                titulo="Trânsito complicado na avenida central - Portal da Cidade",
+                link="https://exemplo.com/transito",
+                veiculo="Portal da Cidade",
+                descricao="Motoristas enfrentam filas no horário de pico.",
             )
         ),
     )
@@ -334,26 +367,30 @@ async def test_nome_curto_exige_contexto_academico(cliente_mockado):
     assert perfil.noticias == ()
 
 
-async def test_nome_completo_dispensa_termo_de_contexto(cliente_mockado):
-    """Com 3+ partes, o nome já identifica: exigir contexto perdia matérias reais."""
+async def test_nome_curto_exige_nome_no_item_alem_do_contexto(cliente_mockado):
+    """Para nome curto o critério segue duplo, mesmo com contexto de sobra.
+
+    A matéria é claramente universitária, mas não cita o nome — se isso bastasse,
+    qualquer notícia acadêmica entraria no perfil de qualquer homônimo.
+    """
+    nome_curto = "Ana Silva"
     cliente_mockado(
-        autores=[_autor_openalex()],
+        autores=[],
         obras=[],
         rss=_rss(
             _item(
-                titulo=f"{NOME} assume nova diretoria - Jornal Local",
-                link="https://exemplo.com/diretoria",
+                titulo="Pesquisa da universidade avança em vacinas - Jornal Local",
+                link="https://exemplo.com/pesquisa",
                 veiculo="Jornal Local",
-                descricao="Anúncio feito nesta semana.",
+                descricao="Professores relatam avanço da pesquisa.",
             )
         ),
     )
 
-    perfil = await coletar_perfil_externo(NOME)
+    perfil = await coletar_perfil_externo(nome_curto)
 
     assert perfil is not None
-    assert len(perfil.noticias) == 1
-    assert perfil.noticias[0].veiculo == "Jornal Local"
+    assert perfil.noticias == ()
 
 
 async def test_noticias_saem_da_mais_recente_e_o_corte_respeita_a_data(
@@ -375,28 +412,28 @@ async def test_noticias_saem_da_mais_recente_e_o_corte_respeita_a_data(
                 titulo=f"{NOME} em reportagem de 2019 - Jornal A",
                 link="https://exemplo.com/2019",
                 veiculo="Jornal A",
-                descricao=f"Perfil de {NOME} publicado em 2019.",
+                descricao=f"Perfil da professora {NOME}, publicado em 2019.",
                 pub_date="Wed, 06 Mar 2019 09:00:00 GMT",
             ),
             _item(
                 titulo=f"{NOME} em matéria sem data - Jornal B",
                 link="https://exemplo.com/sem-data",
                 veiculo="Jornal B",
-                descricao=f"Menção a {NOME} sem data no feed.",
+                descricao=f"Menção à pesquisa de {NOME}, sem data no feed.",
                 pub_date=None,
             ),
             _item(
                 titulo=f"{NOME} coordena projeto de extensão - Jornal C",
                 link="https://exemplo.com/julho",
                 veiculo="Jornal C",
-                descricao=f"{NOME} à frente do projeto.",
+                descricao=f"A pesquisadora {NOME} está à frente do projeto.",
                 pub_date="Mon, 20 Jul 2026 09:00:00 GMT",
             ),
             _item(
                 titulo=f"{NOME} assume nova diretoria - Jornal D",
                 link="https://exemplo.com/agosto",
                 veiculo="Jornal D",
-                descricao=f"Anúncio sobre {NOME} nesta semana.",
+                descricao=f"Anúncio da universidade sobre {NOME} nesta semana.",
                 pub_date="Tue, 04 Aug 2026 09:30:00 GMT",
             ),
         ),
