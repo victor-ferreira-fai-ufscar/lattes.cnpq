@@ -164,6 +164,29 @@ docker compose up -d --force-recreate backend frontend
 - Padrão: execução estável, sem hot reload, para rodar rápido e testar localmente.
 - Desenvolvimento: use [docker-compose.dev.yml](docker-compose.dev.yml) para hot reload no backend e no frontend.
 
+## Deploy (produção)
+
+**A `main` é a produção.** Todo merge na `main` publica sozinho em
+<https://lattes.sup.fai.ufscar.br> em até 2 minutos.
+
+Quem faz isso é [scripts/deploy.sh](scripts/deploy.sh), por cron, a partir de um
+checkout dedicado em `/srv/deploy/lattes.cnpq`. Se `origin/main` avançou, ele dá
+`git reset --hard`, rebuilda os containers e confere `/health`; senão sai calado.
+Log em `/srv/deploy/lattes-deploy.log`. Não usamos webhook porque o firewall da
+UFSCar bloqueia inbound — daí o polling.
+
+Duas consequências práticas:
+
+- **Não edite `/srv/deploy/lattes.cnpq`.** Ele é sobrescrito a cada publicação.
+  Desenvolvimento acontece no seu próprio clone.
+- **`backend/.env` é gitignored**, então existe uma cópia própria no checkout de
+  deploy. Ao rotacionar uma chave, atualize as duas — o deploy aborta (sem
+  publicar) se o arquivo sumir.
+
+O Supabase self-hosted **não** faz parte desse ciclo: é serviço com estado, mora
+em `/srv/docker/lattes-supabase` e sobe pelo `make supabase-up`. Ver
+[supabase/README.md](supabase/README.md).
+
 ## Endpoints principais da API
 
 - GET /health
