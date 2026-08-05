@@ -30,7 +30,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Instalar uv
-        run: pip3 install --no-cache-dir --break-system-packages uv
+        # Instalador oficial em vez de pip: a node:22-bookworm traz python3 mas
+        # não traz pip3, e instalar pip só para instalar o uv é rodeio.
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Testes do backend
         working-directory: backend
         # Sem rede externa: os testes que tocam storage são mockados, e o de
