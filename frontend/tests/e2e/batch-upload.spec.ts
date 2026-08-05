@@ -79,7 +79,7 @@ async function setupAndRunBatch(page: import("@playwright/test").Page) {
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Enviar lista em CSV" }).click();
+  await page.getByRole("tab", { name: "Enviar CSV" }).click();
 
   const csvPath = path.resolve(
     process.cwd(),
@@ -122,7 +122,7 @@ test("envia CSV com skip/limit e confirma requisição para o backend", async ({
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Enviar lista em CSV" }).click();
+  await page.getByRole("tab", { name: "Enviar CSV" }).click();
 
   const csvPath = path.resolve(
     process.cwd(),
@@ -213,7 +213,7 @@ test("exibe mensagem de erro quando ZIP falha no backend", async ({ page }) => {
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Enviar lista em CSV" }).click();
+  await page.getByRole("tab", { name: "Enviar CSV" }).click();
 
   const csvPath = path.resolve(
     process.cwd(),
