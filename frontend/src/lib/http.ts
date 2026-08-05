@@ -18,7 +18,18 @@ function computeApiBaseUrl(): string {
 
   try {
     const apiUrl = new URL(configured);
-    apiUrl.hostname = window.location.hostname;
+    // Só reescreve quando a API foi configurada por localhost/IP — aí o mesmo
+    // build atende acesso por localhost, IP da LAN ou IP público. Quando vem um
+    // domínio (produção atrás do Caddy, em lattes-api.sup), ele já é o endereço
+    // certo: reescrever mandaria as chamadas para o próprio frontend, que
+    // responde 404 em /search, /scrape etc.
+    const hostAgnostic =
+      apiUrl.hostname === "localhost" ||
+      /^\d{1,3}(\.\d{1,3}){3}$/.test(apiUrl.hostname) ||
+      apiUrl.hostname.startsWith("[");
+    if (hostAgnostic) {
+      apiUrl.hostname = window.location.hostname;
+    }
     return apiUrl.origin;
   } catch {
     return configured;
