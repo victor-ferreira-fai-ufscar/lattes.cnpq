@@ -38,11 +38,13 @@ def _autor_openalex(
     }
 
 
-def _obra_openalex(titulo: str, citacoes: int = 30) -> dict:
+def _obra_openalex(
+    titulo: str, citacoes: int = 30, ano: int | None = 2021
+) -> dict:
     return {
         "id": f"https://openalex.org/W{abs(hash(titulo)) % 10000}",
         "title": titulo,
-        "publication_year": 2021,
+        "publication_year": ano,
         "doi": "https://doi.org/10.1000/exemplo",
         "cited_by_count": citacoes,
         "primary_location": {"source": {"display_name": "Revista de Saúde Coletiva"}},
@@ -58,10 +60,32 @@ RSS_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 ITEM_TEMPLATE = """<item>
   <title>{titulo}</title>
   <link>{link}</link>
-  <pubDate>Tue, 04 Aug 2026 09:30:00 GMT</pubDate>
+  {pub_date}
   <source url="https://exemplo.com">{veiculo}</source>
   <description>{descricao}</description>
 </item>"""
+
+# Data usada por quem não está testando ordenação — o valor não importa, só
+# precisa ser um pubDate válido.
+PUB_DATE_PADRAO = "Tue, 04 Aug 2026 09:30:00 GMT"
+
+
+def _item(
+    *,
+    titulo: str,
+    link: str,
+    veiculo: str,
+    descricao: str,
+    pub_date: str | None = PUB_DATE_PADRAO,
+) -> str:
+    """Item de RSS; `pub_date=None` omite a tag, como fazem feeds incompletos."""
+    return ITEM_TEMPLATE.format(
+        titulo=titulo,
+        link=link,
+        veiculo=veiculo,
+        descricao=descricao,
+        pub_date=f"<pubDate>{pub_date}</pubDate>" if pub_date else "",
+    )
 
 
 def _rss(*itens: str) -> str:
@@ -137,7 +161,7 @@ async def test_afiliacao_e_nome_dao_confianca_alta(cliente_mockado):
         autores=[_autor_openalex()],
         obras=[_obra_openalex("Determinantes sociais da saúde bucal em idosos")],
         rss=_rss(
-            ITEM_TEMPLATE.format(
+            _item(
                 titulo=f"{NOME} lidera pesquisa na UFSCar - Jornal da Cidade",
                 link="https://exemplo.com/noticia-1",
                 veiculo="Jornal da Cidade",
@@ -162,6 +186,37 @@ async def test_afiliacao_e_nome_dao_confianca_alta(cliente_mockado):
     assert perfil.noticias[0].titulo.endswith("na UFSCar")
     assert set(perfil.fontes) == {"openalex", "google-news"}
     assert perfil.erros == ()
+
+
+async def test_obras_saem_da_mais_recente_para_a_mais_antiga(cliente_mockado):
+    """A citação escolhe quais obras entram; a data define a ordem de exibição.
+
+    O OpenAlex devolve por citação decrescente — é assim que o mock entrega. O
+    que se cobra aqui é a reordenação por ano feita depois do corte, incluindo
+    o desempate por citação no mesmo ano e a obra sem ano indo para o fim.
+    """
+    cliente_mockado(
+        autores=[_autor_openalex()],
+        obras=[
+            _obra_openalex("Muito citada e antiga", citacoes=900, ano=2005),
+            _obra_openalex("Sem ano de publicação", citacoes=400, ano=None),
+            _obra_openalex("Menos citada de 2019", citacoes=120, ano=2019),
+            _obra_openalex("Mais citada de 2019", citacoes=300, ano=2019),
+            _obra_openalex("Recente e pouco citada", citacoes=3, ano=2024),
+        ],
+        rss=_rss(),
+    )
+
+    perfil = await coletar_perfil_externo(NOME)
+
+    assert perfil is not None
+    assert [obra.titulo for obra in perfil.obras] == [
+        "Recente e pouco citada",
+        "Mais citada de 2019",
+        "Menos citada de 2019",
+        "Muito citada e antiga",
+        "Sem ano de publicação",
+    ]
 
 
 async def test_homonimo_sem_afiliacao_fica_com_confianca_baixa(cliente_mockado):
@@ -242,7 +297,7 @@ async def test_noticia_que_nao_cita_o_nome_e_descartada(cliente_mockado):
         autores=[_autor_openalex()],
         obras=[],
         rss=_rss(
-            ITEM_TEMPLATE.format(
+            _item(
                 titulo="Campus da UFSCar causa impacto na região - SMETAL",
                 link="https://exemplo.com/campus",
                 veiculo="SMETAL",
@@ -264,7 +319,7 @@ async def test_nome_curto_exige_contexto_academico(cliente_mockado):
         autores=[],
         obras=[],
         rss=_rss(
-            ITEM_TEMPLATE.format(
+            _item(
                 titulo=f"{nome_curto} vence campeonato de tênis - Portal Esportivo",
                 link="https://exemplo.com/esporte",
                 veiculo="Portal Esportivo",
@@ -285,7 +340,7 @@ async def test_nome_completo_dispensa_termo_de_contexto(cliente_mockado):
         autores=[_autor_openalex()],
         obras=[],
         rss=_rss(
-            ITEM_TEMPLATE.format(
+            _item(
                 titulo=f"{NOME} assume nova diretoria - Jornal Local",
                 link="https://exemplo.com/diretoria",
                 veiculo="Jornal Local",
@@ -299,6 +354,58 @@ async def test_nome_completo_dispensa_termo_de_contexto(cliente_mockado):
     assert perfil is not None
     assert len(perfil.noticias) == 1
     assert perfil.noticias[0].veiculo == "Jornal Local"
+
+
+async def test_noticias_saem_da_mais_recente_e_o_corte_respeita_a_data(
+    cliente_mockado, monkeypatch
+):
+    """O corte por limite vem depois da ordenação, não na ordem do feed.
+
+    O Google News entrega por relevância, então aqui a matéria mais nova é a
+    última do feed e a mais velha é a primeira. Com limite 2, as escolhidas têm
+    de ser as duas mais recentes — cortar durante a varredura devolveria as duas
+    primeiras. A notícia sem `pubDate` fica fora: não há como situá-la no tempo.
+    """
+    monkeypatch.setenv("PERFIL_EXTERNO_NOTICIAS_MAX", "2")
+    cliente_mockado(
+        autores=[_autor_openalex()],
+        obras=[],
+        rss=_rss(
+            _item(
+                titulo=f"{NOME} em reportagem de 2019 - Jornal A",
+                link="https://exemplo.com/2019",
+                veiculo="Jornal A",
+                descricao=f"Perfil de {NOME} publicado em 2019.",
+                pub_date="Wed, 06 Mar 2019 09:00:00 GMT",
+            ),
+            _item(
+                titulo=f"{NOME} em matéria sem data - Jornal B",
+                link="https://exemplo.com/sem-data",
+                veiculo="Jornal B",
+                descricao=f"Menção a {NOME} sem data no feed.",
+                pub_date=None,
+            ),
+            _item(
+                titulo=f"{NOME} coordena projeto de extensão - Jornal C",
+                link="https://exemplo.com/julho",
+                veiculo="Jornal C",
+                descricao=f"{NOME} à frente do projeto.",
+                pub_date="Mon, 20 Jul 2026 09:00:00 GMT",
+            ),
+            _item(
+                titulo=f"{NOME} assume nova diretoria - Jornal D",
+                link="https://exemplo.com/agosto",
+                veiculo="Jornal D",
+                descricao=f"Anúncio sobre {NOME} nesta semana.",
+                pub_date="Tue, 04 Aug 2026 09:30:00 GMT",
+            ),
+        ),
+    )
+
+    perfil = await coletar_perfil_externo(NOME)
+
+    assert perfil is not None
+    assert [noticia.veiculo for noticia in perfil.noticias] == ["Jornal D", "Jornal C"]
 
 
 async def test_flag_desligada_pula_o_enriquecimento(monkeypatch):

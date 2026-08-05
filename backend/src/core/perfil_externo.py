@@ -315,6 +315,14 @@ def _veiculo_obra(payload: dict[str, Any]) -> Optional[str]:
 async def _buscar_obras_openalex(
     client: httpx.AsyncClient, author_id: str, limite: int
 ) -> list[ObraExterna]:
+    """As `limite` obras mais citadas do autor, da mais recente para a mais antiga.
+
+    São dois critérios com papéis distintos: a **citação decide quais** obras
+    entram (o `sort` do OpenAlex, aplicado sobre a produção inteira antes do
+    corte por `per-page`), e a **data decide a ordem** em que elas aparecem na
+    tela e nos artefatos exportados. Ordenar por data no pedido traria as mais
+    recentes independentemente de relevância, o que é outra lista.
+    """
     resposta = await client.get(
         f"{_OPENALEX_BASE}/works",
         params=_params_openalex(
@@ -344,6 +352,14 @@ async def _buscar_obras_openalex(
                 citacoes=_coerce_int(item.get("cited_by_count")),
             )
         )
+
+    # O OpenAlex expõe `publication_year`, não a data cheia, então o ano é toda
+    # a granularidade disponível: dentro do mesmo ano a mais citada vem antes.
+    # Obra sem ano vai para o fim — não há como saber se é recente.
+    obras.sort(
+        key=lambda obra: (obra.ano is not None, obra.ano or 0, obra.citacoes),
+        reverse=True,
+    )
     return obras
 
 
@@ -447,7 +463,16 @@ def _filtrar_noticias(
     texto_curriculo: Optional[str],
     limite: int,
 ) -> list[NoticiaExterna]:
-    """Mantém o que cita o nome; nomes curtos exigem também contexto acadêmico."""
+    """Notícias que citam o nome, da mais recente para a mais antiga.
+
+    Mantém só o que cita o nome; nomes curtos exigem também contexto acadêmico.
+
+    O corte por `limite` vem **depois** da ordenação, e não durante a varredura:
+    o Google News devolve o feed por relevância, não por data, então cortar
+    antes entregaria "as mais recentes entre as primeiras do feed" — uma matéria
+    de ontem que aparecesse em décimo lugar ficaria de fora em favor de uma de
+    2019 no topo.
+    """
     nome_chave = chave_comparacao(nome)
     exige_contexto = len(nome.split()) < _MIN_PARTES_NOME_DISTINTIVO
     contexto = (
@@ -468,10 +493,15 @@ def _filtrar_noticias(
             continue
         vistos.add(noticia.url)
         aprovadas.append(noticia)
-        if len(aprovadas) >= limite:
-            break
 
-    return aprovadas
+    # Ordenação estável: no empate de data vale a ordem do feed, que é por
+    # relevância. Notícia sem pubDate legível vai para o fim e pode cair fora do
+    # corte — sem data não há como afirmar que é recente.
+    aprovadas.sort(
+        key=lambda noticia: (noticia.data is not None, noticia.data or date.min),
+        reverse=True,
+    )
+    return aprovadas[:limite]
 
 
 # --------------------------------------------------------------------------- #
