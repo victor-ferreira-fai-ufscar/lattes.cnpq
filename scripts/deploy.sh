@@ -24,8 +24,10 @@ flock -n 9 || exit 0
 exec >>"$REPO/../lattes-deploy.log" 2>&1
 
 git fetch --quiet origin main
-LOCAL="$(git rev-parse HEAD)"
-REMOTE="$(git rev-parse origin/main)"
+# --short em vez de ${VAR:0:7}: assim o script roda igual em bash e em dash,
+# e um `sh deploy.sh` distraído não quebra com "Bad substitution".
+LOCAL="$(git rev-parse --short HEAD)"
+REMOTE="$(git rev-parse --short origin/main)"
 [ "$LOCAL" = "$REMOTE" ] && exit 0    # nada novo na main
 
 # backend/.env é gitignored e carrega as chaves do Supabase. Sem ele o backend
@@ -35,7 +37,7 @@ if [ ! -f "$REPO/backend/.env" ]; then
     exit 1
 fi
 
-echo "=== $(date '+%F %T') publicando ${LOCAL:0:7} -> ${REMOTE:0:7} ==="
+echo "=== $(date '+%F %T') publicando $LOCAL -> $REMOTE ==="
 git reset --hard origin/main
 # docker-compose.override.yml (produção) é auto-carregado; ver Makefile.
 docker compose up -d --build
