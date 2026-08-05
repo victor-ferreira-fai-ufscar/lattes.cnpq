@@ -39,8 +39,24 @@ fi
 
 echo "=== $(date '+%F %T') publicando $LOCAL -> $REMOTE ==="
 git reset --hard origin/main
+
+# Constrói ANTES de derrubar o que está no ar. Build quebrado (erro de tipo no
+# Next, dependência faltando) para aqui, com a produção antiga intacta.
 # docker-compose.override.yml (produção) é auto-carregado; ver Makefile.
-docker compose up -d --build
+if ! docker compose build; then
+    echo "=== ABORTADO: build falhou em $REMOTE, produção segue em $LOCAL ==="
+    exit 1
+fi
+
+# Portão de testes: os 86 do backend rodam em segundos e cobrem o storage, o
+# cache e o diff de versões. Não roda o e2e do frontend aqui — leva ~10 min, o
+# que não cabe num cron de 2 em 2 minutos; esse fica pro CI.
+if ! docker compose --profile test run --rm backend-test; then
+    echo "=== ABORTADO: testes falharam em $REMOTE, produção segue em $LOCAL ==="
+    exit 1
+fi
+
+docker compose up -d
 
 # Fumaça: se o backend não responder, o log registra em vez de fingir sucesso.
 sleep 15

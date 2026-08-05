@@ -1,0 +1,56 @@
+# CI no Forgejo (git.sup.fai.ufscar.br), onde este repo é espelhado.
+# O GitHub segue canônico: é de lá que scripts/deploy.sh publica.
+#
+# Os jobs rodam em imagens próprias, sem `docker compose`. Não é preferência
+# estética: o runner é um container e só tem o socket do daemon do host, então
+# um build feito de dentro dele receberia um contexto que o host não enxerga.
+# Rodando direto nas imagens, o problema não existe.
+#
+# O e2e ao vivo (storage-live.spec.ts) fica de fora — depende da produção no ar
+# e faria um scrape real na Plataforma Lattes a cada execução. Ele roda sob
+# demanda com E2E_LIVE=1.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: docker
+    container:
+      image: python:3.11-slim
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar uv
+        run: pip install --no-cache-dir uv
+      - name: Testes do backend
+        working-directory: backend
+        # Sem rede externa: os testes que tocam storage são mockados, e o de
+        # integração real só roda com credenciais em backend/.env, ausente aqui.
+        run: uv sync --frozen --dev && uv run pytest -q
+
+  frontend-e2e:
+    runs-on: docker
+    container:
+      # Casada com @playwright/test do package.json — imagem e biblioteca em
+      # versões diferentes fazem o Playwright recusar os navegadores.
+      image: mcr.microsoft.com/playwright:v1.58.2-noble
+    steps:
+      - uses: actions/checkout@v4
+      - name: Habilitar pnpm
+        run: corepack enable
+      - name: Instalar dependências
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Testes e2e (mockados)
+        working-directory: frontend
+        # O playwright.config sobe o Next dev sozinho (webServer).
+        run: pnpm exec playwright test
+      - uses: actions/upload-artifact@v3
+        if: failure()
+        with:
+          name: playwright-report
+          path: frontend/test-results/
+          retention-days: 7

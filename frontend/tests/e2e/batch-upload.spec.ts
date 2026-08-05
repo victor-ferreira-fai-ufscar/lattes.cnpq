@@ -37,32 +37,9 @@ const MOCK_RESPONSE = {
   duracao_segundos: 18.24,
 };
 
-function buildSseBody(
-  result: Record<string, unknown>,
-  logs: string[] = ["[12:00:01] lote executado"],
-) {
-  const startEvent = [
-    "event: start",
-    `data: ${JSON.stringify({
-      arquivo: result.arquivo,
-      total_nomes_csv: result.total_nomes_csv,
-      total_processados: result.total_processados,
-    })}`,
-    "",
-  ].join("\n");
-
-  const logEvents = logs
-    .map((line) => ["event: log", `data: ${JSON.stringify({ message: line })}`, ""].join("\n"))
-    .join("\n");
-
-  const resultEvent = ["event: result", `data: ${JSON.stringify(result)}`, ""].join("\n");
-  const endEvent = ["event: end", "data: {}", ""].join("\n");
-
-  return `${startEvent}\n${logEvents}\n${resultEvent}\n${endEvent}\n`;
-}
 
 async function setupAndRunBatch(page: import("@playwright/test").Page) {
-  await page.route("**/scrape/batch/stream", async (route) => {
+  await page.route("**/scrape/batch", async (route) => {
     const request = route.request();
     const body = request.postDataBuffer();
     const text = body ? new TextDecoder().decode(body) : "";
@@ -73,8 +50,8 @@ async function setupAndRunBatch(page: import("@playwright/test").Page) {
 
     await route.fulfill({
       status: 200,
-      contentType: "text/event-stream",
-      body: buildSseBody(MOCK_RESPONSE),
+      contentType: "application/json",
+      body: JSON.stringify(MOCK_RESPONSE),
     });
   });
 
@@ -88,16 +65,16 @@ async function setupAndRunBatch(page: import("@playwright/test").Page) {
   );
   await page.locator('input[type="file"]').setInputFiles(csvPath);
   await page.getByLabel("Pular primeiras linhas").fill("0");
-  await page.getByLabel("Quantidade maxima").fill("2");
+  await page.getByLabel("Quantidade máxima").fill("2");
   await page.getByRole("button", { name: "Processar lista" }).click();
 
-  await expect(page.getByText("Processamento concluido para 2 pessoa(s).")).toBeVisible();
+  await expect(page.getByText("Processamento concluído para 2 pessoa(s).")).toBeVisible();
 }
 
 test("envia CSV com skip/limit e confirma requisição para o backend", async ({ page }) => {
   let capturedFormData: Record<string, string> = {};
 
-  await page.route("**/scrape/batch/stream", async (route) => {
+  await page.route("**/scrape/batch", async (route) => {
     const request = route.request();
     const body = request.postDataBuffer();
     const text = body ? new TextDecoder().decode(body) : "";
@@ -117,8 +94,8 @@ test("envia CSV com skip/limit e confirma requisição para o backend", async ({
 
     await route.fulfill({
       status: 200,
-      contentType: "text/event-stream",
-      body: buildSseBody(MOCK_RESPONSE),
+      contentType: "application/json",
+      body: JSON.stringify(MOCK_RESPONSE),
     });
   });
 
@@ -132,10 +109,10 @@ test("envia CSV com skip/limit e confirma requisição para o backend", async ({
   );
   await page.locator('input[type="file"]').setInputFiles(csvPath);
   await page.getByLabel("Pular primeiras linhas").fill("0");
-  await page.getByLabel("Quantidade maxima").fill("2");
+  await page.getByLabel("Quantidade máxima").fill("2");
   await page.getByRole("button", { name: "Processar lista" }).click();
 
-  await expect(page.getByText("Processamento concluido para 2 pessoa(s).")).toBeVisible();
+  await expect(page.getByText("Processamento concluído para 2 pessoa(s).")).toBeVisible();
 
   expect(capturedFormData.skip).toBe("0");
   expect(capturedFormData.limit).toBe("2");
@@ -146,7 +123,7 @@ test("exibe métricas do lote (processados, sucessos, erros)", async ({ page }) 
 
   const resultCard = page.getByText("Lista processada").locator("..").locator("..");
   await expect(resultCard.getByText("Pessoas processadas")).toBeVisible();
-  await expect(resultCard.getByText("Concluidos")).toBeVisible();
+  await expect(resultCard.getByText("Concluídos")).toBeVisible();
   await expect(resultCard.getByText("Com problema")).toBeVisible();
   await expect(resultCard.getByText("2").first()).toBeVisible();
   await expect(resultCard.getByText("0")).toBeVisible();
@@ -158,21 +135,29 @@ test("exibe nomes e badge 'sucesso' de cada item processado", async ({ page }) =
   await expect(page.getByText("Aline Barreto de Almeida Nordi")).toBeVisible();
   await expect(page.getByText("Aline Guerra Aquilante")).toBeVisible();
 
-  const badges = page.getByText("Concluido", { exact: true });
+  const badges = page.getByText("Concluído", { exact: true });
   await expect(badges).toHaveCount(2);
 });
 
 test("exibe logs do processamento em lote no painel de execução", async ({ page }) => {
   await setupAndRunBatch(page);
 
-  await page.getByText("Ver registros da execucao").click();
-  await expect(page.getByText("[12:00:01] lote executado")).toBeVisible();
+  // O painel de logs virou uma gaveta flutuante: o ramo com "Ver registros da
+  // execução" existe no componente mas nenhum caller o usa hoje.
+  await page.getByRole("button", { name: "Abrir logs" }).click();
+  await expect(page.getByText("lote executado")).toBeVisible();
 });
 
 test("exibe links 'Abrir PDF' para cada currículo processado com sucesso", async ({ page }) => {
   await setupAndRunBatch(page);
 
-  const pdfLinks = page.getByRole("link", { name: "Abrir PDF" });
+  // Cada pessoa fica num <details> fechado: sem expandir, os links nem entram
+  // na árvore de acessibilidade.
+  for (const nome of ["Aline Barreto de Almeida Nordi", "Aline Guerra Aquilante"]) {
+    await page.getByText(nome, { exact: true }).click();
+  }
+
+  const pdfLinks = page.getByRole("link", { name: "Abrir PDF original" });
   await expect(pdfLinks).toHaveCount(2);
 
   const hrefs = await pdfLinks.evaluateAll((links) =>
@@ -189,7 +174,7 @@ test("exibe links 'Abrir PDF' para cada currículo processado com sucesso", asyn
 test("exibe link de download do ZIP consolidado apontando para pasta zips/", async ({ page }) => {
   await setupAndRunBatch(page);
 
-  const zipLink = page.getByRole("link", { name: "Baixar todos os PDFs" });
+  const zipLink = page.getByRole("link", { name: "Baixar todos os arquivos" });
   await expect(zipLink).toBeVisible();
 
   const href = await zipLink.getAttribute("href");
@@ -198,7 +183,7 @@ test("exibe link de download do ZIP consolidado apontando para pasta zips/", asy
 });
 
 test("exibe mensagem de erro quando ZIP falha no backend", async ({ page }) => {
-  await page.route("**/scrape/batch/stream", async (route) => {
+  await page.route("**/scrape/batch", async (route) => {
     const result = {
       ...MOCK_RESPONSE,
       zip_download_url: null,
@@ -209,8 +194,8 @@ test("exibe mensagem de erro quando ZIP falha no backend", async ({ page }) => {
 
     await route.fulfill({
       status: 200,
-      contentType: "text/event-stream",
-      body: buildSseBody(result),
+      contentType: "application/json",
+      body: JSON.stringify(result),
     });
   });
 
@@ -225,7 +210,7 @@ test("exibe mensagem de erro quando ZIP falha no backend", async ({ page }) => {
   await page.locator('input[type="file"]').setInputFiles(csvPath);
   await page.getByRole("button", { name: "Processar lista" }).click();
 
-  await expect(page.getByText("Processamento concluido para 2 pessoa(s).")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Baixar todos os PDFs" })).not.toBeVisible();
+  await expect(page.getByText("Processamento concluído para 2 pessoa(s).")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Baixar todos os arquivos" })).not.toBeVisible();
   await expect(page.getByText("Falha ao conectar com o Supabase Storage.")).toBeVisible();
 });
