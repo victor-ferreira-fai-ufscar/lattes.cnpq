@@ -219,6 +219,60 @@ async def test_obras_saem_da_mais_recente_para_a_mais_antiga(cliente_mockado):
     ]
 
 
+async def test_obra_com_etiqueta_de_metadado_no_titulo_e_descartada(cliente_mockado):
+    """`title.alternative` é o nome do campo, não o título.
+
+    Vem de repositório institucional que expõe Dublin Core com a etiqueta no
+    lugar do valor. Em tela é uma linha que não informa nada, e ainda ocuparia
+    uma das vagas do limite de obras.
+    """
+    cliente_mockado(
+        autores=[_autor_openalex()],
+        obras=[
+            _obra_openalex("title.alternative", citacoes=900, ano=2020),
+            _obra_openalex("dc.title", citacoes=800, ano=2019),
+            _obra_openalex("Atenção primária à saúde no interior paulista", ano=2021),
+        ],
+        rss=_rss(),
+    )
+
+    perfil = await coletar_perfil_externo(NOME)
+
+    assert perfil is not None
+    assert [obra.titulo for obra in perfil.obras] == [
+        "Atenção primária à saúde no interior paulista"
+    ]
+
+
+async def test_titulo_real_com_ponto_nao_e_confundido_com_metadado(cliente_mockado):
+    """O padrão é identificador pontuado; título de verdade tem espaço ou maiúscula."""
+    cliente_mockado(
+        autores=[_autor_openalex()],
+        obras=[
+            _obra_openalex("Estudo sobre S. aureus em ambiente hospitalar", ano=2022),
+            _obra_openalex("COVID-19.br: dados abertos", ano=2021),
+        ],
+        rss=_rss(),
+    )
+
+    perfil = await coletar_perfil_externo(NOME)
+
+    assert perfil is not None
+    assert len(perfil.obras) == 2
+
+
+def test_titulo_obra_cai_para_display_name_quando_title_e_etiqueta():
+    """Quando os dois campos divergem, vale o primeiro que não for etiqueta."""
+    assert (
+        pe._titulo_obra(
+            {"title": "title.alternative", "display_name": "Título de verdade"}
+        )
+        == "Título de verdade"
+    )
+    assert pe._titulo_obra({"title": "title.alternative"}) == ""
+    assert pe._titulo_obra({"title": "   "}) == ""
+
+
 async def test_homonimo_sem_afiliacao_fica_com_confianca_baixa(cliente_mockado):
     cliente_mockado(
         autores=[
