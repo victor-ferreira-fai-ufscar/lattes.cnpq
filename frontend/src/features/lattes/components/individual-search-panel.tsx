@@ -30,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { extrairIdLattes } from "@/features/lattes/lib/lattes-candidate";
 import {
   DEFAULT_OUTPUT_FORMAT,
   OUTPUT_FORMAT_OPTIONS,
@@ -237,6 +238,7 @@ export function IndividualSearchPanel({
                 <div className="grid gap-2">
                   {candidates.map((candidate) => {
                     const isActive = selectedCandidate?.href === candidate.href;
+                    const idLattes = extrairIdLattes(candidate.href);
                     return (
                       <button
                         key={candidate.href}
@@ -251,14 +253,20 @@ export function IndividualSearchPanel({
                         type="button"
                       >
                         <p className="font-medium">{candidate.nome}</p>
-                        <p
-                          className={cn(
-                            "mt-1 text-xs",
-                            isActive ? "text-slate-300" : "text-slate-500",
-                          )}
-                        >
-                          {candidate.href}
-                        </p>
+                        {/* O href é `javascript:abreDetalhe(...)`, não um
+                            endereço: serve de identidade, não de texto. Aqui vai
+                            só o ID Lattes, que é o que separa dois homônimos na
+                            lista. Sem ID reconhecível, nada é exibido. */}
+                        {idLattes ? (
+                          <p
+                            className={cn(
+                              "mt-1 text-xs",
+                              isActive ? "text-slate-300" : "text-slate-500",
+                            )}
+                          >
+                            ID Lattes: {idLattes}
+                          </p>
+                        ) : null}
                       </button>
                     );
                   })}

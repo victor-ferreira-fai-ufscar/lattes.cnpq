@@ -19,10 +19,19 @@ import { expect, test } from "@playwright/test";
 // Fixtures compartilhadas
 // ---------------------------------------------------------------------------
 
+// O href vem no formato real da busca do Lattes: a lista de resultados não usa
+// link de verdade, e sim uma chamada à função da própria página. O fixture antigo
+// usava uma URL http, que não existe ali — foi o que deixou passar o vazamento
+// dessa string para a tela.
 const CANDIDATOS = {
   nome_busca: "Victor Ferreira",
   total: 1,
-  candidatos: [{ nome: "Victor Ferreira", href: "http://lattes.cnpq.br/0000000001" }],
+  candidatos: [
+    {
+      nome: "Victor Ferreira",
+      href: "javascript:abreDetalhe('K4318913H4','Victor_Ferreira',61543893)",
+    },
+  ],
   logs: [],
   duracao_segundos: 0.3,
 };
@@ -168,6 +177,27 @@ async function runSearchAndScrape(page: import("@playwright/test").Page) {
 // ---------------------------------------------------------------------------
 // Testes
 // ---------------------------------------------------------------------------
+
+test("lista de candidatos mostra o ID Lattes, não o javascript do href", async ({
+  page,
+}) => {
+  await setupCommonRoutes(page);
+
+  await page.goto("/");
+  await page.evaluate(() => localStorage.clear());
+  await page.goto("/");
+
+  await page.getByLabel("Nome da pessoa").fill("Victor Ferreira");
+  await page.getByRole("button", { name: /^Buscar$/ }).click();
+
+  const candidato = page.getByRole("button", { name: "Victor Ferreira" }).first();
+  await expect(candidato).toBeVisible({ timeout: 5000 });
+
+  // O que identifica o candidato para o usuário é o ID, não a chamada de função.
+  await expect(candidato).toContainText("ID Lattes: K4318913H4");
+  await expect(candidato).not.toContainText("abreDetalhe");
+  await expect(candidato).not.toContainText("javascript:");
+});
 
 test("exibe diff card com histórico e alterações detectadas", async ({ page }) => {
   await setupCommonRoutes(page, {
