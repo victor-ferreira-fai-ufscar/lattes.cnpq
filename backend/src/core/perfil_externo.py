@@ -296,9 +296,33 @@ async def _buscar_autores_openalex(
     return autores
 
 
+# Título que na verdade é o nome do campo de metadado, não o conteúdo dele.
+# Repositório institucional que expõe Dublin Core por OAI-PMH às vezes entrega a
+# etiqueta no lugar do valor, e o OpenAlex indexa como veio: só `title.alternative`
+# são ~3 mil obras. O padrão é o de um identificador pontuado — minúsculas, sem
+# espaço, com ponto separando os segmentos ("title.alternative", "dc.title").
+# Título de verdade tem espaço ou maiúscula; conferido contra 200 títulos reais
+# de obras da UFSCar no OpenAlex, nenhum casa.
+_RE_TITULO_METADADO = re.compile(r"^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)+$")
+
+
+def _titulo_placeholder(titulo: str) -> bool:
+    return bool(_RE_TITULO_METADADO.match(titulo))
+
+
 def _titulo_obra(payload: dict[str, Any]) -> str:
-    titulo = payload.get("title") or payload.get("display_name") or ""
-    return " ".join(str(titulo).split())
+    """Título utilizável da obra, ou string vazia se não houver.
+
+    `title` e `display_name` costumam ser iguais, mas quando divergem vale o
+    primeiro que não seja etiqueta de metadado. Devolver vazio faz a obra ser
+    descartada em `_buscar_obras_openalex`: obra sem título não diz nada em tela,
+    não serve para casar com o Lattes e ainda ocuparia uma das vagas do limite.
+    """
+    for bruto in (payload.get("title"), payload.get("display_name")):
+        titulo = " ".join(str(bruto or "").split())
+        if titulo and not _titulo_placeholder(titulo):
+            return titulo
+    return ""
 
 
 def _veiculo_obra(payload: dict[str, Any]) -> Optional[str]:

@@ -107,7 +107,17 @@ async def summarize(request: SummarizeRequest, http_request: Request):
         # o pedido é um recorte do Lattes, e o perfil externo não pertence a ele.
         noticias: tuple[NoticiaExterna, ...] = ()
         if not secao:
-            perfil_externo = await get_perfil_externo(nome, log=add_log)
+            # O texto do currículo entra na desambiguação, e aqui ele já está em
+            # mãos: uma chamada só, com ele. O lote precisa de duas tentativas
+            # (resolver_perfil_externo) porque dispara a coleta antes do
+            # scraping terminar; sem essa restrição, repetir o padrão só custaria
+            # uma ida à rede. Passar o CV nunca piora — rende os pontos de
+            # título casado no score e amplia os termos de contexto do filtro de
+            # notícias. `source_result.texto` e não `texto`: este último pode ter
+            # sido reduzido ao recorte da seção logo acima.
+            perfil_externo = await get_perfil_externo(
+                nome, texto_curriculo=source_result.texto, log=add_log
+            )
             noticias = noticias_publicaveis(perfil_externo)
             if noticias:
                 add_log(
