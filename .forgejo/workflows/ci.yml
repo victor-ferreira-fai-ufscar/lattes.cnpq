@@ -15,16 +15,26 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Permite rodar sob demanda pela UI, sem precisar de um commit vazio.
+  workflow_dispatch:
 
 jobs:
   backend:
     runs-on: docker
     container:
-      image: python:3.11-slim
+      # node:22-bookworm em vez de python:3.11-slim: actions/checkout é uma
+      # action JavaScript e precisa de `node` dentro do container — sem ele o
+      # job morre com "exec: node: executable file not found". Esta imagem traz
+      # node e o Python 3.11.2 do Debian 12, que é a versão que o backend pede.
+      image: node:22-bookworm
     steps:
       - uses: actions/checkout@v4
       - name: Instalar uv
-        run: pip install --no-cache-dir uv
+        # Instalador oficial em vez de pip: a node:22-bookworm traz python3 mas
+        # não traz pip3, e instalar pip só para instalar o uv é rodeio.
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Testes do backend
         working-directory: backend
         # Sem rede externa: os testes que tocam storage são mockados, e o de

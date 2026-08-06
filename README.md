@@ -187,6 +187,21 @@ O Supabase self-hosted **não** faz parte desse ciclo: é serviço com estado, m
 em `/srv/docker/lattes-supabase` e sobe pelo `make supabase-up`. Ver
 [supabase/README.md](supabase/README.md).
 
+## CI
+
+Cada push na `main` e cada PR roda [.forgejo/workflows/ci.yml](.forgejo/workflows/ci.yml)
+no Forgejo (<https://git.sup.fai.ufscar.br/v1cferr/lattes.cnpq>), onde este repo
+é espelhado — o GitHub segue canônico e é de lá que o deploy publica. Dá para
+disparar à mão pela UI (`workflow_dispatch`).
+
+São dois jobs: `pytest` do backend e o e2e mockado do frontend. O e2e ao vivo
+fica de fora: depende da produção no ar e faria um scrape real na Plataforma
+Lattes a cada execução.
+
+Os jobs declaram a própria imagem e não usam `docker compose`. O runner tem um
+daemon Docker dedicado (para um job não enxergar os containers de produção), e
+um build feito de lá receberia um contexto que esse daemon não encontra.
+
 ## Endpoints principais da API
 
 - GET /health
