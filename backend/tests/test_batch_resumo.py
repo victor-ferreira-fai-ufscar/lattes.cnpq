@@ -2,6 +2,7 @@ import types
 from datetime import date
 
 from src.api.routers import batch as batch_router
+from src.core.perfil_externo import NoticiaExterna, PerfilExterno
 
 
 class _FakeBundle:
@@ -156,3 +157,81 @@ async def test_batch_falha_resumo_nao_derruba_item(monkeypatch) -> None:
     assert item["resumo_status"] == "erro"
     assert item["resumo"] is None
     assert "resumo_erro" in item
+
+
+def _perfil_com_noticia(confianca: str) -> PerfilExterno:
+    return PerfilExterno(
+        nome_busca="Fulano de Tal",
+        confianca=confianca,
+        score=6,
+        openalex_author_id="https://openalex.org/A1",
+        noticias=(
+            NoticiaExterna(
+                titulo="Fulano assume nova diretoria",
+                url="https://exemplo.com/diretoria",
+                veiculo="Jornal Local",
+                data=date(2026, 8, 4),
+            ),
+        ),
+    )
+
+
+def _patch_perfil(monkeypatch, perfil: PerfilExterno) -> dict:
+    """Substitui a coleta externa por um perfil fixo e captura o que a IA recebe."""
+    monkeypatch.setattr(
+        batch_router, "iniciar_perfil_externo", lambda nome, add_log: None
+    )
+
+    async def fake_resolver(task, **kwargs):
+        return perfil
+
+    monkeypatch.setattr(batch_router, "resolver_perfil_externo", fake_resolver)
+    monkeypatch.setattr(
+        batch_router, "ensure_curriculo_artifacts", lambda **k: _FakeBundle()
+    )
+
+    capturado: dict = {}
+
+    async def fake_resumir(texto, **kwargs):
+        capturado["noticias"] = kwargs.get("noticias")
+        return "## Resumo"
+
+    monkeypatch.setattr(batch_router, "resumir_curriculo", fake_resumir)
+    return capturado
+
+
+async def test_batch_passa_noticias_do_perfil_publicavel_ao_resumo(monkeypatch) -> None:
+    _patch_common(monkeypatch)
+    capturado = _patch_perfil(monkeypatch, _perfil_com_noticia("alta"))
+
+    result = await batch_router._process_batch(
+        arquivo_nome="docentes.csv",
+        nomes_all=["Fulano de Tal"],
+        nomes=["Fulano de Tal"],
+        skip_value=0,
+        limit_value=1,
+        gerar_resumo=True,
+    )
+
+    assert result["resumos_gerados"] == 1
+    assert [n.titulo for n in capturado["noticias"]] == ["Fulano assume nova diretoria"]
+
+
+async def test_batch_nao_passa_noticias_de_perfil_sem_confianca_alta(
+    monkeypatch,
+) -> None:
+    """Homônimo não entra no resumo: lá a procedência do dado se dissolve."""
+    _patch_common(monkeypatch)
+    capturado = _patch_perfil(monkeypatch, _perfil_com_noticia("baixa"))
+
+    result = await batch_router._process_batch(
+        arquivo_nome="docentes.csv",
+        nomes_all=["Fulano de Tal"],
+        nomes=["Fulano de Tal"],
+        skip_value=0,
+        limit_value=1,
+        gerar_resumo=True,
+    )
+
+    assert result["resumos_gerados"] == 1
+    assert capturado["noticias"] == ()

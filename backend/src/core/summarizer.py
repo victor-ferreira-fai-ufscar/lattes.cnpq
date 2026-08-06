@@ -3,12 +3,13 @@ from contextlib import suppress
 import os
 from asyncio import to_thread
 from importlib import import_module
-from typing import Any, Callable
+from typing import Any, Callable, Sequence
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from openai import AsyncOpenAI
 
+from .perfil_externo import NoticiaExterna
 from .sections import label_da_secao
 
 LogFn = Callable[[str], None]
@@ -127,11 +128,12 @@ Regras obrigatórias de classificação acadêmica:
 - Quando houver múltiplas formações, identifique explicitamente a maior titulação formal concluída.
 - Quando houver especialização, MBA, cursos técnicos ou cursos profissionalizantes, registre-os como formação complementar.
 - Na seção de formação, diferencie sempre que possível: grau formal, formação complementar e distinção de carreira.
+- Registre o **curso** de cada formação, não apenas o nível. O Lattes escreve "Doutorado em Odontologia" ou "Graduação em Ciência da Computação": o curso é a parte após "em" e é o que identifica a área de origem do docente. Quando o curso não aparecer na fonte, escreva "não informado" em vez de omitir a coluna ou repetir o nível.
 
 Estruture a resposta nesta ordem:
 1. **Resumo Executivo**: 3-5 linhas com visão geral do perfil (esta seção deve vir primeiro)
 2. **Identificação**: nome completo, maior titulação, instituição atual
-3. **Formação Acadêmica**: graduação, mestrado, doutorado, pós-doutorado, especializações relevantes e distinções acadêmicas/carreira (ano e instituição, quando disponível)
+3. **Formação Acadêmica**: graduação, mestrado, doutorado, pós-doutorado, especializações relevantes e distinções acadêmicas/carreira (curso, ano e instituição, quando disponível)
 4. **Atuação Profissional**: cargos e vínculos institucionais atuais
 5. **Produção Científica**: principais publicações, patentes ou produções relevantes (inclua quantidade aproximada e área)
 6. **Projetos e Orientações**: projetos em andamento e orientações acadêmicas
@@ -140,7 +142,7 @@ Estilo de Markdown (obrigatório):
 - Use títulos de seção com "##".
 - Em "Resumo Executivo", coloque o parágrafo em bloco de citação usando ">".
 - Use listas com marcadores para itens principais.
-- Use uma tabela curta (quando possível) em "Formação Acadêmica" com colunas: Nível | Instituição | Ano.
+- Use uma tabela curta (quando possível) em "Formação Acadêmica" com colunas: Nível | Curso | Instituição | Ano.
 - Em "Identificação", informe explicitamente a maior titulação formal.
 - Em "Formação Acadêmica", deixe claro quando um item for formação complementar ou distinção de carreira.
 - Destaque dados-chave com negrito, sem exagero.
@@ -149,6 +151,24 @@ Regras obrigatórias de saída:
 - Responda APENAS com UM bloco de código Markdown cercado por ```markdown e ```.
 - Não inclua texto fora do bloco de código.
 - Preserve quebras de linha e espaçamento para facilitar leitura e renderização.\
+"""
+
+# Anexado ao prompt de sistema só quando há notícias a incluir. Fica fora de
+# _PROMPT_SISTEMA de propósito: a maioria dos docentes não tem notícia publicável,
+# e uma seção obrigatória sem material é convite para o modelo preencher com
+# invenção — exatamente o que as regras de veracidade tentam evitar.
+_INSTRUCAO_NOTICIAS = """\
+
+Você receberá também um bloco [FONTE EXTERNA: NOTÍCIAS], que vem do Google News e
+NÃO do currículo. Regras próprias para ele:
+- Acrescente ao final uma sétima seção "## Notícias e Menções na Imprensa",
+  listando as notícias na ordem recebida (já vêm da mais recente para a mais
+  antiga), cada item com título, veículo e data.
+- Use exclusivamente o que está no bloco. Não complemente com conhecimento
+  próprio sobre a pessoa nem sobre os fatos noticiados.
+- Não use notícia como fonte das outras seções: titulação, vínculo institucional
+  e produção saem do PDF/HTML do currículo. Se uma notícia contradisser o
+  currículo, mantenha o currículo e não comente a divergência.\
 """
 
 # Instrução de saída específica de cada seção do resumo. A key bate com as do
@@ -161,14 +181,20 @@ _INSTRUCOES_SECAO: dict[str, str] = {
     ),
     "formacao": (
         "Resuma a Formação Acadêmica/Titulação: graduação, mestrado, doutorado, "
-        "pós-doutorado, especializações e distinções (com ano e instituição quando "
-        "disponíveis).\n"
+        "pós-doutorado, especializações e distinções (com curso, ano e instituição "
+        "quando disponíveis).\n"
+        "Registre o curso de cada formação, não apenas o nível: o Lattes escreve "
+        "'Doutorado em Odontologia' ou 'Graduação em Ciência da Computação', e o "
+        "curso é a parte após 'em' — é o que identifica a área de origem do "
+        "docente. Quando o curso não aparecer na fonte, escreva 'não informado' "
+        "em vez de omitir a coluna ou repetir o nível.\n"
         "Aplique a hierarquia acadêmica: doutorado é o maior grau formal; "
         "pós-doutorado é experiência posterior ao doutorado, não um título acima "
         "dele; livre-docência e professor emérito são distinções de carreira, não "
         "graus formais. Indique explicitamente a maior titulação formal concluída "
         "e diferencie formação complementar de distinção de carreira.\n"
-        "Quando possível, use uma tabela curta com colunas: Nível | Instituição | Ano."
+        "Quando possível, use uma tabela curta com colunas: "
+        "Nível | Curso | Instituição | Ano."
     ),
     "atuacao": (
         "Resuma a Atuação Profissional: vínculos institucionais, cargos/funções, "
@@ -214,10 +240,15 @@ Regras obrigatórias de saída:
 """
 
 
-def _build_system_prompt(secao: str | None) -> str:
-    """Prompt de sistema: completo (None) ou focado em uma seção específica."""
+def _build_system_prompt(secao: str | None, *, com_noticias: bool = False) -> str:
+    """Prompt de sistema: completo (None) ou focado em uma seção específica.
+
+    As notícias só entram no resumo do currículo inteiro. Num resumo de seção o
+    usuário pediu um recorte do Lattes ("Formação acadêmica/titulação", por
+    exemplo), e enxertar imprensa ali seria responder outra pergunta.
+    """
     if not secao:
-        return _PROMPT_SISTEMA
+        return _PROMPT_SISTEMA + (_INSTRUCAO_NOTICIAS if com_noticias else "")
 
     instrucao = _INSTRUCOES_SECAO.get(secao)
     secao_label = label_da_secao(secao)
@@ -235,15 +266,36 @@ def _truncate_text(texto: str, *, max_chars: int) -> str:
     return texto[:max_chars].strip()
 
 
+def _formatar_noticia_prompt(noticia: NoticiaExterna) -> str:
+    detalhes = ", ".join(
+        parte
+        for parte in (
+            noticia.veiculo,
+            noticia.data.strftime("%d/%m/%Y") if noticia.data else None,
+        )
+        if parte
+    )
+    sufixo = f" ({detalhes})" if detalhes else ""
+    return f"- {noticia.titulo}{sufixo}"
+
+
+def _bloco_noticias(noticias: Sequence[NoticiaExterna]) -> str:
+    return "\n[FONTE EXTERNA: NOTÍCIAS]\n" + "\n".join(
+        _formatar_noticia_prompt(noticia) for noticia in noticias
+    )
+
+
 def _build_user_prompt(
     texto: str,
     *,
     texto_pdf: str | None = None,
     texto_html: str | None = None,
     secao_label: str | None = None,
+    noticias: Sequence[NoticiaExterna] | None = None,
 ) -> str:
     pdf_limpo = (texto_pdf or "").strip()
     html_limpo = (texto_html or "").strip()
+    noticias = tuple(noticias or ())
 
     if secao_label:
         intro = f"Analise e resuma a seção '{secao_label}' do currículo Lattes abaixo."
@@ -251,7 +303,8 @@ def _build_user_prompt(
         intro = "Analise e resuma o currículo Lattes abaixo."
 
     if not pdf_limpo and not html_limpo:
-        return intro + "\n\n" + _truncate_text(texto, max_chars=_MAX_TEXTO_CHARS)
+        corpo = intro + "\n\n" + _truncate_text(texto, max_chars=_MAX_TEXTO_CHARS)
+        return corpo + ("\n\n" + _bloco_noticias(noticias) if noticias else "")
 
     prompt_parts = [
         intro,
@@ -278,6 +331,11 @@ def _build_user_prompt(
             "\n[FONTE AUXILIAR: HTML]\nHTML não disponível ou sem texto utilizável."
         )
 
+    # Vem por último e sem contrapartida de "não disponível": ausência de notícia
+    # é o caso comum, e anunciá-la só gastaria contexto.
+    if noticias:
+        prompt_parts.append(_bloco_noticias(noticias))
+
     return "\n\n".join(prompt_parts)
 
 
@@ -289,6 +347,7 @@ async def _resumir_openai(
     api_key: str | None,
     modelo: str,
     secao: str | None = None,
+    noticias: Sequence[NoticiaExterna] | None = None,
     log: LogFn | None = None,
 ) -> str:
     chave = api_key or os.environ.get("OPENAI_API_KEY")
@@ -302,7 +361,7 @@ async def _resumir_openai(
     response = await client.chat.completions.create(
         model=modelo,
         messages=[
-            {"role": "system", "content": _build_system_prompt(secao)},
+            {"role": "system", "content": _build_system_prompt(secao, com_noticias=bool(noticias))},
             {
                 "role": "user",
                 "content": _build_user_prompt(
@@ -310,6 +369,7 @@ async def _resumir_openai(
                     texto_pdf=texto_pdf,
                     texto_html=texto_html,
                     secao_label=label_da_secao(secao),
+                    noticias=noticias,
                 ),
             },
         ],
@@ -326,6 +386,7 @@ async def _resumir_gemini(
     api_key: str | None,
     modelo: str,
     secao: str | None = None,
+    noticias: Sequence[NoticiaExterna] | None = None,
     log: LogFn | None = None,
 ) -> str:
     chave = api_key or os.environ.get("GEMINI_API_KEY")
@@ -342,12 +403,13 @@ async def _resumir_gemini(
         model = genai.GenerativeModel(model_name=modelo)
         response = model.generate_content(
             [
-                _build_system_prompt(secao),
+                _build_system_prompt(secao, com_noticias=bool(noticias)),
                 _build_user_prompt(
                     texto,
                     texto_pdf=texto_pdf,
                     texto_html=texto_html,
                     secao_label=label_da_secao(secao),
+                    noticias=noticias,
                 ),
             ],
             generation_config={"temperature": 0.3},
@@ -371,6 +433,7 @@ async def _resumir_ollama(
     api_key: str | None,
     modelo: str,
     secao: str | None = None,
+    noticias: Sequence[NoticiaExterna] | None = None,
     log: LogFn | None = None,
 ) -> str:
     base_url = await _resolver_base_url_ollama(api_key, log=log)
@@ -414,7 +477,7 @@ async def _resumir_ollama(
         response = await client.chat.completions.create(
             model=modelo,
             messages=[
-                {"role": "system", "content": _build_system_prompt(secao)},
+                {"role": "system", "content": _build_system_prompt(secao, com_noticias=bool(noticias))},
                 {
                     "role": "user",
                     "content": _build_user_prompt(
@@ -422,6 +485,7 @@ async def _resumir_ollama(
                         texto_pdf=texto_pdf,
                         texto_html=texto_html,
                         secao_label=label_da_secao(secao),
+                        noticias=noticias,
                     ),
                 },
             ],
@@ -490,6 +554,7 @@ async def resumir_curriculo(
     modelo: str = "gemma4:12b",
     provedor: str = "ollama",
     secao: str | None = None,
+    noticias: Sequence[NoticiaExterna] | None = None,
     log: LogFn | None = None,
 ) -> str:
     provedor_normalizado = (provedor or "ollama").strip().lower()
@@ -502,6 +567,7 @@ async def resumir_curriculo(
             api_key=api_key,
             modelo=modelo,
             secao=secao,
+            noticias=noticias,
             log=log,
         )
 
@@ -513,6 +579,7 @@ async def resumir_curriculo(
             api_key=api_key,
             modelo=modelo,
             secao=secao,
+            noticias=noticias,
             log=log,
         )
 
@@ -524,6 +591,7 @@ async def resumir_curriculo(
             api_key=api_key,
             modelo=modelo,
             secao=secao,
+            noticias=noticias,
             log=log,
         )
 

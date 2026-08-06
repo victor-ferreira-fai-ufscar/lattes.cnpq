@@ -16,6 +16,7 @@ from ...core.exporter import (
     upload_batch_zip,
 )
 from ...core.scraper import scrape_lattes, scrape_lattes_ultima_atualizacao
+from ...core.perfil_externo import PerfilExterno
 from ...core.summarizer import resumir_curriculo
 from ...core.storage import (
     find_fresh_curriculo_pdf,
@@ -37,6 +38,7 @@ from ._helpers import (
     build_curriculo_history_payload,
     descartar_perfil_externo,
     iniciar_perfil_externo,
+    noticias_publicaveis,
     perfil_externo_payload_fields,
     resolver_perfil_externo,
     serialize_cache_version,
@@ -55,6 +57,7 @@ async def _gerar_resumo_lote(
     add_log: Callable[[str], None],
     idx: int,
     total: int,
+    perfil_externo: Optional[PerfilExterno] = None,
 ) -> dict[str, Any]:
     """Gera resumo por IA (currículo completo, Ollama default) reusando os bytes
     já scrapeados. Erros são isolados: nunca derrubam o item do lote."""
@@ -70,6 +73,7 @@ async def _gerar_resumo_lote(
             texto_pdf=texto_pdf,
             texto_html=texto_html,
             secao=None,
+            noticias=noticias_publicaveis(perfil_externo),
             log=add_log,
         )
         duracao = round(perf_counter() - t_ia, 2)
@@ -249,21 +253,10 @@ async def _process_batch(
                     )
 
                 if cache_hit_ativo:
-                    resumo_payload: dict[str, Any] = {}
-                    if gerar_resumo:
-                        resumo_payload = await _gerar_resumo_lote(
-                            nome=nome,
-                            pdf_bytes=cache_hit.file_bytes or b"",
-                            html_text=None,
-                            html_source=None,
-                            add_log=add_log,
-                            idx=idx,
-                            total=len(nomes),
-                        )
-                        if resumo_payload.get("resumo_status") == "ok":
-                            resumos_gerados += 1
-                        else:
-                            resumos_erros += 1
+                    # O perfil externo é resolvido antes do resumo porque as
+                    # notícias entram no prompt. A coleta já rodava em paralelo
+                    # desde o início do item, então adiantar o await não
+                    # acrescenta espera na prática.
                     perfil_externo = await resolver_perfil_externo(
                         perfil_task,
                         nome=nome,
@@ -274,6 +267,23 @@ async def _process_batch(
                         perfis_externos_ok += 1
                     elif perfil_externo is not None and perfil_externo.erros:
                         perfis_externos_erros += 1
+
+                    resumo_payload: dict[str, Any] = {}
+                    if gerar_resumo:
+                        resumo_payload = await _gerar_resumo_lote(
+                            nome=nome,
+                            pdf_bytes=cache_hit.file_bytes or b"",
+                            html_text=None,
+                            html_source=None,
+                            add_log=add_log,
+                            idx=idx,
+                            total=len(nomes),
+                            perfil_externo=perfil_externo,
+                        )
+                        if resumo_payload.get("resumo_status") == "ok":
+                            resumos_gerados += 1
+                        else:
+                            resumos_erros += 1
 
                     artifacts = ensure_curriculo_artifacts(
                         nome=nome,
@@ -329,21 +339,8 @@ async def _process_batch(
             scrape_result = await scrape_lattes(nome)
             filename = build_curriculo_filename(nome, scrape_result.ultima_atualizacao)
             upload_result = upload_curriculo_pdf(filename, scrape_result.pdf_bytes)
-            resumo_payload = {}
-            if gerar_resumo:
-                resumo_payload = await _gerar_resumo_lote(
-                    nome=nome,
-                    pdf_bytes=scrape_result.pdf_bytes,
-                    html_text=scrape_result.html_text,
-                    html_source=scrape_result.html_source,
-                    add_log=add_log,
-                    idx=idx,
-                    total=len(nomes),
-                )
-                if resumo_payload.get("resumo_status") == "ok":
-                    resumos_gerados += 1
-                else:
-                    resumos_erros += 1
+            # Resolvido antes do resumo: as notícias entram no prompt (ver o
+            # mesmo trecho no caminho de cache hit).
             perfil_externo = await resolver_perfil_externo(
                 perfil_task,
                 nome=nome,
@@ -356,6 +353,23 @@ async def _process_batch(
                 perfis_externos_ok += 1
             elif perfil_externo is not None and perfil_externo.erros:
                 perfis_externos_erros += 1
+
+            resumo_payload = {}
+            if gerar_resumo:
+                resumo_payload = await _gerar_resumo_lote(
+                    nome=nome,
+                    pdf_bytes=scrape_result.pdf_bytes,
+                    html_text=scrape_result.html_text,
+                    html_source=scrape_result.html_source,
+                    add_log=add_log,
+                    idx=idx,
+                    total=len(nomes),
+                    perfil_externo=perfil_externo,
+                )
+                if resumo_payload.get("resumo_status") == "ok":
+                    resumos_gerados += 1
+                else:
+                    resumos_erros += 1
 
             artifacts = ensure_curriculo_artifacts(
                 nome=nome,

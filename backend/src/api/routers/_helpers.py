@@ -4,7 +4,7 @@ from typing import Any, Callable, Optional
 
 from ...core.curriculo_diff import build_curriculo_text_diff
 from ...core.exporter import extrair_textos_curriculo
-from ...core.perfil_externo import PerfilExterno, perfil_to_payload
+from ...core.perfil_externo import NoticiaExterna, PerfilExterno, perfil_to_payload
 from ...core.perfil_externo_cache import get_perfil_externo
 from ...core.storage import download_storage_file_bytes, get_curriculo_pdf_history
 
@@ -83,6 +83,22 @@ async def resolver_perfil_externo(
         return perfil
 
     return segunda if segunda is not None else perfil
+
+
+def noticias_publicaveis(
+    perfil: Optional[PerfilExterno],
+) -> tuple[NoticiaExterna, ...]:
+    """Notícias que podem entrar no resumo por IA.
+
+    Vale a mesma régua do card e do export: só perfil com confiança alta
+    (`publicavel`). O resumo é artefato que circula, e sem esse filtro a notícia
+    de um homônimo entraria no texto como se fosse do docente — pior que num
+    card, porque ali a procedência está visível e no resumo ela se dissolve na
+    redação do modelo.
+    """
+    if perfil is None or not perfil.publicavel:
+        return ()
+    return perfil.noticias
 
 
 def perfil_externo_payload_fields(perfil: Optional[PerfilExterno]) -> dict[str, Any]:
