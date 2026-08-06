@@ -113,6 +113,27 @@ class NoticiaExterna:
 
 
 @dataclass(frozen=True)
+class BibliometriaExterna:
+    """Só os indicadores quantitativos do OpenAlex, sem a lista de obras.
+
+    Recorte próprio porque é o que vai ao prompt do resumo por IA: número que o
+    modelo reproduz e atribui a uma fonte nomeada. Os títulos das obras ficam de
+    fora de propósito — artigo citado no Resumo Executivo reabriria a porta que
+    as regras de veracidade fecham (produção sai do currículo). A afiliação
+    também: ela seria tentação de virar vínculo institucional, que é justamente
+    o que o prompt proíbe.
+    """
+
+    total_obras: int = 0
+    total_citacoes: int = 0
+    h_index: Optional[int] = None
+
+    @property
+    def tem_conteudo(self) -> bool:
+        return bool(self.total_obras or self.total_citacoes or self.h_index)
+
+
+@dataclass(frozen=True)
 class PerfilExterno:
     nome_busca: str
     confianca: Confianca = "baixa"
@@ -138,6 +159,20 @@ class PerfilExterno:
     @property
     def tem_conteudo(self) -> bool:
         return bool(self.obras or self.noticias or self.openalex_author_id)
+
+    @property
+    def bibliometria(self) -> Optional[BibliometriaExterna]:
+        """Indicadores do OpenAlex, ou None quando não há número algum.
+
+        Perfil casado no OpenAlex mas sem obras indexadas existe (autor novo, ou
+        registro só com o ORCID), e nesse caso não há frase a escrever.
+        """
+        bibliometria = BibliometriaExterna(
+            total_obras=self.total_obras,
+            total_citacoes=self.total_citacoes,
+            h_index=self.h_index,
+        )
+        return bibliometria if bibliometria.tem_conteudo else None
 
 
 @dataclass

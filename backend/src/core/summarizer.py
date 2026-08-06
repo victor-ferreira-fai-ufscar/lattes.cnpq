@@ -9,7 +9,7 @@ from urllib.request import Request, urlopen
 
 from openai import AsyncOpenAI
 
-from .perfil_externo import NoticiaExterna
+from .perfil_externo import BibliometriaExterna, NoticiaExterna
 from .sections import label_da_secao
 
 LogFn = Callable[[str], None]
@@ -171,6 +171,33 @@ NÃO do currículo. Regras próprias para ele:
   currículo, mantenha o currículo e não comente a divergência.\
 """
 
+# Também anexado só quando há material, pela mesma razão do bloco de notícias:
+# frase obrigatória sem indicador é convite para o modelo inventar número.
+#
+# Diferente das notícias, este bloco entra no **Resumo Executivo** — é dado
+# quantitativo de fonte nomeada, não manchete, e a atribuição explícita mantém
+# visível que ele não saiu do Lattes. O que continua proibido é o mesmo:
+# indicador do OpenAlex não vira titulação, vínculo nem contagem de produção.
+_INSTRUCAO_BIBLIOMETRIA = """\
+
+Você receberá também um bloco [FONTE EXTERNA: PRODUÇÃO (OpenAlex)], com
+indicadores bibliométricos que vêm do OpenAlex e NÃO do currículo. Regras
+próprias para ele:
+- Acrescente ao Resumo Executivo UMA frase (no máximo) com esses indicadores,
+  sempre nomeando a fonte. Formato: "Registra <obras indexadas> obras e h-index
+  <h-index>, segundo o OpenAlex." Com essa frase, o Resumo Executivo pode chegar
+  a seis linhas.
+- Substitua cada <...> pelo valor correspondente do bloco. Reproduza apenas os
+  números do bloco: não calcule, não estime e não complete indicador ausente —
+  se o bloco não traz h-index, não mencione h-index.
+- Não use esses indicadores como fonte de titulação, de vínculo institucional
+  nem das quantidades da seção "Produção Científica" — essas saem do PDF/HTML do
+  currículo. Se citá-los em outra seção, repita a atribuição ao OpenAlex.
+- Divergência entre a contagem do OpenAlex e a do currículo não é erro: são
+  bases diferentes. Mantenha as duas, cada uma com sua fonte, e não comente a
+  diferença.\
+"""
+
 # Instrução de saída específica de cada seção do resumo. A key bate com as do
 # seletor (ver core.sections.SECOES_RESUMO).
 _INSTRUCOES_SECAO: dict[str, str] = {
@@ -240,15 +267,30 @@ Regras obrigatórias de saída:
 """
 
 
-def _build_system_prompt(secao: str | None, *, com_noticias: bool = False) -> str:
+def _build_system_prompt(
+    secao: str | None,
+    *,
+    com_noticias: bool = False,
+    com_bibliometria: bool = False,
+) -> str:
     """Prompt de sistema: completo (None) ou focado em uma seção específica.
 
-    As notícias só entram no resumo do currículo inteiro. Num resumo de seção o
-    usuário pediu um recorte do Lattes ("Formação acadêmica/titulação", por
-    exemplo), e enxertar imprensa ali seria responder outra pergunta.
+    O perfil externo (notícias e bibliometria) só entra no resumo do currículo
+    inteiro. Num resumo de seção o usuário pediu um recorte do Lattes ("Formação
+    acadêmica/titulação", por exemplo), e enxertar fonte externa ali seria
+    responder outra pergunta.
     """
     if not secao:
-        return _PROMPT_SISTEMA + (_INSTRUCAO_NOTICIAS if com_noticias else "")
+        # Mesma ordem dos blocos no prompt do usuário: produção, depois imprensa.
+        # Cada instrução já começa com "\n", então o join separa as duas por uma
+        # linha em branco — sem isso a segunda cola no último item da primeira e
+        # passa a ler como continuação daquele bullet.
+        partes = [_PROMPT_SISTEMA]
+        if com_bibliometria:
+            partes.append(_INSTRUCAO_BIBLIOMETRIA)
+        if com_noticias:
+            partes.append(_INSTRUCAO_NOTICIAS)
+        return "\n".join(partes)
 
     instrucao = _INSTRUCOES_SECAO.get(secao)
     secao_label = label_da_secao(secao)
@@ -285,6 +327,35 @@ def _bloco_noticias(noticias: Sequence[NoticiaExterna]) -> str:
     )
 
 
+def _bloco_bibliometria(bibliometria: BibliometriaExterna) -> str:
+    linhas = []
+    if bibliometria.total_obras:
+        linhas.append(f"- Obras indexadas: {bibliometria.total_obras}")
+    if bibliometria.total_citacoes:
+        linhas.append(f"- Citações recebidas: {bibliometria.total_citacoes}")
+    if bibliometria.h_index:
+        linhas.append(f"- h-index: {bibliometria.h_index}")
+    return "\n[FONTE EXTERNA: PRODUÇÃO (OpenAlex)]\n" + "\n".join(linhas)
+
+
+def _blocos_externos(
+    bibliometria: BibliometriaExterna | None,
+    noticias: Sequence[NoticiaExterna],
+) -> list[str]:
+    """Blocos de fonte externa, na ordem em que o prompt de sistema os descreve.
+
+    Nenhum tem contrapartida de "não disponível": ausência de perfil externo é o
+    caso comum (a maioria dos docentes não atinge confiança alta), e anunciá-la
+    só gastaria contexto.
+    """
+    blocos: list[str] = []
+    if bibliometria is not None:
+        blocos.append(_bloco_bibliometria(bibliometria))
+    if noticias:
+        blocos.append(_bloco_noticias(noticias))
+    return blocos
+
+
 def _build_user_prompt(
     texto: str,
     *,
@@ -292,10 +363,12 @@ def _build_user_prompt(
     texto_html: str | None = None,
     secao_label: str | None = None,
     noticias: Sequence[NoticiaExterna] | None = None,
+    bibliometria: BibliometriaExterna | None = None,
 ) -> str:
     pdf_limpo = (texto_pdf or "").strip()
     html_limpo = (texto_html or "").strip()
     noticias = tuple(noticias or ())
+    blocos_externos = _blocos_externos(bibliometria, noticias)
 
     if secao_label:
         intro = f"Analise e resuma a seção '{secao_label}' do currículo Lattes abaixo."
@@ -304,7 +377,7 @@ def _build_user_prompt(
 
     if not pdf_limpo and not html_limpo:
         corpo = intro + "\n\n" + _truncate_text(texto, max_chars=_MAX_TEXTO_CHARS)
-        return corpo + ("\n\n" + _bloco_noticias(noticias) if noticias else "")
+        return "\n\n".join([corpo, *blocos_externos])
 
     prompt_parts = [
         intro,
@@ -331,10 +404,8 @@ def _build_user_prompt(
             "\n[FONTE AUXILIAR: HTML]\nHTML não disponível ou sem texto utilizável."
         )
 
-    # Vem por último e sem contrapartida de "não disponível": ausência de notícia
-    # é o caso comum, e anunciá-la só gastaria contexto.
-    if noticias:
-        prompt_parts.append(_bloco_noticias(noticias))
+    # As fontes externas vêm depois das do currículo, que é o dado principal.
+    prompt_parts.extend(blocos_externos)
 
     return "\n\n".join(prompt_parts)
 
@@ -348,6 +419,7 @@ async def _resumir_openai(
     modelo: str,
     secao: str | None = None,
     noticias: Sequence[NoticiaExterna] | None = None,
+    bibliometria: BibliometriaExterna | None = None,
     log: LogFn | None = None,
 ) -> str:
     chave = api_key or os.environ.get("OPENAI_API_KEY")
@@ -361,7 +433,14 @@ async def _resumir_openai(
     response = await client.chat.completions.create(
         model=modelo,
         messages=[
-            {"role": "system", "content": _build_system_prompt(secao, com_noticias=bool(noticias))},
+            {
+                "role": "system",
+                "content": _build_system_prompt(
+                    secao,
+                    com_noticias=bool(noticias),
+                    com_bibliometria=bibliometria is not None,
+                ),
+            },
             {
                 "role": "user",
                 "content": _build_user_prompt(
@@ -370,6 +449,7 @@ async def _resumir_openai(
                     texto_html=texto_html,
                     secao_label=label_da_secao(secao),
                     noticias=noticias,
+                    bibliometria=bibliometria,
                 ),
             },
         ],
@@ -387,6 +467,7 @@ async def _resumir_gemini(
     modelo: str,
     secao: str | None = None,
     noticias: Sequence[NoticiaExterna] | None = None,
+    bibliometria: BibliometriaExterna | None = None,
     log: LogFn | None = None,
 ) -> str:
     chave = api_key or os.environ.get("GEMINI_API_KEY")
@@ -403,13 +484,18 @@ async def _resumir_gemini(
         model = genai.GenerativeModel(model_name=modelo)
         response = model.generate_content(
             [
-                _build_system_prompt(secao, com_noticias=bool(noticias)),
+                _build_system_prompt(
+                    secao,
+                    com_noticias=bool(noticias),
+                    com_bibliometria=bibliometria is not None,
+                ),
                 _build_user_prompt(
                     texto,
                     texto_pdf=texto_pdf,
                     texto_html=texto_html,
                     secao_label=label_da_secao(secao),
                     noticias=noticias,
+                    bibliometria=bibliometria,
                 ),
             ],
             generation_config={"temperature": 0.3},
@@ -434,6 +520,7 @@ async def _resumir_ollama(
     modelo: str,
     secao: str | None = None,
     noticias: Sequence[NoticiaExterna] | None = None,
+    bibliometria: BibliometriaExterna | None = None,
     log: LogFn | None = None,
 ) -> str:
     base_url = await _resolver_base_url_ollama(api_key, log=log)
@@ -477,7 +564,14 @@ async def _resumir_ollama(
         response = await client.chat.completions.create(
             model=modelo,
             messages=[
-                {"role": "system", "content": _build_system_prompt(secao, com_noticias=bool(noticias))},
+                {
+                    "role": "system",
+                    "content": _build_system_prompt(
+                        secao,
+                        com_noticias=bool(noticias),
+                        com_bibliometria=bibliometria is not None,
+                    ),
+                },
                 {
                     "role": "user",
                     "content": _build_user_prompt(
@@ -486,6 +580,7 @@ async def _resumir_ollama(
                         texto_html=texto_html,
                         secao_label=label_da_secao(secao),
                         noticias=noticias,
+                        bibliometria=bibliometria,
                     ),
                 },
             ],
@@ -555,6 +650,7 @@ async def resumir_curriculo(
     provedor: str = "ollama",
     secao: str | None = None,
     noticias: Sequence[NoticiaExterna] | None = None,
+    bibliometria: BibliometriaExterna | None = None,
     log: LogFn | None = None,
 ) -> str:
     provedor_normalizado = (provedor or "ollama").strip().lower()
@@ -568,6 +664,7 @@ async def resumir_curriculo(
             modelo=modelo,
             secao=secao,
             noticias=noticias,
+            bibliometria=bibliometria,
             log=log,
         )
 
@@ -580,6 +677,7 @@ async def resumir_curriculo(
             modelo=modelo,
             secao=secao,
             noticias=noticias,
+            bibliometria=bibliometria,
             log=log,
         )
 
@@ -592,6 +690,7 @@ async def resumir_curriculo(
             modelo=modelo,
             secao=secao,
             noticias=noticias,
+            bibliometria=bibliometria,
             log=log,
         )
 
