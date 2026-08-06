@@ -165,6 +165,9 @@ def _perfil_com_noticia(confianca: str) -> PerfilExterno:
         confianca=confianca,
         score=6,
         openalex_author_id="https://openalex.org/A1",
+        total_obras=180,
+        total_citacoes=2400,
+        h_index=24,
         noticias=(
             NoticiaExterna(
                 titulo="Fulano assume nova diretoria",
@@ -194,6 +197,7 @@ def _patch_perfil(monkeypatch, perfil: PerfilExterno) -> dict:
 
     async def fake_resumir(texto, **kwargs):
         capturado["noticias"] = kwargs.get("noticias")
+        capturado["bibliometria"] = kwargs.get("bibliometria")
         return "## Resumo"
 
     monkeypatch.setattr(batch_router, "resumir_curriculo", fake_resumir)
@@ -235,3 +239,45 @@ async def test_batch_nao_passa_noticias_de_perfil_sem_confianca_alta(
 
     assert result["resumos_gerados"] == 1
     assert capturado["noticias"] == ()
+    assert capturado["bibliometria"] is None
+
+
+async def test_batch_passa_bibliometria_do_perfil_publicavel_ao_resumo(
+    monkeypatch,
+) -> None:
+    _patch_common(monkeypatch)
+    capturado = _patch_perfil(monkeypatch, _perfil_com_noticia("alta"))
+
+    result = await batch_router._process_batch(
+        arquivo_nome="docentes.csv",
+        nomes_all=["Fulano de Tal"],
+        nomes=["Fulano de Tal"],
+        skip_value=0,
+        limit_value=1,
+        gerar_resumo=True,
+    )
+
+    assert result["resumos_gerados"] == 1
+    bibliometria = capturado["bibliometria"]
+    assert bibliometria is not None
+    assert (bibliometria.total_obras, bibliometria.h_index) == (180, 24)
+
+
+async def test_batch_nao_passa_bibliometria_de_perfil_sem_confianca_alta(
+    monkeypatch,
+) -> None:
+    """h-index de homônimo no Resumo Executivo erra tanto quanto notícia dele."""
+    _patch_common(monkeypatch)
+    capturado = _patch_perfil(monkeypatch, _perfil_com_noticia("baixa"))
+
+    result = await batch_router._process_batch(
+        arquivo_nome="docentes.csv",
+        nomes_all=["Fulano de Tal"],
+        nomes=["Fulano de Tal"],
+        skip_value=0,
+        limit_value=1,
+        gerar_resumo=True,
+    )
+
+    assert result["resumos_gerados"] == 1
+    assert capturado["bibliometria"] is None

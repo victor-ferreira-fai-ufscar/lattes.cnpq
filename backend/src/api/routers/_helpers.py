@@ -4,7 +4,12 @@ from typing import Any, Callable, Optional
 
 from ...core.curriculo_diff import build_curriculo_text_diff
 from ...core.exporter import extrair_textos_curriculo
-from ...core.perfil_externo import NoticiaExterna, PerfilExterno, perfil_to_payload
+from ...core.perfil_externo import (
+    BibliometriaExterna,
+    NoticiaExterna,
+    PerfilExterno,
+    perfil_to_payload,
+)
 from ...core.perfil_externo_cache import get_perfil_externo
 from ...core.storage import download_storage_file_bytes, get_curriculo_pdf_history
 
@@ -99,6 +104,21 @@ def noticias_publicaveis(
     if perfil is None or not perfil.publicavel:
         return ()
     return perfil.noticias
+
+
+def bibliometria_publicavel(
+    perfil: Optional[PerfilExterno],
+) -> Optional[BibliometriaExterna]:
+    """Indicadores do OpenAlex que podem entrar no resumo por IA.
+
+    Mesma régua de `noticias_publicaveis`: só perfil com confiança alta. O dado
+    aqui é número, não manchete, mas a homonímia pesa igual — h-index de outra
+    pessoa no Resumo Executivo erra tanto quanto notícia de outra pessoa, e no
+    resumo o número sai sem o contexto de desambiguação que o card mostra.
+    """
+    if perfil is None or not perfil.publicavel:
+        return None
+    return perfil.bibliometria
 
 
 def perfil_externo_payload_fields(perfil: Optional[PerfilExterno]) -> dict[str, Any]:

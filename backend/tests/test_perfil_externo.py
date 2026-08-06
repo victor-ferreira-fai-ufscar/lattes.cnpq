@@ -548,3 +548,38 @@ def test_payload_serializa_datas_e_listas():
     assert payload["criterios"] == ["afiliação casa com 'UFSCar'"]
     # Serializável para a resposta HTTP sem tratamento extra.
     json.dumps(payload)
+
+
+def test_bibliometria_recorta_apenas_os_indicadores():
+    """Título de obra e afiliação ficam fora: o recorte é o que vai ao prompt."""
+    perfil = PerfilExterno(
+        nome_busca=NOME,
+        confianca="alta",
+        score=6,
+        openalex_author_id="https://openalex.org/A5001",
+        afiliacao="Universidade Federal de São Carlos",
+        total_obras=42,
+        total_citacoes=315,
+        h_index=11,
+        obras=(ObraExterna(titulo="Obra", ano=2021, citacoes=30),),
+    )
+
+    bibliometria = perfil.bibliometria
+
+    assert bibliometria is not None
+    assert (bibliometria.total_obras, bibliometria.total_citacoes) == (42, 315)
+    assert bibliometria.h_index == 11
+    assert not hasattr(bibliometria, "afiliacao")
+    assert not hasattr(bibliometria, "obras")
+
+
+def test_bibliometria_e_none_quando_nao_ha_indicador():
+    """Autor casado no OpenAlex mas sem obras indexadas: não há frase a escrever."""
+    perfil = PerfilExterno(
+        nome_busca=NOME,
+        confianca="alta",
+        score=6,
+        openalex_author_id="https://openalex.org/A5001",
+    )
+
+    assert perfil.bibliometria is None

@@ -1,7 +1,12 @@
 from datetime import date
+from types import SimpleNamespace
 
-from src.core.perfil_externo import NoticiaExterna
+import pytest
+
+from src.core import summarizer
+from src.core.perfil_externo import BibliometriaExterna, NoticiaExterna
 from src.core.summarizer import (
+    _INSTRUCAO_BIBLIOMETRIA,
     _PROMPT_SISTEMA,
     _build_system_prompt,
     _build_user_prompt,
@@ -147,3 +152,133 @@ def test_resumo_de_secao_nao_recebe_regras_de_noticia():
     prompt = _build_system_prompt("formacao", com_noticias=True)
 
     assert "Notícias e Menções na Imprensa" not in prompt
+
+
+def test_build_user_prompt_anexa_bloco_de_bibliometria():
+    prompt = _build_user_prompt(
+        "texto consolidado",
+        texto_pdf="conteudo do pdf",
+        texto_html="conteudo do html",
+        bibliometria=BibliometriaExterna(
+            total_obras=180, total_citacoes=2400, h_index=24
+        ),
+    )
+
+    assert "[FONTE EXTERNA: PRODUÇÃO (OpenAlex)]" in prompt
+    assert "- Obras indexadas: 180" in prompt
+    assert "- Citações recebidas: 2400" in prompt
+    assert "- h-index: 24" in prompt
+    # As fontes externas vêm depois das do currículo, que é o dado principal.
+    assert prompt.index("[FONTE PRINCIPAL: PDF]") < prompt.index(
+        "[FONTE EXTERNA: PRODUÇÃO (OpenAlex)]"
+    )
+
+
+def test_bloco_de_bibliometria_omite_indicador_ausente():
+    """Sem h-index no bloco, o prompt de sistema proíbe mencionar h-index."""
+    prompt = _build_user_prompt(
+        "texto consolidado",
+        texto_pdf="pdf",
+        bibliometria=BibliometriaExterna(total_obras=12),
+    )
+
+    assert "- Obras indexadas: 12" in prompt
+    assert "h-index" not in prompt
+    assert "Citações recebidas" not in prompt
+
+
+def test_bibliometria_vem_antes_das_noticias_no_prompt():
+    """Mesma ordem em que o prompt de sistema descreve os dois blocos."""
+    prompt = _build_user_prompt(
+        "texto consolidado",
+        texto_pdf="pdf",
+        bibliometria=BibliometriaExterna(total_obras=180),
+        noticias=(NoticiaExterna(titulo="Manchete", url="https://exemplo.com/a"),),
+    )
+
+    assert prompt.index("[FONTE EXTERNA: PRODUÇÃO (OpenAlex)]") < prompt.index(
+        "[FONTE EXTERNA: NOTÍCIAS]"
+    )
+
+
+def test_system_prompt_ganha_regras_de_bibliometria_apenas_quando_ha_indicador():
+    sem = _build_system_prompt(None)
+    com = _build_system_prompt(None, com_bibliometria=True)
+
+    assert sem == _PROMPT_SISTEMA
+    assert "[FONTE EXTERNA: PRODUÇÃO (OpenAlex)]" in com
+    # A frase entra no Resumo Executivo, e sempre atribuída ao OpenAlex.
+    assert "Acrescente ao Resumo Executivo UMA frase" in com
+    assert "sempre nomeando a fonte" in com
+    # O formato-modelo usa placeholders, e a instrução inteira não tem dígito:
+    # com números plausíveis no exemplo ("180 obras, h-index 24"), o qwen3:14b
+    # copiou o exemplo em vez de ler o bloco do prompt do usuário.
+    assert "<obras indexadas>" in com
+    assert "<h-index>" in com
+    assert not any(char.isdigit() for char in _INSTRUCAO_BIBLIOMETRIA)
+    # O indicador externo não substitui o que sai do currículo.
+    assert "não calcule, não estime" in com.lower()
+    assert (
+        "Não use esses indicadores como fonte de titulação, de vínculo institucional"
+        in com
+    )
+
+
+def test_resumo_de_secao_nao_recebe_regras_de_bibliometria():
+    """Recorte do Lattes não recebe fonte externa — vale para os dois blocos."""
+    prompt = _build_system_prompt(
+        "producao", com_noticias=True, com_bibliometria=True
+    )
+
+    assert "OpenAlex" not in prompt
+    assert "Notícias e Menções na Imprensa" not in prompt
+
+
+class _FakeClientOpenAI:
+    """Só o caminho `client.chat.completions.create` que o summarizer usa."""
+
+    def __init__(self, capturado: dict) -> None:
+        self._capturado = capturado
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+
+    async def _create(self, **kwargs):
+        self._capturado["messages"] = kwargs["messages"]
+        mensagem = SimpleNamespace(content="## Resumo")
+        return SimpleNamespace(choices=[SimpleNamespace(message=mensagem)])
+
+
+@pytest.mark.parametrize("provedor", ["openai", "ollama"])
+async def test_bibliometria_chega_ao_prompt_de_usuario_de_cada_provedor(
+    monkeypatch, provedor
+) -> None:
+    """Quem monta o prompt de sistema tem de mandar o bloco junto.
+
+    Cada provedor repete a dupla de chamadas, e anunciar sem enviar é o pior dos
+    mundos: o prompt de sistema manda escrever uma frase com indicadores que não
+    chegaram. Cobre o wiring por provedor, que os testes dos construtores de
+    prompt não alcançam.
+    """
+    capturado: dict = {}
+    monkeypatch.setattr(
+        summarizer, "AsyncOpenAI", lambda **_kwargs: _FakeClientOpenAI(capturado)
+    )
+
+    async def fake_base_url(api_key, log=None):
+        return "http://localhost:11434"
+
+    monkeypatch.setattr(summarizer, "_resolver_base_url_ollama", fake_base_url)
+
+    await summarizer.resumir_curriculo(
+        "texto consolidado",
+        texto_pdf="conteudo do pdf",
+        api_key="chave",
+        modelo="modelo",
+        provedor=provedor,
+        bibliometria=BibliometriaExterna(total_obras=180, h_index=24),
+    )
+
+    system, user = capturado["messages"]
+    assert "[FONTE EXTERNA: PRODUÇÃO (OpenAlex)]" in system["content"]
+    assert "[FONTE EXTERNA: PRODUÇÃO (OpenAlex)]" in user["content"]
+    assert "- Obras indexadas: 180" in user["content"]
+    assert "- h-index: 24" in user["content"]

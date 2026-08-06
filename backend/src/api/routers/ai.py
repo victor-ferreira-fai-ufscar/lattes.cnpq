@@ -2,7 +2,7 @@ from time import perf_counter
 
 from fastapi import APIRouter, HTTPException, Request
 
-from ...core.perfil_externo import NoticiaExterna
+from ...core.perfil_externo import BibliometriaExterna, NoticiaExterna
 from ...core.perfil_externo_cache import get_perfil_externo
 from ...core.sections import SECOES_VALIDAS, extrair_secao, label_da_secao
 from ...core.summarizer import listar_modelos, resumir_curriculo
@@ -15,7 +15,7 @@ from ...libs.request_monitor import (
     request_monitor,
 )
 from ...models import ModelsRequest, SummarizeRequest
-from ._helpers import noticias_publicaveis
+from ._helpers import bibliometria_publicavel, noticias_publicaveis
 
 router = APIRouter()
 
@@ -103,9 +103,10 @@ async def summarize(request: SummarizeRequest, http_request: Request):
                     "enviando o currículo inteiro e pedindo foco nessa seção."
                 )
 
-        # Notícias entram só no resumo do currículo inteiro. Num resumo de seção
-        # o pedido é um recorte do Lattes, e o perfil externo não pertence a ele.
+        # O perfil externo entra só no resumo do currículo inteiro. Num resumo de
+        # seção o pedido é um recorte do Lattes, e ele não pertence a esse recorte.
         noticias: tuple[NoticiaExterna, ...] = ()
+        bibliometria: BibliometriaExterna | None = None
         if not secao:
             # O texto do currículo entra na desambiguação, e aqui ele já está em
             # mãos: uma chamada só, com ele. O lote precisa de duas tentativas
@@ -119,13 +120,21 @@ async def summarize(request: SummarizeRequest, http_request: Request):
                 nome, texto_curriculo=source_result.texto, log=add_log
             )
             noticias = noticias_publicaveis(perfil_externo)
+            bibliometria = bibliometria_publicavel(perfil_externo)
             if noticias:
                 add_log(
                     f"{len(noticias)} notícia(s) do perfil externo incluída(s) no resumo."
                 )
-            elif perfil_externo is not None and not perfil_externo.publicavel:
+            if bibliometria is not None:
                 add_log(
-                    "Perfil externo sem confiança alta; notícias não entram no resumo."
+                    "Bibliometria do OpenAlex incluída no Resumo Executivo "
+                    f"({bibliometria.total_obras} obra(s), "
+                    f"{bibliometria.total_citacoes} citação(ões))."
+                )
+            if perfil_externo is not None and not perfil_externo.publicavel:
+                add_log(
+                    "Perfil externo sem confiança alta; nem notícias nem "
+                    "bibliometria entram no resumo."
                 )
 
         add_log(
@@ -142,6 +151,7 @@ async def summarize(request: SummarizeRequest, http_request: Request):
                 provedor=request.provedor,
                 secao=secao,
                 noticias=noticias,
+                bibliometria=bibliometria,
                 log=add_log,
             )
         except ValueError as exc:

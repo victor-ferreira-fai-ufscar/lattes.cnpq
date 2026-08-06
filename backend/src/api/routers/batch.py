@@ -36,6 +36,7 @@ from ...models import OutputFormat
 from .._limiter import limiter
 from ._helpers import (
     build_curriculo_history_payload,
+    bibliometria_publicavel,
     descartar_perfil_externo,
     iniciar_perfil_externo,
     noticias_publicaveis,
@@ -74,6 +75,7 @@ async def _gerar_resumo_lote(
             texto_html=texto_html,
             secao=None,
             noticias=noticias_publicaveis(perfil_externo),
+            bibliometria=bibliometria_publicavel(perfil_externo),
             log=add_log,
         )
         duracao = round(perf_counter() - t_ia, 2)
