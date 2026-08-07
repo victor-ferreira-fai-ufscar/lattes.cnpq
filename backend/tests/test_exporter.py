@@ -1,3 +1,4 @@
+import json
 from datetime import date, datetime, timezone
 from io import BytesIO
 
@@ -206,7 +207,7 @@ def _setup_fake_storage(monkeypatch):
     return fake
 
 
-def test_resumo_ia_embedded_in_docx_and_html_not_in_json_csv(monkeypatch):
+def test_resumo_ia_embedded_in_docx_html_json_not_in_csv(monkeypatch):
     fake = _setup_fake_storage(monkeypatch)
 
     bundle = exporter.ensure_curriculo_artifacts(
@@ -233,10 +234,13 @@ def test_resumo_ia_embedded_in_docx_and_html_not_in_json_csv(monkeypatch):
     assert "RESUMOTESTE123" in html_text
     assert "<li>ponto <strong>um</strong></li>" in html_text
 
-    # O resumo NÃO deve vazar para JSON/CSV (escolha de saída: só DOCX/HTML).
-    json_text = _artifact_bytes(fake, bundle, "json").decode("utf-8")
+    # No JSON o resumo entra como Markdown cru, sob a chave própria.
+    json_payload = json.loads(_artifact_bytes(fake, bundle, "json").decode("utf-8"))
+    assert json_payload["resumo_ia"] == _RESUMO_MD
+
+    # O CSV fica de fora: é uma linha por docente, e o Markdown do resumo
+    # inteiro não cabe numa célula.
     csv_text = _artifact_bytes(fake, bundle, "csv").decode("utf-8")
-    assert "RESUMOTESTE123" not in json_text
     assert "RESUMOTESTE123" not in csv_text
 
 
@@ -361,6 +365,66 @@ def test_perfil_externo_entra_em_docx_html_json_e_csv(monkeypatch):
     csv_text = _artifact_bytes(fake, bundle, "csv").decode("utf-8")
     assert "externo_total_citacoes" in csv_text
     assert "315" in csv_text
+    # O CSV é uma linha por docente, mas os títulos cabem em célula própria.
+    assert "OBRATESTE123" in csv_text
+    assert "NOTICIATESTE123" in csv_text
+
+
+def test_csv_junta_varias_obras_e_noticias_numa_celula(monkeypatch):
+    import csv as csv_mod
+
+    perfil = PerfilExterno(
+        nome_busca="Claudia Maria Simões Martinez",
+        confianca="alta",
+        openalex_author_id="https://openalex.org/A5001",
+        total_obras=2,
+        total_citacoes=40,
+        obras=(
+            ObraExterna(titulo="Primeira obra", ano=2021, citacoes=30),
+            # Título com quebra de linha: vem de fonte externa e não pode
+            # virar célula multilinha na planilha.
+            ObraExterna(titulo="Segunda\nobra", ano=2019),
+        ),
+        noticias=(
+            NoticiaExterna(titulo="Primeira notícia", url="https://e.com/1"),
+            NoticiaExterna(titulo="Segunda notícia", url="https://e.com/2"),
+        ),
+    )
+
+    csv_bytes = exporter._write_csv_bytes(
+        nome="Claudia Maria Simões Martinez",
+        ultima_atualizacao=date(2026, 4, 4),
+        cache_status="miss",
+        pdf_filename="claudia.pdf",
+        pdf_storage_path="raw/claudia.pdf",
+        pdf_download_url="https://storage.example/raw/claudia.pdf",
+        context=exporter.build_export_summary_context("Linha do currículo", "Claudia"),
+        perfil_externo=perfil,
+    )
+
+    linha = next(csv_mod.DictReader(csv_bytes.decode("utf-8").splitlines()))
+    assert linha["externo_obras"] == "Primeira obra (2021) [30 citações] | Segunda obra (2019)"
+    assert linha["externo_noticias"] == "Primeira notícia | Segunda notícia"
+    assert "\n" not in linha["externo_obras"]
+
+
+def test_csv_sem_perfil_externo_deixa_as_colunas_de_titulo_vazias(monkeypatch):
+    import csv as csv_mod
+
+    csv_bytes = exporter._write_csv_bytes(
+        nome="Neocles Alves Pereira",
+        ultima_atualizacao=date(2020, 9, 11),
+        cache_status="miss",
+        pdf_filename="neocles.pdf",
+        pdf_storage_path="raw/neocles.pdf",
+        pdf_download_url="https://storage.example/raw/neocles.pdf",
+        context=exporter.build_export_summary_context("Linha do currículo", "Neocles"),
+        perfil_externo=None,
+    )
+
+    linha = next(csv_mod.DictReader(csv_bytes.decode("utf-8").splitlines()))
+    assert linha["externo_obras"] == ""
+    assert linha["externo_noticias"] == ""
 
 
 def test_perfil_externo_de_confianca_baixa_nao_entra_nos_artefatos(monkeypatch):

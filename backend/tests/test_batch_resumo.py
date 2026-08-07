@@ -1,8 +1,12 @@
 import types
 from datetime import date
 
+from src.api.routers import _helpers as helpers_module
 from src.api.routers import batch as batch_router
 from src.core.perfil_externo import NoticiaExterna, PerfilExterno
+
+# A geração do resumo mora em _helpers (compartilhada com o /scrape), então é lá
+# que `extrair_textos_curriculo` e `resumir_curriculo` são resolvidos.
 
 
 class _FakeBundle:
@@ -39,7 +43,7 @@ def _patch_common(monkeypatch) -> None:
     )
     monkeypatch.setattr(batch_router, "artifacts_to_payload", lambda bundle: {})
     monkeypatch.setattr(
-        batch_router,
+        helpers_module,
         "extrair_textos_curriculo",
         lambda pdf_bytes, html_text=None, html_source=None: (
             "texto base",
@@ -64,7 +68,7 @@ async def test_batch_gera_resumo_quando_habilitado(monkeypatch) -> None:
         assert kwargs.get("secao") is None  # lote sempre resume o currículo completo
         return "## Resumo\n\nConteúdo gerado por IA."
 
-    monkeypatch.setattr(batch_router, "resumir_curriculo", fake_resumir)
+    monkeypatch.setattr(helpers_module, "resumir_curriculo", fake_resumir)
 
     result = await batch_router._process_batch(
         arquivo_nome="docentes.csv",
@@ -101,7 +105,7 @@ async def test_batch_nao_gera_resumo_por_padrao(monkeypatch) -> None:
         chamou["resumir"] = True
         return "não deveria ser chamado"
 
-    monkeypatch.setattr(batch_router, "resumir_curriculo", fake_resumir)
+    monkeypatch.setattr(helpers_module, "resumir_curriculo", fake_resumir)
 
     result = await batch_router._process_batch(
         arquivo_nome="docentes.csv",
@@ -134,7 +138,7 @@ async def test_batch_falha_resumo_nao_derruba_item(monkeypatch) -> None:
     async def fake_resumir_raises(*a, **k):
         raise RuntimeError("Ollama indisponível")
 
-    monkeypatch.setattr(batch_router, "resumir_curriculo", fake_resumir_raises)
+    monkeypatch.setattr(helpers_module, "resumir_curriculo", fake_resumir_raises)
 
     result = await batch_router._process_batch(
         arquivo_nome="docentes.csv",
@@ -200,7 +204,7 @@ def _patch_perfil(monkeypatch, perfil: PerfilExterno) -> dict:
         capturado["bibliometria"] = kwargs.get("bibliometria")
         return "## Resumo"
 
-    monkeypatch.setattr(batch_router, "resumir_curriculo", fake_resumir)
+    monkeypatch.setattr(helpers_module, "resumir_curriculo", fake_resumir)
     return capturado
 
 

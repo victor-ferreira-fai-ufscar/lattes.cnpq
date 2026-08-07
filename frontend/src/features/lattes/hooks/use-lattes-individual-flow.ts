@@ -130,7 +130,10 @@ export function useLattesIndividualFlow({
     notifyError,
   ]);
 
-  const scrapeSelected = async (outputFormat: OutputFormat) => {
+  const scrapeSelected = async (
+    outputFormat: OutputFormat,
+    gerarResumo = false,
+  ) => {
     if (!selectedCandidate) {
       notifyError(new Error("Escolha uma pessoa antes de continuar."));
       return;
@@ -146,6 +149,7 @@ export function useLattesIndividualFlow({
         selectedCandidate.nome,
         selectedCandidate.href,
         outputFormat,
+        gerarResumo,
         {
           signal: controller.signal,
           onLog: appendLiveExecutionLog,
@@ -155,7 +159,17 @@ export function useLattesIndividualFlow({
         setLiveExecutionLogs(result.logs);
       }
       setScrapeResult(result);
-      notifySuccess("Currículo preparado com sucesso.");
+      // O resumo é um extra: quando falha, os artefatos ainda saem, então o
+      // aviso é de atenção e não de erro na preparação.
+      if (result.resumo_status === "erro") {
+        notifyError(
+          new Error(
+            `Currículo preparado, mas o resumo por IA falhou: ${result.resumo_erro ?? "motivo não informado"}`,
+          ),
+        );
+      } else {
+        notifySuccess("Currículo preparado com sucesso.");
+      }
     } catch (error) {
       if (!isRequestCancelledError(error)) {
         notifyError(error);

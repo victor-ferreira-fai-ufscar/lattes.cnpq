@@ -30,6 +30,7 @@ export const IndividualSearchSchema = z.object({
     .min(3, "O nome deve ter pelo menos 3 caracteres.")
     .max(255, "O nome não pode exceder 255 caracteres."),
   outputFormat: z.enum(["pdf", "docx", "json", "html", "csv", "all"]).default(DEFAULT_OUTPUT_FORMAT),
+  gerarResumo: z.boolean().default(false),
 });
 
 export type IndividualSearchFormData = z.infer<typeof IndividualSearchSchema>;

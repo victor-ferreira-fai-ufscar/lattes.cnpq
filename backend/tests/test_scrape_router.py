@@ -411,6 +411,89 @@ def test_scrape_omite_perfil_externo_de_confianca_baixa(client, monkeypatch):
     assert response.json()["perfil_externo"] is None
 
 
+def _capturar_artefatos(monkeypatch) -> dict:
+    """Substitui ensure_curriculo_artifacts guardando os kwargs recebidos."""
+    capturado: dict = {}
+
+    def fake_ensure(**kwargs):
+        capturado.update(kwargs)
+        return FAKE_BUNDLE
+
+    monkeypatch.setattr(scrape_module, "ensure_curriculo_artifacts", fake_ensure)
+    return capturado
+
+
+def test_scrape_sem_a_flag_nao_gera_resumo(client, monkeypatch):
+    _mock_cache_hit_basico(monkeypatch)
+    capturado = _capturar_artefatos(monkeypatch)
+
+    async def nao_deve_ser_chamado(*args, **kwargs):
+        raise AssertionError("resumir_curriculo não deveria ser chamado sem a flag.")
+
+    monkeypatch.setattr(helpers_module, "resumir_curriculo", nao_deve_ser_chamado)
+
+    response = client.post("/scrape", json={"nome": "Victor Ferreira"})
+
+    assert response.status_code == 200
+    assert "resumo" not in response.json()
+    assert capturado["resumo_ia"] is None
+
+
+def test_scrape_com_gerar_resumo_embute_o_resumo_nos_artefatos(client, monkeypatch):
+    _mock_cache_hit_basico(monkeypatch)
+    capturado = _capturar_artefatos(monkeypatch)
+
+    monkeypatch.setattr(
+        helpers_module,
+        "extrair_textos_curriculo",
+        lambda pdf, html_text, html_source: ("texto do cv", "pdf", "html"),
+    )
+
+    async def fake_resumir(texto, **kwargs):
+        return "## Resumo Executivo\n> RESUMO_DO_SCRAPE"
+
+    monkeypatch.setattr(helpers_module, "resumir_curriculo", fake_resumir)
+
+    response = client.post(
+        "/scrape", json={"nome": "Victor Ferreira", "gerar_resumo": True}
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["resumo_status"] == "ok"
+    assert "RESUMO_DO_SCRAPE" in data["resumo"]
+    # O que importa: o resumo chega ao gerador de artefatos, não só à resposta.
+    assert "RESUMO_DO_SCRAPE" in capturado["resumo_ia"]
+
+
+def test_scrape_com_resumo_que_falha_ainda_entrega_os_artefatos(client, monkeypatch):
+    _mock_cache_hit_basico(monkeypatch)
+    capturado = _capturar_artefatos(monkeypatch)
+
+    monkeypatch.setattr(
+        helpers_module,
+        "extrair_textos_curriculo",
+        lambda pdf, html_text, html_source: ("texto do cv", "pdf", "html"),
+    )
+
+    async def fake_resumir(texto, **kwargs):
+        raise RuntimeError("Ollama fora do ar")
+
+    monkeypatch.setattr(helpers_module, "resumir_curriculo", fake_resumir)
+
+    response = client.post(
+        "/scrape", json={"nome": "Victor Ferreira", "gerar_resumo": True}
+    )
+
+    # O resumo é um extra: sua falha não pode derrubar a entrega do currículo.
+    assert response.status_code == 200
+    data = response.json()
+    assert data["resumo_status"] == "erro"
+    assert data["resumo"] is None
+    assert data["arquivo_pdf"] == "victor-ferreira-2026-04-13.pdf"
+    assert capturado["resumo_ia"] is None
+
+
 def test_scrape_segue_normalmente_quando_o_enriquecimento_falha(client, monkeypatch):
     _mock_cache_hit_basico(monkeypatch)
 

@@ -436,6 +436,7 @@ def _write_json_bytes(
     pdf_download_url: str,
     texto_extraido: str,
     context: ExportSummaryContext,
+    resumo_ia: str | None = None,
     perfil_externo: PerfilExterno | None = None,
 ) -> bytes:
     payload = {
@@ -448,6 +449,9 @@ def _write_json_bytes(
         "template_docx": _SUMMARY_TEMPLATE_NAME,
         "gerado_em": datetime.now().isoformat(),
         "resumo_contextual": asdict(context),
+        # Markdown cru, como o modelo devolveu. HTML e DOCX renderizam; o JSON é
+        # consumo de máquina e o Markdown preserva a estrutura de seções.
+        "resumo_ia": resumo_ia,
         "foto_extraida": context.has_profile_photo,
         "perfil_externo": perfil_to_payload(perfil_externo),
         "texto_extraido": texto_extraido,
@@ -598,6 +602,8 @@ def _write_csv_bytes(
             "externo_h_index",
             "externo_qtd_noticias",
             "externo_afiliacao",
+            "externo_obras",
+            "externo_noticias",
         ],
     )
     writer.writeheader()
@@ -621,6 +627,14 @@ def _write_csv_bytes(
             ),
             "externo_qtd_noticias": len(perfil.noticias) if perfil else "",
             "externo_afiliacao": (perfil.afiliacao or "") if perfil else "",
+            "externo_obras": _lista_csv(
+                [_formatar_obra(obra) for obra in perfil.obras] if perfil else []
+            ),
+            "externo_noticias": _lista_csv(
+                [_formatar_noticia(noticia) for noticia in perfil.noticias]
+                if perfil
+                else []
+            ),
         }
     )
     return buffer.getvalue().encode("utf-8")
@@ -981,6 +995,16 @@ def _data_br(valor: date | None) -> str:
     return valor.strftime("%d/%m/%Y") if valor else ""
 
 
+def _lista_csv(itens: list[str]) -> str:
+    """Junta itens numa única célula de CSV, no mesmo estilo de `ods`.
+
+    Título de obra e de notícia chegam de fonte externa e podem trazer quebra de
+    linha; o módulo csv as escaparia entre aspas, mas planilha com célula
+    multilinha é ruim de ler. Colapsar em espaço mantém a linha por docente.
+    """
+    return " | ".join(" ".join(item.split()) for item in itens)
+
+
 def _perfil_externo_fonte_nota(perfil: PerfilExterno) -> str:
     fontes = {"openalex": "OpenAlex", "google-news": "Google News"}
     rotulos = [fontes.get(item, item) for item in perfil.fontes]
@@ -1098,6 +1122,7 @@ def _build_artifact_contents(
                     pdf_download_url=pdf_download_url,
                     texto_extraido=texto_extraido,
                     context=context,
+                    resumo_ia=resumo_ia,
                     perfil_externo=perfil_externo,
                 ),
                 content_type,
@@ -1357,11 +1382,16 @@ def ensure_curriculo_artifacts(
         if specs[file_format][0] not in existing
     ]
 
-    # Quando há resumo por IA, força a regeneração de DOCX/HTML mesmo que já
-    # existam em storage: um artefato em cache não contém o resumo recém-gerado.
+    # Quando há resumo por IA, força a regeneração de DOCX/HTML/JSON mesmo que
+    # já existam em storage: um artefato em cache não contém o resumo
+    # recém-gerado. O CSV fica de fora — é uma linha por docente, e Markdown de
+    # resumo inteiro não cabe numa célula.
     if resumo_ia is not None:
         for file_format in requested_formats:
-            if file_format in ("docx", "html") and file_format not in missing_formats:
+            if (
+                file_format in ("docx", "html", "json")
+                and file_format not in missing_formats
+            ):
                 missing_formats.append(file_format)
 
     # Mesma lógica para o enriquecimento externo, que também muda o conteúdo dos
