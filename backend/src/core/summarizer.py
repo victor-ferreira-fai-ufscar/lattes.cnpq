@@ -184,9 +184,9 @@ Você receberá também um bloco [FONTE EXTERNA: PRODUÇÃO (OpenAlex)], com
 indicadores bibliométricos que vêm do OpenAlex e NÃO do currículo. Regras
 próprias para ele:
 - Acrescente ao Resumo Executivo UMA frase (no máximo) com esses indicadores,
-  sempre nomeando a fonte. Formato: "Registra <obras indexadas> obras e h-index
-  <h-index>, segundo o OpenAlex." Com essa frase, o Resumo Executivo pode chegar
-  a seis linhas.
+  sempre nomeando a fonte. Formato: "Registra <obras indexadas> obras,
+  <citações recebidas> citações e h-index <h-index>, segundo o OpenAlex." Com
+  essa frase, o Resumo Executivo pode chegar a seis linhas.
 - Substitua cada <...> pelo valor correspondente do bloco. Reproduza apenas os
   números do bloco: não calcule, não estime e não complete indicador ausente —
   se o bloco não traz h-index, não mencione h-index.
