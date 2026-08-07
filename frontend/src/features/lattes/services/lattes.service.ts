@@ -103,6 +103,11 @@ export type ScrapeResponse = {
   cache_historico_primeira_versao?: CurriculoHistoricoVersao | null;
   cache_historico_ultima_versao?: CurriculoHistoricoVersao | null;
   cache_historico_diff?: CurriculoHistoricoDiff | null;
+  // Presentes só quando o scrape foi pedido com `gerarResumo`.
+  resumo?: string | null;
+  resumo_status?: "ok" | "erro";
+  resumo_erro?: string;
+  resumo_duracao_segundos?: number;
   perfil_externo?: PerfilExterno | null;
   logs?: string[];
   duracao_segundos?: number;
@@ -230,6 +235,7 @@ export async function scrapeCurriculoSelecionado(
   nome: string,
   href: string,
   outputFormat: OutputFormat,
+  gerarResumo = false,
   options?: RequestOptions,
 ): Promise<ScrapeResponse> {
   return runMonitoredRequest({
@@ -242,8 +248,12 @@ export async function scrapeCurriculoSelecionado(
           nome,
           href,
           output_format: outputFormat,
+          gerar_resumo: gerarResumo,
         },
         {
+          // Com resumo, a request embute uma chamada ao Ollama e o default de
+          // 2 min do cliente não cobre — mesmo orçamento do /summarize.
+          timeout: gerarResumo ? SUMMARY_TIMEOUT_OLLAMA_MS : undefined,
           signal: options?.signal,
           headers: buildRequestIdHeaders(requestId),
         },

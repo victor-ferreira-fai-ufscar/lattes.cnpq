@@ -72,16 +72,19 @@ export function useLattesWorkbench() {
     setSearchTerm(trimmedName);
   };
 
-  const scrapeSelected = async (outputFormat: OutputFormat) => {
+  const scrapeSelected = async (
+    outputFormat: OutputFormat,
+    gerarResumo = false,
+  ) => {
     setRetryActionLabel("Tentar gerar arquivos novamente");
     lastRetryActionRef.current = async () => {
-      await scrapeSelected(outputFormat);
+      await scrapeSelected(outputFormat, gerarResumo);
     };
 
     resetFeedback();
     clearLiveExecutionLogs();
     summaryFlow.reset();
-    await individualFlow.scrapeSelected(outputFormat);
+    await individualFlow.scrapeSelected(outputFormat, gerarResumo);
   };
 
   const trySearchVariants = async (nome: string) => {

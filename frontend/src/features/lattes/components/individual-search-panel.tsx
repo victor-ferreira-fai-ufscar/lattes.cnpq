@@ -59,7 +59,7 @@ type IndividualSearchPanelProps = {
   onSearch: (nome: string) => Promise<void>;
   onTrySearchVariants: (nome: string) => Promise<void>;
   onSelectCandidate: (candidate: SearchCandidate) => void;
-  onScrape: (outputFormat: OutputFormat) => Promise<void>;
+  onScrape: (outputFormat: OutputFormat, gerarResumo: boolean) => Promise<void>;
 };
 
 export function IndividualSearchPanel({
@@ -79,7 +79,11 @@ export function IndividualSearchPanel({
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const form = useForm<IndividualSearchFormInput, unknown, IndividualSearchFormData>({
     resolver: zodResolver(IndividualSearchSchema),
-    defaultValues: { nome: lastSearchTerm ?? "", outputFormat: DEFAULT_OUTPUT_FORMAT },
+    defaultValues: {
+      nome: lastSearchTerm ?? "",
+      outputFormat: DEFAULT_OUTPUT_FORMAT,
+      gerarResumo: false,
+    },
   });
   const watchedName = useWatch({
     control: form.control,
@@ -306,13 +310,48 @@ export function IndividualSearchPanel({
                 )}
               />
 
+              <FormField
+                control={form.control}
+                name="gerarResumo"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                      <FormControl>
+                        <input
+                          type="checkbox"
+                          disabled={disabled}
+                          checked={!!field.value}
+                          onChange={(e) => field.onChange(e.target.checked)}
+                          className="mt-0.5 h-4 w-4 cursor-pointer rounded border-slate-300 text-teal-600 focus:ring-teal-500 disabled:cursor-not-allowed disabled:opacity-50"
+                        />
+                      </FormControl>
+                      <div className="space-y-1">
+                        <FormLabel className="cursor-pointer">
+                          Gerar resumo com IA junto com os arquivos
+                        </FormLabel>
+                        <p className="text-xs text-slate-500">
+                          Resume o currículo completo (provedor Ollama) e embute o
+                          resultado nos formatos DOCX, HTML e JSON — inclusive o
+                          Resumo Executivo com os indicadores do OpenAlex. A
+                          preparação leva vários minutos a mais.
+                        </p>
+                      </div>
+                    </div>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <Button
                 className="w-full"
                 disabled={disabled || !selectedCandidate || isScraping}
                 size="lg"
                 type="button"
                 onClick={() => {
-                  void onScrape(form.getValues("outputFormat") ?? DEFAULT_OUTPUT_FORMAT);
+                  void onScrape(
+                    form.getValues("outputFormat") ?? DEFAULT_OUTPUT_FORMAT,
+                    form.getValues("gerarResumo") ?? false,
+                  );
                 }}
               >
                 {isScraping ? <Spinner className="h-4 w-4" /> : null}

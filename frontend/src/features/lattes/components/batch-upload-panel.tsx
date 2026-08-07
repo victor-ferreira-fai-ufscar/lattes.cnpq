@@ -328,8 +328,8 @@ export function BatchUploadPanel({
                       </FormLabel>
                       <FormDescription>
                         Resume o currículo completo de cada pessoa (provedor Ollama).
-                        O resumo é embutido nos formatos DOCX e HTML e o lote leva
-                        mais tempo.
+                        O resumo é embutido nos formatos DOCX, HTML e JSON e o lote
+                        leva mais tempo.
                       </FormDescription>
                     </div>
                   </div>

@@ -29,6 +29,7 @@ from .._limiter import limiter
 from ._helpers import (
     build_curriculo_history_payload,
     descartar_perfil_externo,
+    gerar_resumo_para_artefatos,
     iniciar_perfil_externo,
     perfil_externo_payload_fields,
     resolver_perfil_externo,
@@ -137,6 +138,19 @@ async def scrape(request: Request, body: ScrapeRequest):
                 html_source=profile_assets.html_source if profile_assets else None,
             )
 
+            # Depois do perfil externo, porque bibliometria e notícias entram no
+            # prompt do resumo (mesma ordem do lote).
+            resumo_payload: dict = {}
+            if body.gerar_resumo:
+                resumo_payload = await gerar_resumo_para_artefatos(
+                    nome=nome,
+                    pdf_bytes=cache_hit.file_bytes or b"",
+                    html_text=profile_assets.html_text if profile_assets else None,
+                    html_source=profile_assets.html_source if profile_assets else None,
+                    add_log=add_log,
+                    perfil_externo=perfil_externo,
+                )
+
             artifacts = ensure_curriculo_artifacts(
                 nome=nome,
                 ultima_atualizacao=(
@@ -154,6 +168,7 @@ async def scrape(request: Request, body: ScrapeRequest):
                 photo_content_type=(
                     profile_assets.photo_content_type if profile_assets else None
                 ),
+                resumo_ia=resumo_payload.get("resumo"),
                 perfil_externo=perfil_externo,
             )
             add_log(
@@ -181,6 +196,7 @@ async def scrape(request: Request, body: ScrapeRequest):
                 "duracao_segundos": round(perf_counter() - t_total, 2),
                 **artifacts_to_payload(artifacts),
                 **build_curriculo_history_payload(nome),
+                **resumo_payload,
                 **perfil_externo_payload_fields(perfil_externo),
             }
 
@@ -231,6 +247,17 @@ async def scrape(request: Request, body: ScrapeRequest):
             html_source=scrape_result.html_source,
         )
 
+        resumo_payload = {}
+        if body.gerar_resumo:
+            resumo_payload = await gerar_resumo_para_artefatos(
+                nome=nome,
+                pdf_bytes=scrape_result.pdf_bytes,
+                html_text=scrape_result.html_text,
+                html_source=scrape_result.html_source,
+                add_log=add_log,
+                perfil_externo=perfil_externo,
+            )
+
         artifacts = ensure_curriculo_artifacts(
             nome=nome,
             ultima_atualizacao=scrape_result.ultima_atualizacao,
@@ -244,6 +271,7 @@ async def scrape(request: Request, body: ScrapeRequest):
             html_source=scrape_result.html_source,
             photo_bytes=scrape_result.photo_bytes,
             photo_content_type=scrape_result.photo_content_type,
+            resumo_ia=resumo_payload.get("resumo"),
             perfil_externo=perfil_externo,
         )
         add_log(
@@ -265,6 +293,7 @@ async def scrape(request: Request, body: ScrapeRequest):
             "duracao_segundos": round(perf_counter() - t_total, 2),
             **artifacts_to_payload(artifacts),
             **build_curriculo_history_payload(nome),
+            **resumo_payload,
             **perfil_externo_payload_fields(perfil_externo),
         }
     except HTTPException as exc:

@@ -11,13 +11,10 @@ from ...core.exporter import (
     download_artifact_bytes,
     DEFAULT_OUTPUT_FORMAT,
     ensure_curriculo_artifacts,
-    extrair_textos_curriculo,
     normalize_output_format,
     upload_batch_zip,
 )
 from ...core.scraper import scrape_lattes, scrape_lattes_ultima_atualizacao
-from ...core.perfil_externo import PerfilExterno
-from ...core.summarizer import resumir_curriculo
 from ...core.storage import (
     find_fresh_curriculo_pdf,
     upload_curriculo_pdf,
@@ -36,10 +33,9 @@ from ...models import OutputFormat
 from .._limiter import limiter
 from ._helpers import (
     build_curriculo_history_payload,
-    bibliometria_publicavel,
     descartar_perfil_externo,
+    gerar_resumo_para_artefatos,
     iniciar_perfil_externo,
-    noticias_publicaveis,
     perfil_externo_payload_fields,
     resolver_perfil_externo,
     serialize_cache_version,
@@ -47,56 +43,6 @@ from ._helpers import (
 )
 
 router = APIRouter()
-
-
-async def _gerar_resumo_lote(
-    *,
-    nome: str,
-    pdf_bytes: bytes,
-    html_text: Optional[str],
-    html_source: Optional[str],
-    add_log: Callable[[str], None],
-    idx: int,
-    total: int,
-    perfil_externo: Optional[PerfilExterno] = None,
-) -> dict[str, Any]:
-    """Gera resumo por IA (currículo completo, Ollama default) reusando os bytes
-    já scrapeados. Erros são isolados: nunca derrubam o item do lote."""
-    t_ia = perf_counter()
-    try:
-        texto, texto_pdf, texto_html = extrair_textos_curriculo(
-            pdf_bytes, html_text, html_source
-        )
-        if not texto.strip():
-            raise ValueError("Texto-base vazio; não há conteúdo para resumir.")
-        resumo = await resumir_curriculo(
-            texto,
-            texto_pdf=texto_pdf,
-            texto_html=texto_html,
-            secao=None,
-            noticias=noticias_publicaveis(perfil_externo),
-            bibliometria=bibliometria_publicavel(perfil_externo),
-            log=add_log,
-        )
-        duracao = round(perf_counter() - t_ia, 2)
-        add_log(f"[{idx}/{total}] Resumo por IA gerado para '{nome}' em {duracao}s.")
-        return {
-            "resumo": resumo,
-            "resumo_status": "ok",
-            "resumo_duracao_segundos": duracao,
-        }
-    except Exception as exc:
-        info = summarize_exception(exc)
-        add_log(
-            f"[{idx}/{total}] Falha ao gerar resumo por IA para '{nome}' "
-            f"(item segue como sucesso): {info['resumo']}"
-        )
-        return {
-            "resumo": None,
-            "resumo_status": "erro",
-            "resumo_erro": info["resumo"],
-            "resumo_duracao_segundos": round(perf_counter() - t_ia, 2),
-        }
 
 
 async def _prepare_batch_input(
@@ -272,15 +218,14 @@ async def _process_batch(
 
                     resumo_payload: dict[str, Any] = {}
                     if gerar_resumo:
-                        resumo_payload = await _gerar_resumo_lote(
+                        resumo_payload = await gerar_resumo_para_artefatos(
                             nome=nome,
                             pdf_bytes=cache_hit.file_bytes or b"",
                             html_text=None,
                             html_source=None,
                             add_log=add_log,
-                            idx=idx,
-                            total=len(nomes),
                             perfil_externo=perfil_externo,
+                            prefixo_log=f"[{idx}/{len(nomes)}] ",
                         )
                         if resumo_payload.get("resumo_status") == "ok":
                             resumos_gerados += 1
@@ -358,15 +303,14 @@ async def _process_batch(
 
             resumo_payload = {}
             if gerar_resumo:
-                resumo_payload = await _gerar_resumo_lote(
+                resumo_payload = await gerar_resumo_para_artefatos(
                     nome=nome,
                     pdf_bytes=scrape_result.pdf_bytes,
                     html_text=scrape_result.html_text,
                     html_source=scrape_result.html_source,
                     add_log=add_log,
-                    idx=idx,
-                    total=len(nomes),
                     perfil_externo=perfil_externo,
+                    prefixo_log=f"[{idx}/{len(nomes)}] ",
                 )
                 if resumo_payload.get("resumo_status") == "ok":
                     resumos_gerados += 1

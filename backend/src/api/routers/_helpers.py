@@ -1,5 +1,6 @@
 import asyncio
 import json
+from time import perf_counter
 from typing import Any, Callable, Optional
 
 from ...core.curriculo_diff import build_curriculo_text_diff
@@ -12,6 +13,8 @@ from ...core.perfil_externo import (
 )
 from ...core.perfil_externo_cache import get_perfil_externo
 from ...core.storage import download_storage_file_bytes, get_curriculo_pdf_history
+from ...core.summarizer import resumir_curriculo
+from ...libs.logging import summarize_exception
 
 
 def sse_event(event: str, payload: object) -> str:
@@ -119,6 +122,60 @@ def bibliometria_publicavel(
     if perfil is None or not perfil.publicavel:
         return None
     return perfil.bibliometria
+
+
+async def gerar_resumo_para_artefatos(
+    *,
+    nome: str,
+    pdf_bytes: bytes,
+    html_text: Optional[str],
+    html_source: Optional[str],
+    add_log: Callable[[str], None],
+    perfil_externo: Optional[PerfilExterno] = None,
+    prefixo_log: str = "",
+) -> dict[str, Any]:
+    """Gera o resumo por IA (currículo completo, Ollama default) reusando os
+    bytes já scrapeados, para que ele possa ser embutido nos artefatos.
+
+    Erros ficam isolados: o resumo é um extra sobre artefatos que já valem por
+    si, então a falha vira `resumo_status="erro"` no payload e nunca derruba a
+    requisição. Vale igual no lote (o item segue como sucesso) e no /scrape.
+    """
+    t_ia = perf_counter()
+    try:
+        texto, texto_pdf, texto_html = extrair_textos_curriculo(
+            pdf_bytes, html_text, html_source
+        )
+        if not texto.strip():
+            raise ValueError("Texto-base vazio; não há conteúdo para resumir.")
+        resumo = await resumir_curriculo(
+            texto,
+            texto_pdf=texto_pdf,
+            texto_html=texto_html,
+            secao=None,
+            noticias=noticias_publicaveis(perfil_externo),
+            bibliometria=bibliometria_publicavel(perfil_externo),
+            log=add_log,
+        )
+        duracao = round(perf_counter() - t_ia, 2)
+        add_log(f"{prefixo_log}Resumo por IA gerado para '{nome}' em {duracao}s.")
+        return {
+            "resumo": resumo,
+            "resumo_status": "ok",
+            "resumo_duracao_segundos": duracao,
+        }
+    except Exception as exc:
+        info = summarize_exception(exc)
+        add_log(
+            f"{prefixo_log}Falha ao gerar resumo por IA para '{nome}' "
+            f"(seguindo com os artefatos sem ele): {info['resumo']}"
+        )
+        return {
+            "resumo": None,
+            "resumo_status": "erro",
+            "resumo_erro": info["resumo"],
+            "resumo_duracao_segundos": round(perf_counter() - t_ia, 2),
+        }
 
 
 def perfil_externo_payload_fields(perfil: Optional[PerfilExterno]) -> dict[str, Any]:
