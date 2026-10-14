@@ -2,13 +2,13 @@
 #   front -> https://lattes.sup.fai.ufscar.br
 #   API   -> https://lattes-api.sup.fai.ufscar.br
 # Auto-carregado por `docker compose up` (NAO no fluxo dev com -f explicito).
-# ponytail: front segue publicado em 200.136.209.229:3001 durante a transicao
-# (coexiste com grafana em 127.0.0.1:3001); o Caddy faz proxy pra esse bind.
-# Depois de validar o dominio, da pra trocar por "127.0.0.1:3001:3000" e fechar
-# o acesso HTTP direto (lembrar que 127.0.0.1:3001 e do grafana -> use outra porta).
+# Desde 14/10/2026 front e API escutam so no loopback; acesso de fora so pelo Caddy.
+# Front em 127.0.0.1:3002 (a 3001 e do Grafana). Antes ficava em 200.136.209.229:3001,
+# que fugia do UFW e que nem o proprio host alcancava (lattes.sup dava 502 desde 07/10).
 services:
   backend:
     restart: unless-stopped
+    command: [uv, run, uvicorn, src.api.main:app, --host, 127.0.0.1, --port, "${BACKEND_PORT:-8001}"]
   frontend:
     restart: unless-stopped
     build:
@@ -20,4 +20,4 @@ services:
     environment:
       - NEXT_PUBLIC_API_URL=https://lattes-api.sup.fai.ufscar.br
     ports: !override
-      - "200.136.209.229:3001:3000"
+      - "127.0.0.1:3002:3000"
